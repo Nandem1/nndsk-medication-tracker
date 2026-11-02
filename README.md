@@ -88,3 +88,7 @@ Los códigos esperados son 200, 503 y 200. `sh scripts/verify-db-outage.sh` auto
 `services/api/cmd/api` compone configuración, pool y servidor. `internal/config` valida entorno y `internal/http` implementa las probes. `infrastructure/migrations` contiene únicamente users. `packages/contracts/openapi.yaml` documenta las rutas. `docs/decisions/0001-bootstrap.md` registra las alternativas y límites.
 
 Los directorios futuros usan `.gitkeep`. No hay .xcodeproj, Gradle Wrapper, package.json web, sqlc ni generación de clientes hasta sus fases correspondientes. F1 requiere una solicitud nueva y comienza por pruebas de invariantes del dominio.
+
+## Mapa de arquitectura
+
+El [mapa del monorepo](docs/00-home.md) describe el sistema implementado y enlaza los mapas locales de iOS, Android y web. La [política Living Architecture](AGENTS.md#living-architecture) define cuándo actualizarlos.
