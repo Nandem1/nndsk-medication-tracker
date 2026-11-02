@@ -505,15 +505,17 @@ saldo = SUM(inventory_movements.quantity_delta)
 
 ### F1 — Dominio de tratamientos, dosis e inventario (backend primero)
 
-- [ ] Escribir tests de invariantes **antes** de los handlers.
-- [ ] Migraciones de pacientes/vínculos, tratamientos, revisiones de pauta, ocurrencias, eventos e inventario.
-- [ ] Índices, FKs, constraints, transacciones e idempotencia.
-- [ ] Servicios de casos de uso: `CreateTreatment`, `GenerateOccurrences`, `RecordDoseEvent`, `CorrectDoseEvent`, `ReplenishInventory`, `GetInventoryProjection`.
-- [ ] Generador de agenda que respeta fecha local, zona IANA y revisiones de pauta; definir horizonte fijo y regeneración incremental.
-- [ ] Tests de DST `America/Santiago`, fin/inicio de mes, cambios de pauta, duplicados, concurrencia, stock decimal y correcciones.
-- [ ] `sqlc` opcional si compensa la generación; elegirlo y fijar configuración antes de escribir queries repetidas.
+- [x] Escribir tests de invariantes **antes** de los handlers.
+- [x] Migraciones de pacientes/vínculos, tratamientos, revisiones de pauta, ocurrencias, eventos e inventario.
+- [x] Índices, FKs, constraints, transacciones e idempotencia.
+- [x] Servicios de casos de uso: `CreateTreatment`, `GenerateOccurrences`, `RecordDoseEvent`, `CorrectDoseEvent`, `ReplenishInventory`, `GetInventoryProjection`.
+- [x] Generador de agenda que respeta fecha local, zona IANA y revisiones de pauta; definir horizonte fijo y regeneración incremental.
+- [x] Tests de DST `America/Santiago`, fin/inicio de mes, cambios de pauta, duplicados, concurrencia, stock decimal y correcciones.
+- [x] `sqlc` opcional si compensa la generación; elegirlo y fijar configuración antes de escribir queries repetidas. F1 usa pgx directamente, sin sqlc, según [ADR](docs/decisions/0002-f1-domain.md).
 
 **DoD:** tests integrados con PostgreSQL reproducen confirmación única, retries idempotentes, omisiones, correcciones y stock correcto en carrera.
+
+Evidencia local y límites de F1 en [verificación F1](docs/runbooks/f1-verification.md). No hay handlers de dominio, autenticación, UI ni worker implementados.
 
 ### F2 — Contrato HTTP, identidad y permisos
 

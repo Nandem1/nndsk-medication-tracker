@@ -1,6 +1,6 @@
 # Medication Tracker
 
-F0 prepara la API Go y PostgreSQL local. Las apps iOS, Android y web son carpetas reservadas. No hay autenticación, tratamientos, inventario ni worker implementados.
+F1 incorpora el dominio backend de tratamientos, agenda, declaraciones e inventario. La API HTTP sigue exponiendo sólo las probes de F0. Las apps iOS, Android y web son carpetas reservadas. No hay autenticación ni worker implementados.
 
 ## Herramientas y versiones
 
@@ -53,20 +53,23 @@ La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de b
 | `make test` | Pruebas unitarias con detector de carreras |
 | `make lint` | Comprobar gofmt y ejecutar go vet |
 | `make migrate-up` | Aplicar migraciones goose |
-| `make migrate-down` | Revertir una migración, elimina users en F0 |
+| `make migrate-down` | Revertir una migración; puede eliminar tablas y sus datos |
 | `make migrate-status` | Ver estado de migraciones |
-| `make test-integration` | Prueba HTTP con PostgreSQL real; exige TEST_DATABASE_URL |
+| `make test-integration` | Probes y casos de uso F1 con PostgreSQL real; exige TEST_DATABASE_URL y migraciones aplicadas |
 | `sh scripts/smoke.sh` | Arrancar binario, probar probes y verificar SIGTERM |
 | `make generate` | Fallar con explicación; generación aún no configurada |
 
-No ejecutar migrate-down sobre información que se quiera conservar. Para comprobar up/down/up usar una base nueva y desechable. No borrar volúmenes como parte del arranque normal.
+No ejecutar migrate-down sobre información que se quiera conservar. Para comprobar up/down/up usar una base nueva y desechable. No borrar volúmenes como parte del arranque normal. Las pruebas de F1 insertan fixtures sintéticos y conservan su historial append-only; requieren una base de pruebas dedicada.
 
 ```sh
-make migrate-up
-make migrate-down
-make migrate-up
-TEST_DATABASE_URL='postgres://medication_dev:local_only_change_me@127.0.0.1:55433/medication_tracker?sslmode=disable' make test-integration
-sh scripts/smoke.sh
+docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" medication_f1_test'
+export DATABASE_URL='postgres://medication_dev:local_only_change_me@127.0.0.1:55433/medication_f1_test?sslmode=disable'
+export TEST_DATABASE_URL="$DATABASE_URL"
+# Goose recibe directamente la URL de la base desechable.
+GOOSE_DRIVER=postgres GOOSE_DBSTRING="$DATABASE_URL" .bin/goose-v3.29.0 -dir infrastructure/migrations up
+make test-integration
+GOOSE_DRIVER=postgres GOOSE_DBSTRING="$DATABASE_URL" .bin/goose-v3.29.0 -dir infrastructure/migrations down
+GOOSE_DRIVER=postgres GOOSE_DBSTRING="$DATABASE_URL" .bin/goose-v3.29.0 -dir infrastructure/migrations up
 ```
 
 Las pruebas unitarias simulan resultados de Ping para cubrir contrato, cancelación y errores. La prueba con tag integration exige una DB real, consulta por HTTP y cierra su pool para comprobar 503 sin detener PostgreSQL. No se omite silenciosamente si falta TEST_DATABASE_URL.
@@ -85,9 +88,9 @@ Los códigos esperados son 200, 503 y 200. `sh scripts/verify-db-outage.sh` auto
 
 ## Estructura y siguientes fases
 
-`services/api/cmd/api` compone configuración, pool y servidor. `internal/config` valida entorno y `internal/http` implementa las probes. `infrastructure/migrations` contiene únicamente users. `packages/contracts/openapi.yaml` documenta las rutas. `docs/decisions/0001-bootstrap.md` registra las alternativas y límites.
+`services/api/cmd/api` compone configuración, pool y servidor. `internal/config` valida entorno y `internal/http` implementa las probes. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` implementa los casos de uso transaccionales de F1. `infrastructure/migrations` contiene usuarios y las tablas del dominio. `packages/contracts/openapi.yaml` sigue documentando únicamente las probes.
 
-Los directorios futuros usan `.gitkeep`. No hay .xcodeproj, Gradle Wrapper, package.json web, sqlc ni generación de clientes hasta sus fases correspondientes. F1 requiere una solicitud nueva y comienza por pruebas de invariantes del dominio.
+Los directorios futuros usan `.gitkeep`. No hay .xcodeproj, Gradle Wrapper, package.json web ni generación de clientes. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta por qué se usa pgx directamente sin sqlc. F2 requiere una solicitud nueva para conectar contrato HTTP, identidad y permisos. Los servicios F1 no deben exponerse directamente a clientes sin esa frontera.
 
 ## Mapa de arquitectura
 
