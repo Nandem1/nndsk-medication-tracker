@@ -1,0 +1,38 @@
+name: Go
+on:
+  push:
+    paths: ['services/api/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
+  pull_request:
+    paths: ['services/api/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: medication_dev
+          POSTGRES_PASSWORD: local_only_change_me
+          POSTGRES_DB: medication_tracker
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U medication_dev -d medication_tracker"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://medication_dev:local_only_change_me@127.0.0.1:5432/medication_tracker?sslmode=disable
+      TEST_DATABASE_URL: postgres://medication_dev:local_only_change_me@127.0.0.1:5432/medication_tracker?sslmode=disable
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: services/api/go.mod
+          cache-dependency-path: services/api/go.sum
+      - run: make build test lint
+      - run: |
+          make migrate-up
+          make migrate-down
+          make migrate-up
+      - run: make test-integration
+      - run: sh scripts/smoke.sh

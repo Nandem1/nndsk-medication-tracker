@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+.bin/
+.tmp/
+coverage.out
+*.test
+node_modules/
+dist/
+.build/
+DerivedData/
+.gradle/
+local.properties

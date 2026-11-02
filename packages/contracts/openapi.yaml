@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: Medication Tracker bootstrap API
+  version: 0.1.0
+  description: |
+    F0 exposes operational probes only. Future business routes use /v1,
+    plural kebab-case resources, camelCase path parameters, snake_case JSON
+    properties, UUID identifiers and RFC 3339 timestamps. Operation IDs use camelCase.
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Check HTTP process liveness without PostgreSQL
+      responses:
+        '200':
+          description: HTTP process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: Check PostgreSQL connectivity within two seconds
+      responses:
+        '200':
+          description: PostgreSQL accepts connections
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ready
+        '503':
+          description: PostgreSQL is unavailable or the check timed out
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: not_ready
