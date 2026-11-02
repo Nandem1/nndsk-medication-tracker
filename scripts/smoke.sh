@@ -7,6 +7,7 @@ if [ -f .env ]; then
   set +a
 fi
 export DATABASE_URL="${TEST_DATABASE_URL:-${DATABASE_URL:?Set TEST_DATABASE_URL or DATABASE_URL}}"
+export FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-demo-medication-smoke}"
 export HTTP_ADDR="${SMOKE_HTTP_ADDR:-127.0.0.1:18080}"
 make build
 work=$(mktemp -d)

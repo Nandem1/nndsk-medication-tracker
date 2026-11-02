@@ -3,6 +3,8 @@ package config
 import "testing"
 
 func TestLoad(t *testing.T) {
+	t.Setenv("FIREBASE_PROJECT_ID", "demo-medication-test")
+	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "")
 	for _, tc := range []struct {
 		name, addr, url, env string
 		fail                 bool

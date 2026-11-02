@@ -37,5 +37,5 @@ migrate-status: $(GOOSE)
 	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; : "$${DATABASE_URL:?Set DATABASE_URL or copy .env.example to .env}"; GOOSE_DRIVER=postgres GOOSE_DBSTRING="$$DATABASE_URL" $(GOOSE) -dir infrastructure/migrations status
 
 generate:
-	@echo 'Generation is not configured in F0. Edit packages/contracts/openapi.yaml; choose and pin a generator before enabling this target.' >&2
+	@echo 'F2 uses manual typed HTTP adapters in services/api/internal/http/dto.go. No generator is configured; verify the OpenAPI contract with make test.' >&2
 	@exit 1

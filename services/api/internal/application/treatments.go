@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Service) CreateTreatment(ctx context.Context, c CreateTreatmentCommand) (TreatmentResult, error) {
-	return transact(ctx, s, c.Mutation, "create_treatment", c, func(tx pgx.Tx) (TreatmentResult, error) {
+	return transact(ctx, s, c.Mutation, patientTarget(c.PatientID), ScopeTreatments, "create_treatment", c, func(tx pgx.Tx) (TreatmentResult, error) {
 		var zero TreatmentResult
 		start, err := domain.ParseDate(c.StartsOn)
 		if err != nil || !domain.ValidID(c.PatientID) || strings.TrimSpace(c.Name) == "" || len(c.Name) > 200 || c.InitialStock < 0 || !c.InitialStock.Valid() {
@@ -72,7 +72,7 @@ func insertRevision(ctx context.Context, tx pgx.Tx, r TreatmentResult, schedule 
 	return err
 }
 func (s *Service) ReviseSchedule(ctx context.Context, c ReviseScheduleCommand) (TreatmentResult, error) {
-	return transact(ctx, s, c.Mutation, "revise_schedule", c, func(tx pgx.Tx) (TreatmentResult, error) {
+	return transact(ctx, s, c.Mutation, treatmentTarget(c.TreatmentID), ScopeTreatments, "revise_schedule", c, func(tx pgx.Tx) (TreatmentResult, error) {
 		var r TreatmentResult
 		if !domain.ValidID(c.TreatmentID) || c.ExpectedVersion < 1 || c.EffectiveFrom.Before(s.now()) || c.EffectiveFrom.IsZero() {
 			return r, ErrInvalid
@@ -145,7 +145,7 @@ func revisions(ctx context.Context, tx pgx.Tx, tr string) ([]revision, error) {
 	}
 	return result, rows.Err()
 }
-func (s *Service) GenerateOccurrences(ctx context.Context, treatmentID, from string) (int, error) {
+func (s *Service) GenerateOccurrences(ctx context.Context, actorID, treatmentID, from string) (int, error) {
 	if !domain.ValidID(treatmentID) {
 		return 0, ErrInvalid
 	}
@@ -157,6 +157,18 @@ func (s *Service) GenerateOccurrences(ctx context.Context, treatmentID, from str
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
+	if err = authorize(ctx, tx, actorID, treatmentTarget(treatmentID), ScopeRead); err != nil {
+		return 0, err
+	}
+	count, err := generateOccurrences(ctx, tx, treatmentID, from, domain.HorizonDays)
+	if err != nil {
+		return 0, err
+	}
+	return count, tx.Commit(ctx)
+}
+
+func generateOccurrences(ctx context.Context, tx pgx.Tx, treatmentID, from string, days int) (int, error) {
+	var err error
 	var starts time.Time
 	var ends *time.Time
 	if err = tx.QueryRow(ctx, "SELECT starts_on,ends_on FROM treatments WHERE id=$1 FOR UPDATE", treatmentID).Scan(&starts, &ends); err != nil {
@@ -168,7 +180,7 @@ func (s *Service) GenerateOccurrences(ctx context.Context, treatmentID, from str
 	}
 	count := 0
 	for _, r := range revs {
-		occurrences, err := r.schedule.OccurrencesInWindow(from, domain.HorizonDays, revisionWindow(r, starts, ends))
+		occurrences, err := r.schedule.OccurrencesInWindow(from, days, revisionWindow(r, starts, ends))
 		if err != nil {
 			return 0, err
 		}
@@ -183,7 +195,7 @@ func (s *Service) GenerateOccurrences(ctx context.Context, treatmentID, from str
 			count += int(tag.RowsAffected())
 		}
 	}
-	return count, tx.Commit(ctx)
+	return count, nil
 }
 
 func revisionWindow(r revision, starts time.Time, ends *time.Time) domain.ScheduleWindow {

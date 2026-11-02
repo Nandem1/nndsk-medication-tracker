@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+export FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-demo-medication-smoke}"
 cd "$(dirname "$0")/.."
 set -a
 . ./.env

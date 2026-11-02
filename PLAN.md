@@ -515,17 +515,19 @@ saldo = SUM(inventory_movements.quantity_delta)
 
 **DoD:** tests integrados con PostgreSQL reproducen confirmación única, retries idempotentes, omisiones, correcciones y stock correcto en carrera.
 
-Evidencia local y límites de F1 en [verificación F1](docs/runbooks/f1-verification.md). No hay handlers de dominio, autenticación, UI ni worker implementados.
+Evidencia local y límites de F1 en [verificación F1](docs/runbooks/f1-verification.md). Al cerrar F1 no había handlers de dominio, autenticación, UI ni worker implementados.
 
 ### F2 — Contrato HTTP, identidad y permisos
 
-- [ ] Definir esquemas OpenAPI para tratamientos, agenda, eventos, inventario y errores.
-- [ ] Implementar handlers + middleware de Firebase token verification con modo test seguro aislado.
-- [ ] Vínculo cuidador-paciente: invitación, aceptación, revocación y tests IDOR/BOLA.
-- [ ] Validación de entradas, rate limiting inicial, timeouts, request IDs y logs sin PII médica.
-- [ ] Generar/verificar clientes donde sea práctico, o mantener adaptadores tipados manuales hasta estabilizar contrato.
+- [x] Definir esquemas OpenAPI para tratamientos, agenda, eventos, inventario y errores.
+- [x] Implementar handlers + middleware de Firebase token verification con modo test seguro aislado.
+- [x] Vínculo cuidador-paciente: invitación, aceptación, revocación y tests IDOR/BOLA.
+- [x] Validación de entradas, rate limiting inicial, timeouts, request IDs y logs sin PII médica.
+- [x] Generar/verificar clientes donde sea práctico, o mantener adaptadores tipados manuales hasta estabilizar contrato.
 
 **DoD:** pruebas de API: usuario sin autorización recibe 403/404 seguros, paciente puede operar sus dosis, cuidador autorizado solo opera ámbitos habilitados.
+
+Evidencia local y límites de F2 en [verificación F2](docs/runbooks/f2-verification.md). Sin UI, worker ni despliegue.
 
 ### F3 — Portal web mínimo del cuidador
 

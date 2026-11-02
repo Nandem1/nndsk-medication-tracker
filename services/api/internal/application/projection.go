@@ -9,16 +9,29 @@ import (
 	"medication-tracker/services/api/internal/domain"
 )
 
-func (s *Service) GetInventoryProjection(ctx context.Context, accountID string, from time.Time) (Projection, error) {
+func (s *Service) GetInventoryProjection(ctx context.Context, actorID, accountID string, from time.Time) (Projection, error) {
 	var result Projection
 	if !domain.ValidID(accountID) || from.IsZero() || from.Year() < 1 {
 		return result, ErrInvalid
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadWrite})
 	if err != nil {
 		return result, err
 	}
 	defer tx.Rollback(ctx)
+	if err = authorize(ctx, tx, actorID, accountTarget(accountID), ScopeRead); err != nil {
+		return result, err
+	}
+	result, err = inventoryProjection(ctx, tx, accountID, from)
+	if err != nil {
+		return result, err
+	}
+	return result, tx.Commit(ctx)
+}
+
+func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from time.Time) (Projection, error) {
+	var result Projection
+	var err error
 	var tr string
 	var starts time.Time
 	var ends *time.Time
@@ -104,5 +117,5 @@ func (s *Service) GetInventoryProjection(ctx context.Context, accountID string, 
 		}
 		stock -= o.Quantity
 	}
-	return result, tx.Commit(ctx)
+	return result, nil
 }

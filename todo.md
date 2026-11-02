@@ -13,3 +13,22 @@
 - [x] Verificar migraciones y HTTP contra PostgreSQL real.
 - [x] Documentar resultados y bloqueos.
 - [ ] Commits y PR. skip: usuario prohíbe commits y no solicita PR.
+
+# F2
+
+- [x] `how` over the affected subsystem.
+- [x] `architect` for parallel design exploration.
+- [x] Write the throughput checkpoint as four todo items.
+  - Blocking first steps. Read PLAN.md and trace replay authorization before exposing HTTP.
+  - Independent workstreams. Read-only design exploration runs in parallel. One owner implements the coupled backend in an isolated worktree.
+  - Shared mutable state. The implementation worktree is exclusive. Review and tests run after handoff.
+  - Smallest safe decomposition. One backend owner keeps permissions, transactions and DTOs consistent. Root integrates, documents and verifies.
+- [x] Delegate code-writing to a subagent.
+- [x] Verify on the matching surface.
+- [ ] Rebase into small, ordered commits. skip: user explicitly forbids commits.
+- [ ] If the design is contested, `interrogate` before shipping. skip: no contested design yet.
+- [ ] Run **Opening a PR**. skip: local implementation requested, no publishing.
+
+Architecture steps: Ground and Sketch completed through source inspection and independent proposals. Agree uses the authorized F2 scope. Implement pending. Scrap applies only if implementation invalidates the design.
+
+F2 implementada y verificada. El runbook `docs/runbooks/f2-verification.md` registra comandos, resultados y límites. F3 no iniciada.

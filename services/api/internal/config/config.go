@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	HTTPAddr    string
-	DatabaseURL string
+	HTTPAddr          string
+	DatabaseURL       string
+	FirebaseProjectID string
 }
 
 func Load() (Config, error) {
@@ -38,6 +39,13 @@ func Load() (Config, error) {
 		}
 	default:
 		return Config{}, errors.New("APP_ENV must be development, test or production")
+	}
+	if os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
+		return Config{}, errors.New("Firebase emulator environment is forbidden in the API executable")
+	}
+	c.FirebaseProjectID = os.Getenv("FIREBASE_PROJECT_ID")
+	if c.FirebaseProjectID == "" || c.FirebaseProjectID == "replace-me" {
+		return Config{}, errors.New("FIREBASE_PROJECT_ID is required")
 	}
 	return c, nil
 }

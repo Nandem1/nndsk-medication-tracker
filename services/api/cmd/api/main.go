@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"medication-tracker/services/api/internal/application"
+	"medication-tracker/services/api/internal/auth"
 	"medication-tracker/services/api/internal/config"
 	httpapi "medication-tracker/services/api/internal/http"
 )
@@ -38,7 +40,11 @@ func run(logger *slog.Logger) error {
 		return errors.New("cannot initialize PostgreSQL pool")
 	}
 	defer pool.Close()
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewHandler(pool.Ping), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	verifier, err := auth.NewFirebase(context.Background(), cfg.FirebaseProjectID)
+	if err != nil {
+		return err
+	}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewAPI(pool.Ping, application.New(pool, nil), verifier, logger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)

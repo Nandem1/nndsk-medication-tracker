@@ -1,57 +1,1897 @@
-openapi: 3.1.0
-info:
-  title: Medication Tracker bootstrap API
-  version: 0.1.0
-  description: |
-    F0 exposes operational probes only. Future business routes use /v1,
-    plural kebab-case resources, camelCase path parameters, snake_case JSON
-    properties, UUID identifiers and RFC 3339 timestamps. Operation IDs use camelCase.
-servers:
-  - url: http://127.0.0.1:8080
-paths:
-  /healthz:
-    get:
-      operationId: getHealth
-      summary: Check HTTP process liveness without PostgreSQL
-      responses:
-        '200':
-          description: HTTP process is alive
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [status]
-                properties:
-                  status:
-                    type: string
-                    const: ok
-  /readyz:
-    get:
-      operationId: getReadiness
-      summary: Check PostgreSQL connectivity within two seconds
-      responses:
-        '200':
-          description: PostgreSQL accepts connections
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [status]
-                properties:
-                  status:
-                    type: string
-                    const: ready
-        '503':
-          description: PostgreSQL is unavailable or the check timed out
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [status]
-                properties:
-                  status:
-                    type: string
-                    const: not_ready
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Medication Tracker API",
+    "version": "0.2.0",
+    "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. No UI, worker or future-phase routes."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080"
+    }
+  ],
+  "security": [
+    {
+      "firebase": []
+    }
+  ],
+  "paths": {
+    "/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "description": "Verified identity and up to 100 currently accessible patients. No identity fields accepted from the caller.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
+          }
+        ]
+      }
+    },
+    "/v1/patients": {
+      "get": {
+        "operationId": "listPatients",
+        "description": "Own profile and active accepted caregiver permissions. At most 100 items per page.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientAccessPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
+          }
+        ]
+      }
+    },
+    "/v1/invitations": {
+      "post": {
+        "operationId": "createInvitation",
+        "description": "Caregiver requests scopes including read. Token returned once, hash only persisted, expires in 24 hours. Retrying creation with the same operation ID returns 409; create a new invitation when the original response is lost.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "description": "Authenticated accepting user becomes patient. Single-use invitation. Same actor, operation ID and token replay returns original result only while that acceptance remains active. Self-acceptance and consumed or expired tokens conflict.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/caregiver-links/{linkId}": {
+      "delete": {
+        "operationId": "revokeCaregiverLink",
+        "description": "Patient or linked caregiver may revoke. Naturally idempotent DELETE needs no operation ID. Subsequent reads, mutations and replay are denied.",
+        "responses": {
+          "204": {
+            "description": "Access revoked. Repeating the DELETE remains successful."
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/treatments": {
+      "get": {
+        "operationId": "listTreatments",
+        "description": "Requires self or read scope. At most 100 items per page.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTreatment",
+        "description": "Requires self or treatments scope. Includes initial stock. Future replenishments require inventory scope.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTreatment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/treatments/{treatmentId}/schedule-revisions": {
+      "post": {
+        "operationId": "reviseSchedule",
+        "description": "Requires self or treatments scope. Only future revisions with expected version. Past history remains unchanged.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "treatmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseSchedule"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/patients/{patientId}/doses": {
+      "get": {
+        "operationId": "listDoses",
+        "description": "Requires self or read scope. Local dates [from,to), at most 30 days. Materializes occurrences idempotently without a worker. 100 UUID-ordered rows per page; clients sort by scheduled_at after fetching all pages. Past pending declarations display unconfirmed, never skipped.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DosePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
+          }
+        ]
+      }
+    },
+    "/v1/doses/{doseId}/events": {
+      "post": {
+        "operationId": "recordDoseEvent",
+        "description": "Requires self or doses scope. taken_late requires occurred_at; skipped forbids it. Future occurrence conflicts. The actor comes exclusively from verified identity. Retries preserve original response.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoseEvent"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/doses/{doseId}/corrections": {
+      "post": {
+        "operationId": "correctDoseEvent",
+        "description": "Requires self or doses scope. References the current event, expected version and a reason. Appends audit and compensating stock movement.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "doseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Correction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/patients/{patientId}/inventory": {
+      "get": {
+        "operationId": "listInventory",
+        "description": "Requires self or read scope. Exact ledger balance and 30-local-day scheduled projection. 100 accounts per page.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
+          }
+        ]
+      }
+    },
+    "/v1/inventory/{accountId}/movements": {
+      "post": {
+        "operationId": "replenishInventory",
+        "description": "Requires self or inventory scope. Positive replenishment only. Physical count adjustments are outside F2.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Replenish"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "getReadiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "firebase": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Firebase ID token"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "details"
+        ]
+      },
+      "Status": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "ready",
+              "not_ready"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "Slot": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "time": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "time",
+          "quantity"
+        ]
+      },
+      "Schedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dst_policy": {
+            "type": "string",
+            "enum": [
+              "reject",
+              "next_valid_earliest"
+            ]
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 7
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Slot"
+            },
+            "minItems": 1,
+            "maxItems": 24
+          }
+        },
+        "required": [
+          "timezone",
+          "dst_policy",
+          "weekdays",
+          "slots"
+        ]
+      },
+      "PatientAccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "link_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          }
+        },
+        "required": [
+          "patient_id",
+          "link_id",
+          "scopes"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatientAccess"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "patients",
+          "next_cursor"
+        ]
+      },
+      "CreateTreatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "strength_label": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "form": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "package_label": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "tablet",
+              "capsule",
+              "ml",
+              "dose",
+              "other"
+            ]
+          },
+          "initial_stock": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "name",
+          "unit",
+          "initial_stock",
+          "starts_on",
+          "schedule"
+        ]
+      },
+      "TreatmentResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "treatment_id",
+          "revision_id",
+          "account_id",
+          "version"
+        ]
+      },
+      "Treatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "medication_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "strength_label": {
+            "type": "string"
+          },
+          "form": {
+            "type": "string"
+          },
+          "package_label": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "tablet",
+              "capsule",
+              "ml",
+              "dose",
+              "other"
+            ]
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          }
+        },
+        "required": [
+          "treatment_id",
+          "revision_id",
+          "account_id",
+          "version",
+          "medication_id",
+          "name",
+          "strength_label",
+          "form",
+          "package_label",
+          "instructions",
+          "starts_on",
+          "ends_on",
+          "unit",
+          "schedule"
+        ]
+      },
+      "ReviseSchedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "effective_from",
+          "schedule"
+        ]
+      },
+      "DoseEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "taken",
+              "taken_late",
+              "skipped"
+            ]
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "event_type"
+        ]
+      },
+      "Correction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "taken",
+              "taken_late",
+              "skipped"
+            ]
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrects_event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "event_type",
+          "corrects_event_id",
+          "reason"
+        ]
+      },
+      "DoseResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dose_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "taken",
+              "taken_late",
+              "skipped"
+            ]
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "dose_id",
+          "event_id",
+          "version",
+          "state",
+          "balance"
+        ]
+      },
+      "Dose": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dose_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "local_time": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "dst_adjusted": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "unconfirmed",
+              "taken",
+              "taken_late",
+              "skipped"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "dose_id",
+          "treatment_id",
+          "revision_id",
+          "scheduled_at",
+          "local_date",
+          "local_time",
+          "timezone",
+          "dst_adjusted",
+          "quantity",
+          "state",
+          "version",
+          "event_id"
+        ]
+      },
+      "Replenish": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "quantity"
+        ]
+      },
+      "InventoryResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "movement_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "movement_id",
+          "balance"
+        ]
+      },
+      "Projection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "unit": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "through": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "first_uncovered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scheduled_quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "account_id",
+          "treatment_id",
+          "balance",
+          "unit",
+          "from",
+          "through",
+          "first_uncovered_at",
+          "scheduled_quantity"
+        ]
+      },
+      "CreateInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 4,
+            "contains": {
+              "const": "read"
+            }
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "scopes"
+        ]
+      },
+      "Invitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "token",
+          "expires_at"
+        ]
+      },
+      "AcceptInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "token"
+        ]
+      },
+      "Link": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "link_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patient_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiver_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "const": "active"
+          }
+        },
+        "required": [
+          "link_id",
+          "patient_id",
+          "caregiver_id",
+          "scopes",
+          "status"
+        ]
+      },
+      "PatientAccessPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatientAccess"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Last returned UUID, or empty when complete."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "TreatmentPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Treatment"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Last returned UUID, or empty when complete."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "DosePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dose"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Last returned UUID, or empty when complete."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "ProjectionPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Projection"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Last returned UUID, or empty when complete."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "Malformed JSON",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error401": {
+        "description": "Invalid or missing identity",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error404": {
+        "description": "Absent or unauthorized object",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error409": {
+        "description": "Conflict or idempotency key reuse",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error413": {
+        "description": "Payload exceeds 65536 bytes",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error415": {
+        "description": "Use application/json",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error422": {
+        "description": "Invalid input",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error429": {
+        "description": "Rate limit exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error500": {
+        "description": "Internal failure",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error504": {
+        "description": "Request timeout",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

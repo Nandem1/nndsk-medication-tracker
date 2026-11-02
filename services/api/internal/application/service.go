@@ -105,7 +105,7 @@ type Projection struct {
 	ScheduledQuantity domain.Quantity
 }
 
-func transact[T any](ctx context.Context, s *Service, m Mutation, kind string, payload any, work func(pgx.Tx) (T, error)) (T, error) {
+func transact[T any](ctx context.Context, s *Service, m Mutation, target accessTarget, scope Scope, kind string, payload any, work func(pgx.Tx) (T, error)) (T, error) {
 	var zero T
 	if !domain.ValidID(m.ActorID) || !domain.ValidID(m.OperationID) {
 		return zero, ErrInvalid
@@ -122,6 +122,9 @@ func transact[T any](ctx context.Context, s *Service, m Mutation, kind string, p
 	defer tx.Rollback(ctx)
 	// Serializing the operation key makes simultaneous retries see the committed response.
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", strings.ToLower(m.ActorID+"/"+m.OperationID)); err != nil {
+		return zero, err
+	}
+	if err = authorize(ctx, tx, m.ActorID, target, scope); err != nil {
 		return zero, err
 	}
 	var storedKind string

@@ -10,12 +10,12 @@ import (
 )
 
 func (s *Service) RecordDoseEvent(ctx context.Context, c RecordDoseEventCommand) (DoseResult, error) {
-	return transact(ctx, s, c.Mutation, "record_dose", c, func(tx pgx.Tx) (DoseResult, error) {
+	return transact(ctx, s, c.Mutation, doseTarget(c.DoseID), ScopeDoses, "record_dose", c, func(tx pgx.Tx) (DoseResult, error) {
 		return s.writeEvent(ctx, tx, c.Mutation, c.DoseID, c.ExpectedVersion, c.State, c.OccurredAt, "", "")
 	})
 }
 func (s *Service) CorrectDoseEvent(ctx context.Context, c CorrectDoseEventCommand) (DoseResult, error) {
-	return transact(ctx, s, c.Mutation, "correct_dose", c, func(tx pgx.Tx) (DoseResult, error) {
+	return transact(ctx, s, c.Mutation, doseTarget(c.DoseID), ScopeDoses, "correct_dose", c, func(tx pgx.Tx) (DoseResult, error) {
 		if !domain.ValidID(c.CorrectsEventID) || strings.TrimSpace(c.Reason) == "" || len(c.Reason) > 1000 {
 			return DoseResult{}, ErrInvalid
 		}
@@ -121,7 +121,7 @@ func (s *Service) writeEvent(ctx context.Context, tx pgx.Tx, m Mutation, id stri
 	return DoseResult{DoseID: id, EventID: eventID, Version: version + 1, State: state, Balance: stock}, nil
 }
 func (s *Service) ReplenishInventory(ctx context.Context, c ReplenishInventoryCommand) (InventoryResult, error) {
-	return transact(ctx, s, c.Mutation, "replenish_inventory", c, func(tx pgx.Tx) (InventoryResult, error) {
+	return transact(ctx, s, c.Mutation, accountTarget(c.AccountID), ScopeInventory, "replenish_inventory", c, func(tx pgx.Tx) (InventoryResult, error) {
 		var zero InventoryResult
 		if !domain.ValidID(c.AccountID) || c.Quantity <= 0 || !c.Quantity.Valid() {
 			return zero, ErrInvalid

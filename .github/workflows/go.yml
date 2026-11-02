@@ -1,9 +1,9 @@
 name: Go
 on:
   push:
-    paths: ['services/api/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
+    paths: ['services/api/**', 'packages/contracts/**', 'scripts/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
   pull_request:
-    paths: ['services/api/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
+    paths: ['services/api/**', 'packages/contracts/**', 'scripts/**', 'infrastructure/migrations/**', 'Makefile', '.github/workflows/go.yml']
 permissions:
   contents: read
 jobs:
@@ -21,6 +21,7 @@ jobs:
           --health-cmd "pg_isready -U medication_dev -d medication_tracker"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
+      FIREBASE_PROJECT_ID: demo-medication-ci
       DATABASE_URL: postgres://medication_dev:local_only_change_me@127.0.0.1:5432/medication_tracker?sslmode=disable
       TEST_DATABASE_URL: postgres://medication_dev:local_only_change_me@127.0.0.1:5432/medication_tracker?sslmode=disable
     steps:

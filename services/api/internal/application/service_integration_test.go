@@ -40,7 +40,7 @@ func treatment(t *testing.T, s *Service, actor string) TreatmentResult {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.GenerateOccurrences(context.Background(), r.TreatmentID, "2026-11-01"); err != nil {
+	if _, err = s.GenerateOccurrences(context.Background(), actor, r.TreatmentID, "2026-11-01"); err != nil {
 		t.Fatal(err)
 	}
 	return r
@@ -108,7 +108,7 @@ func TestDoseIdempotencyCorrectionsAndDecimal(t *testing.T) {
 	if _, err = p.Exec(ctx, "DELETE FROM dose_events WHERE dose_occurrence_id=$1", id); err == nil {
 		t.Fatal("history delete accepted")
 	}
-	projection, err := s.GetInventoryProjection(ctx, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
+	projection, err := s.GetInventoryProjection(ctx, a, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
 	if err != nil || projection.Balance != 9500 || projection.FirstUncoveredAt == nil {
 		t.Fatal(projection, err)
 	}
@@ -157,7 +157,7 @@ func TestConcurrentCommandsAndReplenishment(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := s.GetInventoryProjection(ctx, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
+	got, err := s.GetInventoryProjection(ctx, a, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
 	if err != nil || got.Balance != 9600 {
 		t.Fatal(got, err)
 	}
@@ -177,7 +177,7 @@ func TestSkippedPendingAndRevisionHistory(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	for i := 0; i < 2; i++ {
-		if _, err = s.GenerateOccurrences(ctx, tr.TreatmentID, "2026-11-01"); err != nil {
+		if _, err = s.GenerateOccurrences(ctx, a, tr.TreatmentID, "2026-11-01"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -190,7 +190,7 @@ func TestSkippedPendingAndRevisionHistory(t *testing.T) {
 	if _, err = s.RecordDoseEvent(ctx, RecordDoseEventCommand{Mutation: mutation(a), DoseID: future, ExpectedVersion: 1, State: domain.Taken}); !errors.Is(err, ErrConflict) {
 		t.Fatal("cancelled dose", err)
 	}
-	got, err := s.GetInventoryProjection(ctx, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
+	got, err := s.GetInventoryProjection(ctx, a, tr.AccountID, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
 	if err != nil || got.Balance != 10000 {
 		t.Fatal(got, err)
 	}
@@ -305,7 +305,7 @@ func TestReplenishmentAndDifferentDosesRace(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	projection, e := s.GetInventoryProjection(ctx, tr.AccountID, s.now())
+	projection, e := s.GetInventoryProjection(ctx, a, tr.AccountID, s.now())
 	if e != nil || projection.Balance != 11000 {
 		t.Fatal(projection, e)
 	}
@@ -355,7 +355,7 @@ func TestProjectionDoesNotDependOnMaterialization(t *testing.T) {
 		t.Fatal(err)
 	}
 	from := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
-	projection, err := s.GetInventoryProjection(ctx, tr.AccountID, from)
+	projection, err := s.GetInventoryProjection(ctx, a, tr.AccountID, from)
 	want := time.Date(2026, 11, 3, 20, 0, 0, 0, time.UTC)
 	if err != nil || projection.ScheduledQuantity != 60000 || projection.FirstUncoveredAt == nil || !projection.FirstUncoveredAt.Equal(want) || !projection.Through.Equal(time.Date(2026, 12, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Fatal(projection, err)
@@ -364,7 +364,7 @@ func TestProjectionDoesNotDependOnMaterialization(t *testing.T) {
 	if _, err = s.ReplenishInventory(ctx, replenish); err != nil {
 		t.Fatal(err)
 	}
-	projection, err = s.GetInventoryProjection(ctx, tr.AccountID, from)
+	projection, err = s.GetInventoryProjection(ctx, a, tr.AccountID, from)
 	if err != nil || projection.FirstUncoveredAt != nil {
 		t.Fatal(projection, err)
 	}
@@ -392,7 +392,7 @@ func TestNegativeBalanceAndCorrectionWithoutExtraConsumption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.GenerateOccurrences(ctx, tr.TreatmentID, "2026-11-01"); err != nil {
+	if _, err = s.GenerateOccurrences(ctx, a, tr.TreatmentID, "2026-11-01"); err != nil {
 		t.Fatal(err)
 	}
 	id := dose(t, p, tr.TreatmentID, "2026-11-01")
@@ -429,7 +429,7 @@ func TestRevisionKeepsPastPendingAndConcurrentGeneration(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		_, e := s.GenerateOccurrences(ctx, tr.TreatmentID, "2026-11-01")
+		_, e := s.GenerateOccurrences(ctx, a, tr.TreatmentID, "2026-11-01")
 		errs <- e
 	}()
 	go func() {
@@ -446,7 +446,7 @@ func TestRevisionKeepsPastPendingAndConcurrentGeneration(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	if _, e := s.GenerateOccurrences(ctx, tr.TreatmentID, "2026-11-01"); e != nil {
+	if _, e := s.GenerateOccurrences(ctx, a, tr.TreatmentID, "2026-11-01"); e != nil {
 		t.Fatal(e)
 	}
 	if n := countRows(t, p, "SELECT count(*) FROM dose_occurrences WHERE id=$1 AND status='pending' AND version=1 AND cancelled_at IS NULL", past); n != 1 {
@@ -468,13 +468,13 @@ func TestExpiredRevisionDSTAndBoundedSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.GenerateOccurrences(ctx, tr.TreatmentID, "2026-09-01"); err != nil {
+	if _, err = s.GenerateOccurrences(ctx, a, tr.TreatmentID, "2026-09-01"); err != nil {
 		t.Fatal(err)
 	}
 	if n := countRows(t, p, "SELECT count(*) FROM dose_occurrences WHERE treatment_id=$1 AND cancelled_at IS NULL", tr.TreatmentID); n != 10 {
 		t.Fatal(n)
 	}
-	projection, err := s.GetInventoryProjection(ctx, tr.AccountID, s.now())
+	projection, err := s.GetInventoryProjection(ctx, a, tr.AccountID, s.now())
 	if err != nil || projection.Through.Sub(time.Date(2026, 9, 2, 4, 0, 0, 0, time.UTC)) != 30*24*time.Hour-time.Hour {
 		t.Fatal(projection, err)
 	}
