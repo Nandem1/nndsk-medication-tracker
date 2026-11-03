@@ -10,9 +10,11 @@ dev:
 build:
 	@mkdir -p .bin
 	cd services/api && go build -o ../../.bin/api ./cmd/api
+	pnpm --dir apps/web build
 
 test:
 	cd services/api && go test -race ./...
+	pnpm --dir apps/web test
 
 test-integration:
 	@test -n "$$TEST_DATABASE_URL" || { echo 'Set TEST_DATABASE_URL to a dedicated test database.' >&2; exit 1; }
@@ -21,6 +23,7 @@ test-integration:
 lint:
 	@test -z "$$(cd services/api && gofmt -l .)" || { echo 'Run gofmt on services/api.' >&2; exit 1; }
 	cd services/api && go vet ./...
+	pnpm --dir apps/web lint
 
 $(GOOSE):
 	@mkdir -p .bin
@@ -39,3 +42,14 @@ migrate-status: $(GOOSE)
 generate:
 	@echo 'F2 uses manual typed HTTP adapters in services/api/internal/http/dto.go. No generator is configured; verify the OpenAPI contract with make test.' >&2
 	@exit 1
+
+.PHONY: web-dev web-install test-web-e2e
+web-dev:
+	pnpm --dir apps/web dev
+
+web-install:
+	pnpm --dir apps/web install --frozen-lockfile
+
+test-web-e2e:
+	@test -n "$$TEST_DATABASE_URL" || { echo "Set TEST_DATABASE_URL to a migrated disposable medication_f3_ database." >&2; exit 1; }
+	pnpm --dir apps/web test:e2e

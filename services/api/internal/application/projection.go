@@ -35,7 +35,8 @@ func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from 
 	var tr string
 	var starts time.Time
 	var ends *time.Time
-	if err = tx.QueryRow(ctx, "SELECT a.treatment_id::text,a.unit,t.starts_on,t.ends_on FROM inventory_accounts a JOIN treatments t ON t.id=a.treatment_id WHERE a.id=$1", accountID).Scan(&tr, &result.Unit, &starts, &ends); err != nil {
+	var archived *time.Time
+	if err = tx.QueryRow(ctx, "SELECT a.treatment_id::text,a.unit,t.starts_on,t.ends_on,t.archived_at FROM inventory_accounts a JOIN treatments t ON t.id=a.treatment_id WHERE a.id=$1", accountID).Scan(&tr, &result.Unit, &starts, &ends, &archived); err != nil {
 		return result, translate(err)
 	}
 	result.Balance, err = balance(ctx, tx, accountID)
@@ -69,6 +70,9 @@ func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from 
 		day, _ := domain.ParseDate(from.In(loc).Format("2006-01-02"))
 		last := through.In(loc).Format("2006-01-02")
 		window := revisionWindow(r, starts, ends)
+		if archived != nil && (window.Until == nil || archived.Before(*window.Until)) {
+			window.Until = archived
+		}
 		if window.From.Before(from) {
 			window.From = from
 		}

@@ -1,0 +1,30 @@
+minimumReleaseAgeExclude:
+  - '@firebase/app-compat@0.5.21'
+  - '@firebase/app@0.16.5'
+  - '@firebase/auth-compat@0.6.14'
+  - '@firebase/auth@1.13.9'
+  - '@firebase/crashlytics@0.1.0'
+  - '@firebase/firestore-compat@0.4.17'
+  - '@firebase/firestore@4.19.1'
+  - '@tailwindcss/node@4.3.4'
+  - '@tailwindcss/oxide-android-arm64@4.3.4'
+  - '@tailwindcss/oxide-darwin-arm64@4.3.4'
+  - '@tailwindcss/oxide-darwin-x64@4.3.4'
+  - '@tailwindcss/oxide-freebsd-x64@4.3.4'
+  - '@tailwindcss/oxide-linux-arm-gnueabihf@4.3.4'
+  - '@tailwindcss/oxide-linux-arm64-gnu@4.3.4'
+  - '@tailwindcss/oxide-linux-arm64-musl@4.3.4'
+  - '@tailwindcss/oxide-linux-x64-gnu@4.3.4'
+  - '@tailwindcss/oxide-linux-x64-musl@4.3.4'
+  - '@tailwindcss/oxide-wasm32-wasi@4.3.4'
+  - '@tailwindcss/oxide-win32-arm64-msvc@4.3.4'
+  - '@tailwindcss/oxide-win32-x64-msvc@4.3.4'
+  - '@tailwindcss/oxide@4.3.4'
+  - '@tailwindcss/vite@4.3.4'
+  - '@tanstack/query-core@5.105.3'
+  - '@tanstack/react-query@5.105.3'
+  - firebase@13.2.0
+  - tailwindcss@4.3.4
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false

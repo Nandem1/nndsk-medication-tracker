@@ -11,6 +11,7 @@ import (
 
 type TreatmentView struct {
 	ID            string
+	ArchivedAt    *time.Time
 	MedicationID  string
 	Name          string
 	StrengthLabel string
@@ -67,7 +68,7 @@ func (s *Service) Treatments(ctx context.Context, actor, patient, cursor string)
 	if err = authorize(ctx, tx, actor, patientTarget(patient), ScopeRead); err != nil {
 		return nil, "", err
 	}
-	rows, err := tx.Query(ctx, `SELECT t.id::text,t.medication_id::text,m.name,m.strength_label,m.form,m.package_label,t.instructions_text,t.starts_on::text,t.ends_on::text,t.version,a.id::text,a.unit,r.id::text,r.rules_json FROM treatments t JOIN medications m ON m.id=t.medication_id JOIN inventory_accounts a ON a.treatment_id=t.id JOIN LATERAL (SELECT id,rules_json FROM schedule_revisions WHERE treatment_id=t.id ORDER BY revision_number DESC LIMIT 1) r ON true WHERE t.patient_user_id=$1 AND t.id>$2::uuid ORDER BY t.id LIMIT 101`, patient, cursorValue(cursor))
+	rows, err := tx.Query(ctx, `SELECT t.id::text,t.archived_at,t.medication_id::text,m.name,m.strength_label,m.form,m.package_label,t.instructions_text,t.starts_on::text,t.ends_on::text,t.version,a.id::text,a.unit,r.id::text,r.rules_json FROM treatments t JOIN medications m ON m.id=t.medication_id JOIN inventory_accounts a ON a.treatment_id=t.id JOIN LATERAL (SELECT id,rules_json FROM schedule_revisions WHERE treatment_id=t.id ORDER BY revision_number DESC LIMIT 1) r ON true WHERE t.patient_user_id=$1 AND t.id>$2::uuid ORDER BY t.id LIMIT 101`, patient, cursorValue(cursor))
 	if err != nil {
 		return nil, "", err
 	}
@@ -75,7 +76,7 @@ func (s *Service) Treatments(ctx context.Context, actor, patient, cursor string)
 	for rows.Next() {
 		var v TreatmentView
 		var rules []byte
-		err = rows.Scan(&v.ID, &v.MedicationID, &v.Name, &v.StrengthLabel, &v.Form, &v.PackageLabel, &v.Instructions, &v.StartsOn, &v.EndsOn, &v.Version, &v.AccountID, &v.Unit, &v.RevisionID, &rules)
+		err = rows.Scan(&v.ID, &v.ArchivedAt, &v.MedicationID, &v.Name, &v.StrengthLabel, &v.Form, &v.PackageLabel, &v.Instructions, &v.StartsOn, &v.EndsOn, &v.Version, &v.AccountID, &v.Unit, &v.RevisionID, &rules)
 		if err == nil {
 			err = json.Unmarshal(rules, &v.Schedule)
 		}

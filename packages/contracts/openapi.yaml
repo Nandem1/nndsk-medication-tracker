@@ -865,6 +865,71 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "inventoryMovements",
+        "description": "Paginated immutable ledger. Requires read scope.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementPage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/healthz": {
@@ -911,6 +976,330 @@
             }
           }
         }
+      }
+    },
+    "/v1/treatments/{treatmentId}": {
+      "patch": {
+        "operationId": "updateTreatment",
+        "description": "Updates metadata with version check and append-only audit. Requires treatments scope.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentResult"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "treatmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTreatment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/treatments/{treatmentId}/archive": {
+      "post": {
+        "operationId": "archiveTreatment",
+        "description": "Archives from server time, preserves history, cancels future pending doses. Requires treatments scope.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentResult"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "treatmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveTreatment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inventory/{accountId}/counts": {
+      "post": {
+        "operationId": "recordPhysicalCount",
+        "description": "Auditable physical count, including unchanged counts. Compares expected balance under account lock. Requires inventory scope. Null movement_id when no delta.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhysicalCountResult"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhysicalCount"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/preview": {
+      "post": {
+        "operationId": "previewInvitation",
+        "description": "Previews unconsumed invitation without consuming it. Token only in body.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreview"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewInvitation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/caregiver-links": {
+      "get": {
+        "operationId": "caregiverLinks",
+        "description": "Only links involving the authenticated actor.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPage"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     }
   },
@@ -1250,6 +1639,17 @@
           },
           "schedule": {
             "$ref": "#/components/schemas/Schedule"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1266,7 +1666,8 @@
           "starts_on",
           "ends_on",
           "unit",
-          "schedule"
+          "schedule",
+          "archived_at"
         ]
       },
       "ReviseSchedule": {
@@ -1788,6 +2189,246 @@
         "required": [
           "items",
           "next_cursor"
+        ]
+      },
+      "UpdateTreatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "strength_label": {
+            "type": "string"
+          },
+          "form": {
+            "type": "string"
+          },
+          "package_label": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "name",
+          "strength_label",
+          "form",
+          "package_label",
+          "instructions"
+        ]
+      },
+      "ArchiveTreatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "reason"
+        ]
+      },
+      "PhysicalCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "counted_quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "expected_balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "counted_quantity",
+          "expected_balance",
+          "reason"
+        ]
+      },
+      "PreviewInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "InvitationPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "caregiver_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "caregiver_id",
+          "scopes",
+          "expires_at"
+        ]
+      },
+      "Movement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "movement_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "movement_id",
+          "quantity_delta",
+          "reason",
+          "note",
+          "actor_id",
+          "created_at"
+        ]
+      },
+      "MovementPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "LinkPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "PhysicalCountResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "count_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "movement_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]{1,3})?$",
+            "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
+          }
+        },
+        "required": [
+          "count_id",
+          "movement_id",
+          "balance"
         ]
       }
     },

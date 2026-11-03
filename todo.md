@@ -32,3 +32,23 @@
 Architecture steps: Ground and Sketch completed through source inspection and independent proposals. Agree uses the authorized F2 scope. Implement pending. Scrap applies only if implementation invalidates the design.
 
 F2 implementada y verificada. El runbook `docs/runbooks/f2-verification.md` registra comandos, resultados y límites. F3 no iniciada.
+
+# F3
+
+- [x] `how` over the affected subsystem.
+- [x] `architect` for parallel design exploration.
+- [x] Write the throughput checkpoint as four todo items.
+  - Blocking first steps. Read plan and identify F2 contract gaps before implementation.
+  - Independent workstreams. Read-only architecture exploration; one implementation owner for coupled HTTP and web changes.
+  - Shared mutable state. Isolated worktree; main tree integration only after ownership returns.
+  - Smallest safe decomposition. One owner keeps typed web adapter and HTTP contract consistent.
+- [x] Delegate code-writing to a subagent.
+- [x] Verify on the matching surface.
+- [ ] Rebase into small, ordered commits. skip: user prohibits commits.
+- [ ] If the design is contested, `interrogate` before shipping. skip: only if contested.
+- [ ] Run Opening a PR. skip: user requests local work without commits.
+
+Architect: Ground, Sketch, Agree (no checkpoint requested), Implement, Scrap (only if needed).
+Arena design: Frame, Fan out, Cross-judge, Pick, Graft, Verify.
+
+Design synthesis used small route/feature components, exact strings, versioned editor snapshots and memory-only sessions. The independent review identified lost invitation response recovery and stale-editor version drift; both were fixed and passed real browser regressions. See docs/runbooks/f3-verification.md. No commits, PR or deployment.

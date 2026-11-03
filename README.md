@@ -1,6 +1,6 @@
 # Medication Tracker
 
-F2 conecta el dominio backend con HTTP, identidad Firebase y permisos por paciente. Las apps iOS, Android y web siguen siendo carpetas reservadas. No hay UI ni worker implementados.
+F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. La API Go autoriza cada operación y PostgreSQL conserva auditoría. iOS, Android y el worker permanecen sin implementar.
 
 ## Herramientas y versiones
 
@@ -12,6 +12,16 @@ F2 conecta el dominio backend con HTTP, identidad Firebase y permisos por pacien
 | Firebase Admin Go | v4.22.0 |
 | goose | v3.29.0 |
 | OpenAPI | 3.1.0 |
+| Node verificado | 22.23.4 |
+| pnpm | 12.15.0 |
+| React | 19.3.1 |
+| Vite | 8.3.5 |
+| TypeScript | 7.0.2 |
+| Tailwind | 4.3.4 |
+| TanStack Query / Router | 5.105.3 / 1.170.46 |
+| Firebase cliente | 13.2.0 |
+| Zod | 4.3.6 |
+| Vitest / Playwright | 4.1.0 / 1.64.1 |
 
 Go usa go.mod y go.sum. Goose se instala en `.bin` con versión explícita. Las versiones de pgx y goose se consultaron en proxy.golang.org. La imagen se verificó en el [registro oficial de imágenes](https://github.com/docker-library/official-images/blob/master/library/postgres). PostgreSQL 18 monta el volumen en `/var/lib/postgresql`.
 
@@ -42,7 +52,7 @@ make lint
 
 `make dev` carga `.env` y ejecuta la API en el host. El archivo debe contener asignaciones válidas de shell. Las credenciales de `.env.example` son exclusivamente de desarrollo. PostgreSQL y HTTP escuchan en loopback. Si 55433 está ocupado, cambiar POSTGRES_PORT y el puerto de DATABASE_URL juntos.
 
-La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de base. HTTP_ADDR usa host:puerto y por defecto es `127.0.0.1:8080`. APP_ENV admite development, test y production; production exige `sslmode=verify-full`. No hay un despliegue de producción configurado. FIREBASE_PROJECT_ID identifica el proyecto cuyos ID tokens acepta la API. El valor demo de `.env.example` permite arrancar las probes, pero no habilita identidades ficticias. El ejecutable rechaza FIREBASE_AUTH_EMULATOR_HOST en cualquier entorno. Los verificadores sintéticos existen exclusivamente en archivos de prueba.
+La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de base. HTTP_ADDR usa host:puerto y por defecto es `127.0.0.1:8080`. APP_ENV admite development, test y production; production exige `sslmode=verify-full`. No hay un despliegue de producción configurado. FIREBASE_PROJECT_ID identifica el proyecto cuyos ID tokens acepta la API. El valor demo de `.env.example` permite arrancar las probes, pero no habilita identidades ficticias. El ejecutable rechaza FIREBASE_AUTH_EMULATOR_HOST en cualquier entorno. Los verificadores sintéticos existen en pruebas y en `cmd/e2e`, excluido del ejecutable normal por el build tag `e2e`. Ese servidor exige una base local desechable con prefijo `medication_f3_`.
 
 `/healthz` devuelve 200 y `{"status":"ok"}` sin consultar la DB. `/readyz` hace Ping real y devuelve 200 con `{"status":"ready"}` o 503 con `{"status":"not_ready"}`. Tiene un límite de dos segundos. Readiness sólo comprueba conectividad; las migraciones se ejecutan aparte. Los errores de conexión no salen en JSON ni logs. SIGINT y SIGTERM dejan hasta diez segundos para completar peticiones antes de cerrar el pool.
 
@@ -51,14 +61,17 @@ La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de b
 | Comando | Efecto |
 | --- | --- |
 | `make dev` | Ejecutar API con `.env` |
-| `make build` | Compilar `.bin/api` |
-| `make test` | Pruebas unitarias con detector de carreras |
-| `make lint` | Comprobar gofmt y ejecutar go vet |
+| `make build` | Compilar `.bin/api` y el portal productivo |
+| `make test` | Go con detector de carreras y pruebas Vitest |
+| `make lint` | gofmt, go vet y comprobación TypeScript |
 | `make migrate-up` | Aplicar migraciones goose |
 | `make migrate-down` | Revertir una migración; puede eliminar tablas y sus datos |
 | `make migrate-status` | Ver estado de migraciones |
 | `make test-integration` | API, permisos y casos de uso con PostgreSQL real; exige TEST_DATABASE_URL y migraciones aplicadas |
 | `sh scripts/smoke.sh` | Arrancar binario, probar probes y verificar SIGTERM |
+| `make web-install` | Instalar dependencias web con lockfile fijo |
+| `make web-dev` | Portal en `http://127.0.0.1:5173`, proxy API al puerto 8080 |
+| `make test-web-e2e` | Playwright con HTTP y PostgreSQL reales; exige base F3 desechable migrada |
 | `make generate` | Fallar con explicación; generación aún no configurada |
 
 No ejecutar migrate-down sobre información que se quiera conservar. Para comprobar up/down/up usar una base nueva y desechable. No borrar volúmenes como parte del arranque normal. Las pruebas de F1 insertan fixtures sintéticos y conservan su historial append-only; requieren una base de pruebas dedicada.
@@ -104,9 +117,36 @@ El SDK verifica firmas mediante certificados públicos sin credenciales de servi
 
 ## Estructura y siguientes fases
 
-`services/api/cmd/api` compone configuración, pool, verificador Firebase y servidor. `internal/config` valida entorno, `internal/auth` verifica identidad e `internal/http` adapta JSON a los servicios. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` aplica permisos, consentimiento y casos de uso transaccionales. `infrastructure/migrations` contiene usuarios, dominio e invitaciones. `packages/contracts/openapi.yaml` describe las probes y las rutas F2.
+`services/api/cmd/api` compone configuración, pool, verificador Firebase y servidor. `internal/config` valida entorno, `internal/auth` verifica identidad e `internal/http` adapta JSON a los servicios. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` aplica permisos, consentimiento y casos de uso transaccionales. `infrastructure/migrations` contiene usuarios, dominio e invitaciones. `packages/contracts/openapi.yaml` describe las probes y las rutas implementadas de F2 y F3.
 
-Los directorios futuros usan `.gitkeep`. No hay .xcodeproj, Gradle Wrapper, package.json web ni generación de clientes. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta por qué se usa pgx directamente sin sqlc. La [decisión F2](docs/decisions/0003-f2-http-identity.md) describe identidad, permisos y límites del contrato. La [verificación F2](docs/runbooks/f2-verification.md) registra resultados y comprobaciones pendientes. F3 requiere una solicitud nueva. No se implementan pausa de tratamientos, ajustes físicos, adherencia ni dispositivos en esta entrega.
+Los directorios móviles y worker siguen reservados. No hay proyectos Xcode o Gradle ni clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 y las fases posteriores no se ejecutaron.
+
+## Iniciar el portal
+
+Con Node y pnpm instalados, ejecutar `make web-install`. Copiar `apps/web/.env.example` a `apps/web/.env.local` y sustituir los tres valores por la configuración pública de una app Firebase del mismo proyecto que usa la API. Habilitar correo y contraseña y preparar cuentas de prueba desde Firebase. No incluir credenciales de servicio en variables `VITE_`.
+
+Iniciar la API con `make dev` y, en otra terminal, `make web-dev`. Abrir `http://127.0.0.1:5173`. El portal envía `/v1` mediante el proxy de Vite al puerto 8080. La compilación productiva requiere que el servidor de alojamiento enrute `/v1` hacia la API bajo el mismo origen y resuelva las rutas del portal al HTML. No se configuró ni ejecutó ese despliegue.
+
+La sesión y los datos permanecen en memoria. Recargar la página exige volver a entrar. Cerrar sesión o recibir 401, 403 o 404 retira la caché y cierra la sesión local. No hay cola offline de mutaciones. Un reintento conserva su operación mientras el formulario y el contenido sigan iguales. Crear invitaciones es la excepción explícita: cada envío genera una nueva porque el token sólo se entrega una vez.
+
+La persona que acepta una invitación se convierte en el paciente del vínculo y revisa sus permisos antes de consentir. Las referencias de personas son identificadores neutros; F3 no incorpora edición de perfiles o nombres. Archivar un tratamiento conserva su historial y corta las dosis futuras. No es una recomendación clínica.
+
+## Verificar F3
+
+Usar exclusivamente una base desechable local con prefijo `medication_f3_`, migrada a versión 4. Configurar `TEST_DATABASE_URL` hacia ella sin registrar la conexión. Para instalar Chromium si falta, ejecutar `pnpm --dir apps/web exec playwright install chromium`.
+
+```sh
+make web-install
+make test
+make lint
+make build
+make test-integration
+make test-web-e2e
+```
+
+Playwright inicia el servidor Go con tag `e2e` y Vite en modo `e2e`. Sólo sustituye la identidad; HTTP, autorización y PostgreSQL son reales. El build productivo rechaza ese modo y excluye el adaptador sintético. Las pruebas de red interceptadas están separadas del flujo integrado.
+
+El [runbook F3](docs/runbooks/f3-verification.md) contiene resultados, límites y reproducción de las migraciones. El login contra Firebase real sigue pendiente de un proyecto y cuentas configuradas. La instalación no necesita aprobar skills opcionales de TanStack ni ejecutar los scripts opcionales de Firebase/protobuf que el workspace deniega.
 
 ## Mapa de arquitectura
 

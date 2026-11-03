@@ -62,6 +62,7 @@ func treatmentResponse(r application.TreatmentResult) TreatmentResponse {
 }
 
 type Treatment struct {
+	ArchivedAt *time.Time `json:"archived_at"`
 	TreatmentResponse
 	MedicationID  string   `json:"medication_id"`
 	Name          string   `json:"name"`
@@ -143,4 +144,34 @@ type ErrorResponse struct {
 	Message   string            `json:"message"`
 	RequestID string            `json:"request_id"`
 	Details   map[string]string `json:"details"`
+}
+
+type UpdateTreatmentRequest struct {
+	OperationID     string `json:"client_operation_id"`
+	ExpectedVersion int64  `json:"expected_version"`
+	Name            string `json:"name"`
+	StrengthLabel   string `json:"strength_label"`
+	Form            string `json:"form"`
+	PackageLabel    string `json:"package_label"`
+	Instructions    string `json:"instructions"`
+}
+type ArchiveTreatmentRequest struct {
+	OperationID     string `json:"client_operation_id"`
+	ExpectedVersion int64  `json:"expected_version"`
+	Reason          string `json:"reason"`
+}
+type PhysicalCountRequest struct {
+	OperationID     string `json:"client_operation_id"`
+	CountedQuantity string `json:"counted_quantity"`
+	ExpectedBalance string `json:"expected_balance"`
+	Reason          string `json:"reason"`
+}
+type PreviewInvitationRequest struct {
+	Token string `json:"token"`
+}
+
+type PhysicalCountResponse struct {
+	CountID    string  `json:"count_id"`
+	MovementID *string `json:"movement_id"`
+	Balance    string  `json:"balance"`
 }

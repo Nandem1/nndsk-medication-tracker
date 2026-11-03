@@ -1,0 +1,37 @@
+{
+  "name": "medication-caregiver-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run src",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@tanstack/react-query": "5.105.3",
+    "@tanstack/react-router": "1.170.46",
+    "firebase": "13.2.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "tailwind-merge": "3.5.0",
+    "@radix-ui/react-slot": "1.2.4",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "vite": "8.3.5",
+    "typescript": "7.0.2",
+    "tailwindcss": "4.3.4",
+    "@tailwindcss/vite": "4.3.4",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "vitest": "4.1.0",
+    "@playwright/test": "1.64.1",
+    "@types/node": "22.19.15"
+  }
+}

@@ -35,6 +35,12 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	mux.Handle("GET /readyz", NewHandler(ping))
 	business := http.NewServeMux()
 	business.HandleFunc("GET /v1/me", a.me)
+	business.HandleFunc("PATCH /v1/treatments/{treatmentId}", a.updateTreatment)
+	business.HandleFunc("POST /v1/treatments/{treatmentId}/archive", a.archiveTreatment)
+	business.HandleFunc("POST /v1/inventory/{accountId}/counts", a.physicalCount)
+	business.HandleFunc("GET /v1/inventory/{accountId}/movements", a.movements)
+	business.HandleFunc("GET /v1/caregiver-links", a.links)
+	business.HandleFunc("POST /v1/invitations/preview", a.previewInvitation)
 	business.HandleFunc("GET /v1/patients", a.patients)
 	business.HandleFunc("POST /v1/invitations", a.createInvitation)
 	business.HandleFunc("POST /v1/invitations/accept", a.acceptInvitation)
@@ -195,7 +201,7 @@ func (a *API) treatments(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []Treatment{}
 	for _, v := range items {
-		out = append(out, Treatment{TreatmentResponse: TreatmentResponse{v.ID, v.RevisionID, v.AccountID, v.Version}, MedicationID: v.MedicationID, Name: v.Name, StrengthLabel: v.StrengthLabel, Form: v.Form, PackageLabel: v.PackageLabel, Instructions: v.Instructions, StartsOn: v.StartsOn, EndsOn: v.EndsOn, Unit: v.Unit, Schedule: scheduleDTO(v.Schedule)})
+		out = append(out, Treatment{TreatmentResponse: TreatmentResponse{v.ID, v.RevisionID, v.AccountID, v.Version}, ArchivedAt: v.ArchivedAt, MedicationID: v.MedicationID, Name: v.Name, StrengthLabel: v.StrengthLabel, Form: v.Form, PackageLabel: v.PackageLabel, Instructions: v.Instructions, StartsOn: v.StartsOn, EndsOn: v.EndsOn, Unit: v.Unit, Schedule: scheduleDTO(v.Schedule)})
 	}
 	writeJSON(w, 200, Page[Treatment]{out, next})
 }

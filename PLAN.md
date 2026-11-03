@@ -531,14 +531,16 @@ Evidencia local y límites de F2 en [verificación F2](docs/runbooks/f2-verifica
 
 ### F3 — Portal web mínimo del cuidador
 
-- [ ] React + Vite + TypeScript + Tailwind + shadcn/ui; TanStack Query/Router; Zod/forms según necesidades reales.
-- [ ] Login, lista de pacientes, invitaciones/consentimiento.
-- [ ] CRUD de tratamientos con formulario accesible y validador de unidades/horarios.
-- [ ] Inventario: reposición, ajuste físico, historial de movimientos y días estimados.
-- [ ] Calendario simple de dosis con estados diferenciados.
-- [ ] Tests de flujos críticos y estados de red (carga, vacío, error, sin permiso).
+- [x] React + Vite + TypeScript + Tailwind + shadcn/ui; TanStack Query/Router; Zod/forms según necesidades reales.
+- [x] Login, lista de pacientes, invitaciones/consentimiento.
+- [x] CRUD de tratamientos con formulario accesible y validador de unidades/horarios.
+- [x] Inventario: reposición, ajuste físico, historial de movimientos y días estimados.
+- [x] Calendario simple de dosis con estados diferenciados.
+- [x] Tests de flujos críticos y estados de red (carga, vacío, error, sin permiso).
 
 **DoD:** cuidador configura un paciente de prueba y crea una pauta que aparece en GET agenda API.
+
+Evidencia local en [verificación F3](docs/runbooks/f3-verification.md). El DoD pasó con navegador, HTTP y PostgreSQL reales e identidad sintética aislada. Login contra un proyecto Firebase real pendiente de configuración. F4 no se inició.
 
 ### F4 — iOS SwiftUI MVP (primera app de paciente)
 

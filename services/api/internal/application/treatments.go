@@ -81,7 +81,7 @@ func (s *Service) ReviseSchedule(ctx context.Context, c ReviseScheduleCommand) (
 			return r, err
 		}
 		var version int64
-		if err := tx.QueryRow(ctx, "SELECT version FROM treatments WHERE id=$1 FOR UPDATE", c.TreatmentID).Scan(&version); err != nil {
+		if err := tx.QueryRow(ctx, "SELECT version FROM treatments WHERE id=$1 AND archived_at IS NULL FOR UPDATE", c.TreatmentID).Scan(&version); err != nil {
 			return r, err
 		}
 		if version != c.ExpectedVersion {
@@ -169,9 +169,10 @@ func (s *Service) GenerateOccurrences(ctx context.Context, actorID, treatmentID,
 
 func generateOccurrences(ctx context.Context, tx pgx.Tx, treatmentID, from string, days int) (int, error) {
 	var err error
+	var archived *time.Time
 	var starts time.Time
 	var ends *time.Time
-	if err = tx.QueryRow(ctx, "SELECT starts_on,ends_on FROM treatments WHERE id=$1 FOR UPDATE", treatmentID).Scan(&starts, &ends); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT starts_on,ends_on,archived_at FROM treatments WHERE id=$1 FOR UPDATE", treatmentID).Scan(&starts, &ends, &archived); err != nil {
 		return 0, translate(err)
 	}
 	revs, err := revisions(ctx, tx, treatmentID)
@@ -180,6 +181,12 @@ func generateOccurrences(ctx context.Context, tx pgx.Tx, treatmentID, from strin
 	}
 	count := 0
 	for _, r := range revs {
+		if archived != nil && (r.until == nil || archived.Before(*r.until)) {
+			r.until = archived
+		}
+		if r.until != nil && !r.from.Before(*r.until) {
+			continue
+		}
 		occurrences, err := r.schedule.OccurrencesInWindow(from, days, revisionWindow(r, starts, ends))
 		if err != nil {
 			return 0, err

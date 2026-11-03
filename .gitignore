@@ -12,3 +12,6 @@ dist/
 DerivedData/
 .gradle/
 local.properties
+
+apps/web/test-results/
+apps/web/playwright-report/
