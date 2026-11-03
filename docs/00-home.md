@@ -128,3 +128,5 @@ flowchart TB
 ```
 
 El esquema de datos no cambia. Borrado de cuenta y supresiones de backups siguen pendientes de política e implementación. Los workflows separan Go, web, Android e iOS habilitable. No hay publicación ni despliegue F8. Ver [seguridad](runbooks/f8-security.md), [evidencia](runbooks/f8-verification.md), [release](runbooks/f8-release.md) y [entrega a Claude](design/claude-redesign-handoff.md).
+
+Los valores visuales compartidos viven en [`packages/design-tokens/tokens.json`](../packages/design-tokens/README.md). Un generador sin dependencias produce adaptadores para CSS, SwiftUI y Compose, y `make tokens-check` valida sincronía y contraste. Las apps no comparten componentes de UI.

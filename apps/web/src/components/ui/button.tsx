@@ -3,14 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 import type { ComponentProps } from "react";
 const variants = cva(
-  "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-base font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed",
+  "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-base font-semibold focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-(--mt-color-accent) disabled:opacity-50 disabled:cursor-not-allowed",
   {
     variants: {
       variant: {
-        default: "bg-teal-800 text-white hover:bg-teal-900",
+        default:
+          "bg-(--mt-color-action) text-(--mt-color-on-action) hover:opacity-90",
         outline:
-          "border border-slate-400 bg-white text-slate-800 hover:bg-slate-100",
-        destructive: "bg-red-800 text-white hover:bg-red-900",
+          "border border-(--mt-color-border-strong) bg-(--mt-color-surface) text-(--mt-color-text) hover:bg-(--mt-color-surface-raised)",
+        destructive:
+          "border border-(--mt-color-danger-fg) bg-(--mt-color-danger-bg) text-(--mt-color-danger-fg) hover:opacity-90",
       },
     },
     defaultVariants: { variant: "default" },

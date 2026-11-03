@@ -2,7 +2,7 @@ SHELL := /bin/sh
 GOOSE_VERSION := v3.29.0
 GOOSE := $(CURDIR)/.bin/goose-$(GOOSE_VERSION)
 
-.PHONY: dev build test test-integration lint migrate-up migrate-down migrate-status generate
+.PHONY: dev build test test-integration lint migrate-up migrate-down migrate-status generate tokens tokens-check
 
 dev:
 	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; cd services/api && go run ./cmd/api
@@ -20,7 +20,13 @@ test-integration:
 	@test -n "$$TEST_DATABASE_URL" || { echo 'Set TEST_DATABASE_URL to a dedicated test database.' >&2; exit 1; }
 	cd services/api && go test -race -count=1 -tags=integration ./...
 
-lint:
+tokens:
+	node packages/design-tokens/build.mjs
+
+tokens-check:
+	node packages/design-tokens/build.mjs --check
+
+lint: tokens-check
 	@test -z "$$(cd services/api && gofmt -l .)" || { echo 'Run gofmt on services/api.' >&2; exit 1; }
 	cd services/api && go vet ./...
 	pnpm --dir apps/web lint

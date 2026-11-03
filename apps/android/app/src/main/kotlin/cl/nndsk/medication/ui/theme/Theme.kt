@@ -1,64 +1,67 @@
-/*
- * Copyright 2026 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package cl.nndsk.medication.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 
-private val DarkColorScheme = darkColorScheme(
-    primary = primaryDark,
-    primaryContainer = primaryContainerDark,
-    secondary = secondaryDark,
-    tertiary = tertiaryDark
-)
+/**
+ * Adaptador de los tokens Graphite (packages/design-tokens) a Material 3.
+ * Los colores de estado no tienen equivalente en Material y se leen con [MedicationTrackerTheme.colors].
+ * Sin color dinámico: la paleta fija garantiza el contraste comprobado al generar los tokens.
+ */
+private val LocalGraphiteColors = staticCompositionLocalOf { GraphiteTokens.light }
 
-private val LightColorScheme = lightColorScheme(
-    primary = primaryLight,
-    primaryContainer = primaryContainerLight,
-    secondary = secondaryLight,
-    tertiary = tertiaryLight
-)
+private fun GraphiteColors.toMaterial(dark: Boolean): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = action,
+        onPrimary = onAction,
+        primaryContainer = surfaceRaised,
+        onPrimaryContainer = text,
+        secondary = textMuted,
+        onSecondary = surface,
+        secondaryContainer = surfaceRaised,
+        onSecondaryContainer = text,
+        tertiary = accent,
+        onTertiary = if (dark) bg else onAccent,
+        background = bg,
+        onBackground = text,
+        surface = surface,
+        onSurface = text,
+        surfaceVariant = surfaceRaised,
+        onSurfaceVariant = textMuted,
+        surfaceContainerLowest = bg,
+        surfaceContainerLow = surface,
+        surfaceContainer = surface,
+        surfaceContainerHigh = surfaceRaised,
+        surfaceContainerHighest = surfaceRaised,
+        outline = borderStrong,
+        outlineVariant = border,
+        error = dangerFg,
+        onError = if (dark) bg else surface,
+        errorContainer = dangerBg,
+        onErrorContainer = dangerFg,
+    )
+}
 
 @Composable
 fun MedicationTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = false,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val colors = if (darkTheme) GraphiteTokens.dark else GraphiteTokens.light
+    CompositionLocalProvider(LocalGraphiteColors provides colors) {
+        MaterialTheme(colorScheme = colors.toMaterial(darkTheme), typography = Typography, content = content)
     }
+}
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+object MedicationTrackerTheme {
+    val colors: GraphiteColors
+        @Composable @ReadOnlyComposable get() = LocalGraphiteColors.current
 }

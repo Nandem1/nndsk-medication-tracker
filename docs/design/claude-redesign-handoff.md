@@ -31,3 +31,10 @@ Ejecuta `make test`, `make lint`, build web y los flujos Playwright con una base
 Compara los recorridos de paciente y cuidador con texto máximo, modo oscuro, estados vacíos/carga/error y permisos denegados. Repite VoiceOver/TalkBack y contraste con el diseño final. Cada gráfico necesita una alternativa textual comprensible y no debe depender sólo del color.
 
 Entrega dirección visual, tokens y adaptadores, pantallas implementadas, evidencia de pruebas y pendientes. No marques el lanzamiento listo si siguen abiertos los controles de [release F8](../runbooks/f8-release.md).
+
+## Estado de la entrega
+
+- **Implementado:** tokens Graphite en `packages/design-tokens` con generador y comprobación de contraste. Los adaptadores están conectados a `Semantic` y `LargeActionStyle` en iOS, a `MedicationTrackerTheme` en Android y a `style.css` y `Button` en web.
+- **Propuesto:** las pantallas del canvas de diseño (paciente iOS/Android, seguimiento e inventario del cuidador). Aún no están implementadas.
+- **Validado:** `make tokens-check`, `pnpm --dir apps/web lint`, `test` y `build`.
+- **Sin validar:** compilación iOS y Android. Falta Xcode y Android SDK en el entorno donde se generó.

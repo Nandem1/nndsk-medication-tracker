@@ -8,7 +8,7 @@ on:
         default: 'platform=iOS Simulator,name=iPhone 17'
         type: string
   pull_request:
-    paths: ['apps/ios/**', 'Makefile', '.github/workflows/ios.yml']
+    paths: ['apps/ios/**', 'packages/design-tokens/**', 'Makefile', '.github/workflows/ios.yml']
 permissions:
   contents: read
 jobs:

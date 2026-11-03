@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "lint": "tsc --noEmit",
+    "lint": "node ../../packages/design-tokens/build.mjs --check && tsc --noEmit",
     "test": "vitest run src",
     "test:e2e": "playwright test"
   },

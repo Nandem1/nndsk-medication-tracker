@@ -1,9 +1,9 @@
 name: Web
 on:
   push:
-    paths: ['apps/web/**', 'services/api/**', 'packages/contracts/**', 'infrastructure/migrations/**', '.github/workflows/web.yml']
+    paths: ['apps/web/**', 'packages/design-tokens/**', 'services/api/**', 'packages/contracts/**', 'infrastructure/migrations/**', '.github/workflows/web.yml']
   pull_request:
-    paths: ['apps/web/**', 'services/api/**', 'packages/contracts/**', 'infrastructure/migrations/**', '.github/workflows/web.yml']
+    paths: ['apps/web/**', 'packages/design-tokens/**', 'services/api/**', 'packages/contracts/**', 'infrastructure/migrations/**', '.github/workflows/web.yml']
 permissions:
   contents: read
 jobs:

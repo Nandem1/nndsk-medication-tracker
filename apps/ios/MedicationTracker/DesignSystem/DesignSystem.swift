@@ -1,23 +1,17 @@
 import SwiftUI
 import UIKit
 
-/// Colores semánticos con contraste de texto de al menos 4.5:1 en modo claro y oscuro.
-/// Los del sistema (verde y naranja) no lo alcanzan sobre blanco.
+/// Alias semánticos sobre los tokens generados de `packages/design-tokens`.
+/// El contraste de cada par se comprueba al generar los tokens (≥ 4.5:1 en claro y oscuro).
 /// Cada estado se acompaña siempre de texto e icono.
 enum Semantic {
-    static let success = adaptive(light: (0.08, 0.42, 0.18), dark: (0.45, 0.86, 0.55))
-    static let warning = adaptive(light: (0.60, 0.30, 0.00), dark: (1.00, 0.72, 0.35))
-    static let danger = adaptive(light: (0.72, 0.07, 0.10), dark: (1.00, 0.55, 0.53))
-    /// Fondo de la acción principal, con texto blanco en ambos modos.
-    static let action = adaptive(light: (0.00, 0.32, 0.72), dark: (0.04, 0.38, 0.82))
-    static let muted = adaptive(light: (0.32, 0.32, 0.35), dark: (0.78, 0.78, 0.80))
-
-    private static func adaptive(light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> Color {
-        Color(UIColor { traits in
-            let value = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: value.0, green: value.1, blue: value.2, alpha: 1)
-        })
-    }
+    static let success = Tokens.Colors.takenFg
+    static let warning = Tokens.Colors.unconfirmedFg
+    static let danger = Tokens.Colors.dangerFg
+    /// Fondo de la acción principal (tinta). El texto usa `onAction`.
+    static let action = Tokens.Colors.action
+    static let onAction = Tokens.Colors.onAction
+    static let muted = Tokens.Colors.textMuted
 }
 
 struct StatusBadge: View {
@@ -34,28 +28,32 @@ struct StatusBadge: View {
 }
 
 /// Botón ancho con área táctil holgada que crece con Dynamic Type.
-struct LargeActionStyle: ViewModifier {
+/// Las tres declaraciones comparten alto y forma; sólo «Me lo tomé» va relleno.
+struct LargeActionStyle: ButtonStyle {
     let prominent: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
-    func body(content: Content) -> some View {
-        if prominent {
-            content.buttonStyle(.borderedProminent).tint(Semantic.action).modifier(LargeActionShape())
-        } else {
-            // El azul del sistema sobre gris no alcanza el contraste mínimo.
-            content.buttonStyle(.bordered).tint(.primary).modifier(LargeActionShape())
-        }
-    }
-}
-
-private struct LargeActionShape: ViewModifier {
-    func body(content: Content) -> some View {
-        content.controlSize(.large).buttonBorderShape(.roundedRectangle).font(.body.weight(.semibold))
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.lg, style: .continuous)
+        configuration.label
+            .font(Tokens.Typography.patientLabel)
+            .foregroundStyle(prominent ? Semantic.onAction : Tokens.Colors.text)
+            .background {
+                if prominent {
+                    shape.fill(Semantic.action)
+                } else {
+                    shape.fill(Tokens.Colors.surface)
+                    shape.strokeBorder(Tokens.Colors.action, lineWidth: Tokens.Size.borderWidth)
+                }
+            }
+            .contentShape(shape)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.45)
     }
 }
 
 extension View {
     func largeAction(prominent: Bool = false) -> some View {
-        modifier(LargeActionStyle(prominent: prominent))
+        buttonStyle(LargeActionStyle(prominent: prominent))
     }
 }
 
@@ -65,7 +63,8 @@ struct ActionLabel: View {
     var body: some View {
         Text(text)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.horizontal, Tokens.Space.md)
+            .frame(maxWidth: .infinity, minHeight: Tokens.Size.patientAction)
     }
 }
 
