@@ -54,7 +54,7 @@ El soporte de CA personalizada pasó pruebas reales de handshake TLS: acepta la 
 
 ## Límites y bloqueos
 
-- Railway staging está desplegado en Virginia; production permanece vacío. Se ensayó backup desde staging y restore local, no recuperación cloud ni PITR. Firebase está configurado con `medication-tracker-dev-8ebde`; el usuario verificó login y uso del flujo completo en staging.
+- Railway staging está desplegado en Virginia; production permanece vacío. Se ensayó backup desde staging y restore local, no recuperación cloud ni PITR. Firebase está configurado con `<firebase-project-id>`; el usuario verificó login y uso del flujo completo en staging.
 - No se dispone de la configuración de prueba necesaria para acreditar entrega APNs/FCM real. Falta registrar dispositivos, habilitar firma APNs y verificar recepción, revocación y permisos en teléfonos.
 - APNs requiere clave, team, key ID, topic y entorno coherentes con la firma. FCM requiere proyecto y ADC del servidor, además de los identificadores públicos correctos en Android.
 - Firebase Messaging 26.0.1 conserva las APIs de token usadas pero las marca deprecadas. El nuevo modo FID no se habilitó porque requiere otro contrato de envío. Las advertencias no se ocultaron.

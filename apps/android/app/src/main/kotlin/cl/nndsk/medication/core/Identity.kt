@@ -45,6 +45,7 @@ data class Credentials(val uid: String, val token: String, val refresh: String, 
 
 class SecretStore(context: Context, filename: String = "identity.enc") {
     private val file = AtomicFile(File(context.noBackupFilesDir, filename))
+    private val deletionPending = File(context.noBackupFilesDir, "$filename.deleting")
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey("medication-session", null) as? SecretKey)?.let { return it }
@@ -54,6 +55,7 @@ class SecretStore(context: Context, filename: String = "identity.enc") {
         }.generateKey()
     }
     fun read(): Credentials? {
+        check(!deletionPending.exists()) { "Session cleanup is incomplete" }
         if (!file.baseFile.exists()) return null
         val bytes = file.readFully()
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -61,13 +63,19 @@ class SecretStore(context: Context, filename: String = "identity.enc") {
         return wireJson.decodeFromString(String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8))
     }
     fun save(value: Credentials) {
+        if (deletionPending.exists()) clear()
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val bytes = cipher.iv + cipher.doFinal(wireJson.encodeToString(value).toByteArray())
         val stream = file.startWrite()
         try { stream.write(bytes); file.finishWrite(stream) } catch (e: Exception) { file.failWrite(stream); throw e }
     }
-    fun clear() = file.delete()
+    fun clear() {
+        deletionPending.writeText("pending")
+        file.delete()
+        check(!file.baseFile.exists()) { "Session cleanup failed" }
+        check(deletionPending.delete()) { "Session cleanup marker could not be removed" }
+    }
 }
 
 class Identity(private val secrets: SecretStore) {
@@ -122,5 +130,8 @@ class Identity(private val secrets: SecretStore) {
             secrets.save(next); credentials = next
         }
     }
-    suspend fun clear() = lock.withLock { secrets.clear(); credentials = null; storageFailure = false }
+    suspend fun clear() = lock.withLock {
+        try { secrets.clear(); storageFailure = false }
+        finally { credentials = null }
+    }
 }

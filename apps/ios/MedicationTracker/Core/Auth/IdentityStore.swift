@@ -94,6 +94,7 @@ actor IdentityStore: TokenProviding {
     private let secrets: any SecretStore
     private var credentials: Credentials?
     private var refreshing: Task<Credentials, Error>?
+    private var generation = 0
 
     init(client: FirebaseIdentityClient, secrets: any SecretStore) {
         self.client = client
@@ -104,16 +105,20 @@ actor IdentityStore: TokenProviding {
     var uid: String? { credentials?.uid }
 
     func signIn(email: String, password: String) async throws -> String {
+        let started = generation
         let signedIn = try await client.signIn(email: email, password: password)
+        guard started == generation else { throw IdentityError.sessionExpired }
         try save(signedIn)
         return signedIn.uid
     }
 
-    func signOut() {
+    @discardableResult
+    func signOut() -> Bool {
+        generation += 1
         refreshing?.cancel()
         refreshing = nil
         credentials = nil
-        secrets.delete()
+        do { try secrets.delete(); return true } catch { return false }
     }
 
     func token(forceRefresh: Bool) async throws -> String {
@@ -130,14 +135,22 @@ actor IdentityStore: TokenProviding {
     }
 
     private func renewed(_ current: Credentials) async throws -> Credentials {
-        if let refreshing { return try await refreshing.value }
-        let client = client
-        let task = Task { try await client.refresh(current) }
-        refreshing = task
-        defer { refreshing = nil }
+        let started = generation
+        let ownsRefresh = refreshing == nil
+        let task: Task<Credentials, Error>
+        if let existing = refreshing {
+            task = existing
+        } else {
+            let client = client
+            task = Task { try await client.refresh(current) }
+            refreshing = task
+        }
+        defer {
+            if ownsRefresh, started == generation { refreshing = nil }
+        }
         let fresh = try await task.value
-        // Si la sesión se cerró durante la renovación, no se reescriben credenciales.
-        if credentials?.uid == fresh.uid { try save(fresh) }
+        guard started == generation, credentials?.uid == fresh.uid else { throw IdentityError.sessionExpired }
+        if ownsRefresh { try save(fresh) }
         return fresh
     }
 

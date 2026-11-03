@@ -1,0 +1,23 @@
+name: iOS
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: Installed simulator destination on the selected runner
+        required: true
+        default: 'platform=iOS Simulator,name=iPhone 17'
+        type: string
+  pull_request:
+    paths: ['apps/ios/**', 'Makefile', '.github/workflows/ios.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_IOS_CI == 'true'
+    runs-on: macos-26
+    env:
+      IOS_DESTINATION: ${{ inputs.destination || 'platform=iOS Simulator,name=iPhone 17' }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: xcodebuild -version && xcrun simctl list devices available
+      - run: make test-ios lint-ios

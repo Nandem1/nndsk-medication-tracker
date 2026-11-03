@@ -23,13 +23,14 @@ const (
 )
 
 type API struct {
-	service  *application.Service
-	verifier auth.Verifier
-	logger   *slog.Logger
+	service     *application.Service
+	verifier    auth.Verifier
+	logger      *slog.Logger
+	exportSlots chan struct{}
 }
 
 func NewAPI(ping func(context.Context) error, service *application.Service, verifier auth.Verifier, logger *slog.Logger) http.Handler {
-	a := &API{service: service, verifier: verifier, logger: logger}
+	a := &API{service: service, verifier: verifier, logger: logger, exportSlots: make(chan struct{}, 2)}
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", NewHandler(ping))
 	mux.Handle("GET /readyz", NewHandler(ping))
@@ -39,6 +40,7 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("GET /v1/caregiver-links/{linkId}/alert-preferences", a.getAlertPreferences)
 	business.HandleFunc("PUT /v1/caregiver-links/{linkId}/alert-preferences", a.setAlertPreferences)
 	business.HandleFunc("GET /v1/me", a.me)
+	business.HandleFunc("GET /v1/me/export", a.exportAccount)
 	business.HandleFunc("PATCH /v1/treatments/{treatmentId}", a.updateTreatment)
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/archive", a.archiveTreatment)
 	business.HandleFunc("POST /v1/inventory/{accountId}/counts", a.physicalCount)

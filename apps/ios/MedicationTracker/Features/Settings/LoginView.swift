@@ -7,6 +7,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var error: String?
     @State private var working = false
+    @State private var confirmClear = false
 
     var body: some View {
         NavigationStack {
@@ -44,11 +45,19 @@ struct LoginView: View {
                     .largeAction(prominent: true)
                     .disabled(working || email.isEmpty || password.isEmpty)
                     .accessibilityIdentifier("login-submit")
+                    if model.phase == .expired || model.phase == .signedOut {
+                        Button("Cerrar sesión y borrar datos locales", role: .destructive) { confirmClear = true }
+                            .accessibilityIdentifier("login-clear-local")
+                            .disabled(working)
+                    }
                 } footer: {
                     Text(DoseText.selfReported)
                 }
             }
             .navigationTitle("Mis tomas")
+            .confirmationDialog("Se borrarán los datos de este dispositivo y los registros pendientes de sincronizar.", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Cerrar y borrar", role: .destructive) { Task { await model.signOut() } }
+            }
             .alert("Hay registros de otra cuenta", isPresented: Binding(get: { model.foreignPendingCount > 0 }, set: { _ in })) {
                 Button("Volver", role: .cancel) { Task { await model.cancelForeignSignIn() } }
                 Button("Descartar y continuar", role: .destructive) { Task { await model.discardForeignPendingAndContinue() } }

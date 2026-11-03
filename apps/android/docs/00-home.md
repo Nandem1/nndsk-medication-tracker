@@ -37,7 +37,7 @@ F5 selecciona el acceso propio devuelto por la API. No existe todavía el select
 
 - [Decisión F5](../../../docs/decisions/0006-f5-android-patient-app.md).
 - [Pruebas F5 y pendientes físicos](../../../docs/runbooks/f5-verification.md).
-- [Configuración y comandos](../../../README.md#android-f5).
+- [Configuración y comandos](../../../docs/runbooks/development.md#android-f5).
 - [Contrato compartido](../../../packages/contracts/openapi.yaml).
 
 ## Avisos remotos F6
@@ -51,3 +51,9 @@ Configurar `firebaseProjectId`, `firebaseAppId` y `firebaseSenderId` como propie
 Logout intenta DELETE en la API durante cinco segundos, desactiva auto-init e intenta borrar el token durante otros cinco segundos. Después borra la identidad aunque no haya red. Si falla la revocación remota, muestra que puede quedar un aviso genérico hasta el vencimiento del registro. El callback de token nunca registra una instalación sin sesión. Las notificaciones ya aceptadas por FCM pueden seguir siendo entregadas; el payload del servidor no contiene datos médicos.
 
 Las pruebas unitarias verifican identidad por instalación/cuenta y el cuerpo del contrato. Build y lint no acreditan entrega FCM real. Falta probarla con configuración Firebase y permisos en un dispositivo registrado.
+
+## Cierre de sesión F8
+
+Logout oculta el estado inmediatamente y ejecuta la limpieza bajo el mutex del repositorio sin cancelación. Intenta desregistrar push, borrar credenciales y limpiar Room de forma independiente. Un fallo de Room no vuelve a publicar el snapshot anterior. La identidad conserva una marca de borrado pendiente que impide restaurar credenciales cuando la eliminación quedó incompleta.
+
+Los fallos se muestran sin afirmar que todos los datos fueron borrados. La pantalla de acceso permite reintentar la limpieza sin autenticarse. El borrado lógico no acredita saneamiento forense ni protección del selector de aplicaciones. Ver [verificación F8](../../../docs/runbooks/f8-verification.md).

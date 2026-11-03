@@ -30,17 +30,23 @@ struct MedicationTrackerApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @State private var confirmClear = false
 
     var body: some View {
         @Bindable var model = model
         Group {
             switch model.phase {
-            case .loading:
+            case .loading, .signingOut:
                 ProgressView("Cargando")
             case .misconfigured:
                 ContentUnavailableView("La app no está configurada", systemImage: "wrench.and.screwdriver", description: Text("Falta la configuración del servidor o de inicio de sesión."))
             case .storageUnavailable:
-                ContentUnavailableView("No se pudieron abrir los datos", systemImage: "externaldrive.badge.exclamationmark", description: Text("Reinicia el teléfono. Si continúa, revisa el espacio disponible."))
+                VStack {
+                    ContentUnavailableView("No se pudieron abrir los datos", systemImage: "externaldrive.badge.exclamationmark", description: Text("Reinicia el teléfono. Si continúa, revisa el espacio disponible."))
+                    Button("Reintentar borrado local", role: .destructive) { confirmClear = true }
+                        .accessibilityIdentifier("retry-local-cleanup")
+                        .padding()
+                }
             case .signedOut:
                 LoginView(notice: nil)
             case .expired:
@@ -48,6 +54,9 @@ struct RootView: View {
             case .signedIn:
                 MainTabs()
             }
+        }
+        .confirmationDialog("Se borrarán los datos de este dispositivo y los registros pendientes de sincronizar.", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("Borrar datos locales", role: .destructive) { Task { await model.signOut() } }
         }
         .alert("No se pudo completar", isPresented: Binding(get: { model.alertMessage != nil }, set: { if !$0 { model.alertMessage = nil } })) {
             Button("Entendido", role: .cancel) {}

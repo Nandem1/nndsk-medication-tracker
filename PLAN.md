@@ -615,12 +615,14 @@ Evidencia local en [verificación F7](docs/runbooks/f7-verification.md). Las mé
 
 ### F8 — Endurecimiento y lanzamiento familiar
 
-- [ ] Threat model: exposición de datos de salud, autorización por objeto, tokens, push, dispositivos perdidos.
+- [x] Threat model: exposición de datos de salud, autorización por objeto, tokens, push, dispositivos perdidos. Modelo y límites en [seguridad F8](docs/runbooks/f8-security.md).
 - [ ] Revocación de cuidador y borrado local al cerrar sesión; exportación/borrado de datos.
 - [ ] Auditar accesibilidad y compatibilidad de móviles reales.
-- [ ] Revisar políticas de App Store / Play y normativa aplicable antes de publicar.
-- [ ] CI por stack con runners macOS para iOS cuando se habilite; Android y Go en runners adecuados.
-- [ ] Política de retención, backups/restores, incident response y checklist de release.
+- [x] Revisar políticas de App Store / Play y normativa aplicable antes de publicar. Revisión técnica de fuentes oficiales en [release F8](docs/runbooks/f8-release.md); no certifica cumplimiento legal ni autoriza publicación.
+- [ ] CI por stack con runners macOS para iOS cuando se habilite; Android y Go en runners adecuados. Workflows implementados para Go, web, Android e iOS opcional; ejecución remota pendiente.
+- [ ] Política de retención, backups/restores, incident response y checklist de release. Propuesta de retención pendiente de aceptación. Respuesta a incidentes y checklist documentados.
+
+F8 en curso, sin despliegue. Commit de preparación para GitHub autorizado por el usuario. El diseño y los tokens quedan para Claude según [guía de rediseño](docs/design/claude-redesign-handoff.md). Ver [resultados y bloqueos F8](docs/runbooks/f8-verification.md). No marcar lanzamiento listo con borrado o pruebas físicas pendientes.
 
 ---
 

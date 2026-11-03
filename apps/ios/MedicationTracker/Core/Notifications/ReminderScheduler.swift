@@ -19,6 +19,8 @@ struct ReminderDiagnostic: Sendable, Equatable {
 /// de horario no la desplaza: la pauta del backend sigue su zona IANA.
 actor ReminderScheduler {
     private let center = UNUserNotificationCenter.current()
+    private var current: Task<ReminderDiagnostic, Never>?
+    private var stopped = false
 
     func requestPermission() async -> ReminderPermission {
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
@@ -37,7 +39,20 @@ actor ReminderScheduler {
         }
     }
 
+    func resume() { stopped = false }
+
     func reconcile(plan: [PlannedReminder], now: Date) async -> ReminderDiagnostic {
+        let previous = current
+        let task = Task {
+            _ = await previous?.value
+            guard !stopped else { return ReminderDiagnostic() }
+            return await apply(plan: plan, now: now)
+        }
+        current = task
+        return await task.value
+    }
+
+    private func apply(plan: [PlannedReminder], now: Date) async -> ReminderDiagnostic {
         let permission = await permission()
         let requests = await center.pendingNotificationRequests()
         let pending = Set(requests.map(\.identifier))
@@ -68,7 +83,9 @@ actor ReminderScheduler {
         return ReminderDiagnostic(permission: permission, scheduledCount: scheduled.count, scheduledThrough: scheduled.last?.fireAt)
     }
 
-    func removeAll() {
+    func removeAll() async {
+        stopped = true
+        _ = await current?.value
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
     }

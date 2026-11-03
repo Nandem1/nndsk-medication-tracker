@@ -2,6 +2,8 @@ package cl.nndsk.medication.core
 
 import androidx.room.withTransaction
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -124,12 +126,23 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         api.request("v1/caregiver-links/$id", delete = true)
         syncLocked()
     }
-    suspend fun logout() = action {
-        val pushWarning = onSigningOut()
-        identity.clear()
-        db.withTransaction { dao.clearAllOperations(); dao.clearAllSnapshots() }
-        mutable.value = AppState(message = pushWarning)
-    }
+    suspend fun logout() = mutex.withLock { withContext(NonCancellable) {
+        mutable.value = AppState(busy = true)
+        var warning: String? = null
+        try { warning = onSigningOut() } catch (_: Exception) {
+            warning = "No se pudo desactivar el registro remoto; podría llegar un aviso genérico hasta su vencimiento."
+        }
+        try { identity.clear() } catch (_: Exception) {
+            warning = "No se pudo borrar la sesión guardada. Reinicia la app e intenta cerrar sesión nuevamente."
+        }
+        try { db.withTransaction { dao.clearAllOperations(); dao.clearAllSnapshots() } } catch (_: Exception) {
+            warning = "La sesión se cerró, pero no se pudieron borrar los datos locales. Intenta cerrar sesión nuevamente."
+        }
+        mutable.value = AppState(message = warning)
+        try { onChanged() } catch (_: Exception) {
+            mutable.value = AppState(message = "La sesión se cerró. No se pudieron cancelar todos los recordatorios.")
+        }
+    } }
     private suspend fun action(invalidateOnDenied: Boolean = false, block: suspend () -> Unit) = mutex.withLock {
         mutable.value = mutable.value.copy(busy = true, message = null)
         try { block() }

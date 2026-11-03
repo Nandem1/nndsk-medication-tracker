@@ -1712,6 +1712,59 @@
           }
         }
       }
+    },
+    "/v1/me/export": {
+      "get": {
+        "operationId": "exportAccount",
+        "description": "Download the authenticated account. No query parameters or patient selector accepted. Caregiver permission never grants access to another account export. Use a private destination; the download contains health data. Accounts over the synchronous limit receive 422 export_too_large and require an assisted export. At most two exports run concurrently per API process; excess requests return 429 with Retry-After.",
+        "responses": {
+          "200": {
+            "description": "Complete account export",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string",
+                  "const": "attachment; filename=\"medication-account.json\""
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExport"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3224,6 +3277,1004 @@
             "maximum": 30
           }
         }
+      },
+      "ExportProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "timezone",
+          "created_at"
+        ]
+      },
+      "ExportMedication": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "strength_label": {
+            "type": "string"
+          },
+          "form": {
+            "type": "string"
+          },
+          "package_label": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "strength_label",
+          "form",
+          "package_label",
+          "created_at"
+        ]
+      },
+      "ExportTreatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "medication_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "instructions_text": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "medication_id",
+          "instructions_text",
+          "starts_on",
+          "ends_on",
+          "version",
+          "created_at",
+          "archived_at"
+        ]
+      },
+      "ExportScheduleRevision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision_number": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/Schedule"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "treatment_id",
+          "revision_number",
+          "timezone",
+          "schedule",
+          "effective_from",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "ExportDose": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schedule_revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scheduled_local_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "scheduled_local_time": {
+            "type": "string"
+          },
+          "dst_adjusted": {
+            "type": "boolean"
+          },
+          "dose_quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{3}$"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "current_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "treatment_id",
+          "schedule_revision_id",
+          "scheduled_at",
+          "scheduled_local_date",
+          "scheduled_local_time",
+          "dst_adjusted",
+          "dose_quantity",
+          "status",
+          "version",
+          "current_event_id",
+          "cancelled_at",
+          "created_at"
+        ]
+      },
+      "ExportDoseEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dose_occurrence_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "resulting_state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correction_of_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "dose_occurrence_id",
+          "treatment_id",
+          "actor_user_id",
+          "event_type",
+          "resulting_state",
+          "version",
+          "occurred_at",
+          "recorded_at",
+          "correction_of_event_id",
+          "reason"
+        ]
+      },
+      "ExportInventoryAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "low_stock_days_threshold": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "treatment_id",
+          "unit",
+          "low_stock_days_threshold",
+          "created_at"
+        ]
+      },
+      "ExportInventoryMovement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inventory_account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{3}$"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_dose_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dose_occurrence_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "inventory_account_id",
+          "treatment_id",
+          "quantity_delta",
+          "reason",
+          "source_dose_event_id",
+          "dose_occurrence_id",
+          "actor_user_id",
+          "created_at"
+        ]
+      },
+      "ExportInventoryCount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inventory_account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previous_balance": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{3}$"
+          },
+          "counted_quantity": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{3}$"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "movement_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "inventory_account_id",
+          "actor_user_id",
+          "previous_balance",
+          "counted_quantity",
+          "reason",
+          "movement_id",
+          "created_at"
+        ]
+      },
+      "ExportPreviousTreatment": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "strength_label": {
+            "type": "string"
+          },
+          "form": {
+            "type": "string"
+          },
+          "package_label": {
+            "type": "string"
+          },
+          "instructions_text": {
+            "type": "string"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "strength_label",
+          "form",
+          "package_label",
+          "instructions_text",
+          "starts_on",
+          "ends_on",
+          "version",
+          "archived_at"
+        ]
+      },
+      "ExportTreatmentChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "previous_data": {
+            "$ref": "#/components/schemas/ExportPreviousTreatment"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "treatment_id",
+          "actor_user_id",
+          "kind",
+          "previous_data",
+          "reason",
+          "created_at"
+        ]
+      },
+      "ExportCaregiverLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patient_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caregiver_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accepted_invitation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "patient_user_id",
+          "caregiver_user_id",
+          "status",
+          "scopes",
+          "created_at",
+          "accepted_at",
+          "revoked_at",
+          "accepted_invitation_id"
+        ]
+      },
+      "ExportConsentEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "link_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "link_id",
+          "actor_user_id",
+          "action",
+          "scopes",
+          "created_at"
+        ]
+      },
+      "ExportInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inviter_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "treatments",
+                "doses",
+                "inventory"
+              ]
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consumed_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "inviter_user_id",
+          "scopes",
+          "expires_at",
+          "created_at",
+          "consumed_at",
+          "consumed_by"
+        ]
+      },
+      "ExportAlertPreference": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "link_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "unconfirmed_delay_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stock_enabled": {
+            "type": "boolean"
+          },
+          "min_interval_minutes": {
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "quiet_start_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quiet_end_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "link_id",
+          "consent_id",
+          "unconfirmed_delay_minutes",
+          "stock_enabled",
+          "min_interval_minutes",
+          "timezone",
+          "quiet_start_minute",
+          "quiet_end_minute"
+        ]
+      },
+      "ExportDevice": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "platform",
+          "permission",
+          "expires_at",
+          "revoked_at",
+          "updated_at"
+        ]
+      },
+      "AccountExport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/ExportProfile"
+          },
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportMedication"
+            }
+          },
+          "treatments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportTreatment"
+            }
+          },
+          "schedule_revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportScheduleRevision"
+            }
+          },
+          "doses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDose"
+            }
+          },
+          "dose_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDoseEvent"
+            }
+          },
+          "inventory_accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportInventoryAccount"
+            }
+          },
+          "inventory_movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportInventoryMovement"
+            }
+          },
+          "inventory_counts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportInventoryCount"
+            }
+          },
+          "treatment_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportTreatmentChange"
+            }
+          },
+          "caregiver_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportCaregiverLink"
+            }
+          },
+          "consent_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportConsentEvent"
+            }
+          },
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportInvitation"
+            }
+          },
+          "alert_preferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportAlertPreference"
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDevice"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "profile",
+          "medications",
+          "treatments",
+          "schedule_revisions",
+          "doses",
+          "dose_events",
+          "inventory_accounts",
+          "inventory_movements",
+          "inventory_counts",
+          "treatment_changes",
+          "caregiver_links",
+          "consent_events",
+          "invitations",
+          "alert_preferences",
+          "devices"
+        ],
+        "description": "Schema version 1. A single repeatable-read snapshot, without generating future occurrences. Health records belong only to the authenticated actor. Includes cancelled doses and all correction history. Related consent records retain participant IDs. Device tokens, identity-provider IDs, invitation secrets and operation replay storage are excluded. Decimal quantities are strings. Maximum 100000 records across all arrays and 20 MiB of JSON; larger exports fail without a partial attachment."
       }
     },
     "responses": {

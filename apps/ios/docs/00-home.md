@@ -78,3 +78,9 @@ Usar `production` para la firma y el servidor APNs correspondientes a distribuci
 Logout espera el registro en curso, intenta desregistrar en la API y llama a `unregisterForRemoteNotifications` antes de borrar la identidad. Un fallo de red no bloquea el cierre. Se informa que el servidor podría conservar el registro hasta su vencimiento. Los avisos remotos son genéricos y sólo abren la app. No crean declaraciones ni añaden la vista de cuidador de F5b.
 
 Las pruebas de contrato usan transporte controlado. La compilación y los tests en simulador no acreditan entrega APNs real; ésta necesita firma habilitada, credenciales del proveedor y un dispositivo registrado.
+
+## Cierre de sesión F8
+
+El historial comparte la cola serial de `SyncEngine`. Cerrar sesión oculta los datos de inmediato, detiene nuevos trabajos y espera las escrituras en curso antes de limpiar el almacén. El planificador termina cualquier reconciliación antes de cancelar recordatorios. La generación de sesión impide aplicar respuestas tardías de autenticación o sincronización.
+
+Keychain comprueba el resultado de borrado y conserva una marca de eliminación pendiente si no puede completarlo. La marca impide restaurar esas credenciales. Los fallos de limpieza se informan y las pantallas de acceso y error de almacenamiento permiten solicitar o reintentar borrado local. Esto no acredita saneamiento forense de SQLite/WAL ni borrado remoto de dispositivos desconectados. Ver [verificación F8](../../../docs/runbooks/f8-verification.md).

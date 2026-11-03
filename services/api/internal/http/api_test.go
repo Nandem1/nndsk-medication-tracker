@@ -8,6 +8,8 @@ import (
 	"medication-tracker/services/api/internal/auth"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +101,11 @@ func TestRequestDeadline(t *testing.T) {
 }
 
 func TestHTTPRejectsInvalidFirebaseToken(t *testing.T) {
+	credentials := filepath.Join(t.TempDir(), "synthetic-adc.json")
+	if err := os.WriteFile(credentials, []byte(`{"type":"authorized_user","client_id":"synthetic","client_secret":"synthetic","refresh_token":"synthetic"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credentials)
 	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "")
 	verifier, err := auth.NewFirebase(context.Background(), "demo-medication-test")
 	if err != nil {

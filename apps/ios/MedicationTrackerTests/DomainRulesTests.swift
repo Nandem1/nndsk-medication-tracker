@@ -290,12 +290,12 @@ import Testing
         let store = KeychainStore()
         let previous = store.read()
         defer {
-            if let previous { try? store.write(previous) } else { store.delete() }
+            if let previous { try? store.write(previous) } else { try? store.delete() }
         }
         try store.write(Data("uno".utf8))
         try store.write(Data("dos".utf8))
         #expect(store.read() == Data("dos".utf8))
-        store.delete()
+        try store.delete()
         #expect(store.read() == nil)
     }
 }

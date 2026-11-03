@@ -1,10 +1,11 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { e2eApiURL, e2eWebPort } from "./e2e-ports.ts";
 export default defineConfig(({ mode, command }) => {
   if (mode === "e2e" && command === "build")
     throw new Error("Test identity cannot be built for distribution");
+  const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "API_PROXY_TARGET");
   return {
     plugins: [tailwindcss()],
     resolve: {
@@ -27,7 +28,7 @@ export default defineConfig(({ mode, command }) => {
           target:
             mode === "e2e"
               ? e2eApiURL
-              : "https://api-staging-a498.up.railway.app",
+              : env.API_PROXY_TARGET || "http://127.0.0.1:8080",
           changeOrigin: true,
         },
       },

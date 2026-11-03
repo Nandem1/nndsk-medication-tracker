@@ -9,7 +9,8 @@ fi
 export DATABASE_URL="${TEST_DATABASE_URL:-${DATABASE_URL:?Set TEST_DATABASE_URL or DATABASE_URL}}"
 export FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-demo-medication-smoke}"
 export HTTP_ADDR="${SMOKE_HTTP_ADDR:-127.0.0.1:18080}"
-make build
+mkdir -p .bin
+(cd services/api && go build -o ../../.bin/api ./cmd/api)
 work=$(mktemp -d)
 pid=
 cleanup() {
@@ -17,6 +18,9 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT HUP INT TERM
+# Probes never contact identity; this fixture only allows ADC initialization.
+printf '%s' '{"type":"authorized_user","client_id":"synthetic","client_secret":"synthetic","refresh_token":"synthetic"}' >"$work/adc.json"
+export GOOGLE_APPLICATION_CREDENTIALS="$work/adc.json"
 .bin/api >"$work/api.log" 2>&1 &
 pid=$!
 i=0

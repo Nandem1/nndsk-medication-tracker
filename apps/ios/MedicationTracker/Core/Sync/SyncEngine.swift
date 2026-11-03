@@ -14,6 +14,7 @@ actor SyncEngine {
     private let store: LocalStore
     private let calendarNow: @Sendable () -> Date
     private var current: Task<SyncOutcome, Never>?
+    private var stopped = false
 
     /// Días que se piden a la API. El contrato admite como máximo 30 por consulta.
     static let daysBack = 7
@@ -29,6 +30,7 @@ actor SyncEngine {
         let previous = current
         let task = Task {
             _ = await previous?.value
+            guard !stopped else { return SyncOutcome.sessionExpired }
             return await run()
         }
         current = task
@@ -40,15 +42,34 @@ actor SyncEngine {
         let previous = current
         let task = Task {
             _ = await previous?.value
+            guard !stopped else { return SyncOutcome.sessionExpired }
             return await drainQueue()
         }
         current = task
         return await task.value
     }
 
-    /// Espera a que termine lo que esté en curso, para que nada escriba tras borrar los datos locales.
-    func finishCurrent() async {
+    func resume() { stopped = false }
+
+    func stop() async {
+        stopped = true
         _ = await current?.value
+    }
+
+    func loadHistory(from: String, to: String) async -> SyncOutcome {
+        let previous = current
+        let task = Task {
+            _ = await previous?.value
+            guard !stopped else { return SyncOutcome.sessionExpired }
+            do {
+                guard let patient = try await store.patientID() else { return .unavailable(.transport) }
+                let doses = try await api.doses(patient: patient, from: from, to: to)
+                try await store.mergeDoses(doses)
+                return .synced
+            } catch { return classify(error) }
+        }
+        current = task
+        return await task.value
     }
 
     private func run() async -> SyncOutcome {

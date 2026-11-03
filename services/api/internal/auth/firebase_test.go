@@ -9,11 +9,14 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	"google.golang.org/api/option"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,7 +35,23 @@ func TestFirebaseSignedTokenVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	certificates, _ := json.Marshal(map[string]string{"test-key": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))})
+	var accountState atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/accounts:lookup") {
+			switch accountState.Load() {
+			case 1:
+				_, _ = w.Write([]byte(`{"users":[{"localId":"synthetic-patient","disabled":true}]}`))
+			case 2:
+				_ = json.NewEncoder(w).Encode(map[string]any{"users": []any{map[string]any{"localId": "synthetic-patient", "validSince": strconv.FormatInt(time.Now().Unix(), 10)}}})
+			case 3:
+				_, _ = w.Write([]byte(`{"users":[]}`))
+			case 4:
+				w.WriteHeader(http.StatusServiceUnavailable)
+			default:
+				_, _ = w.Write([]byte(`{"users":[{"localId":"synthetic-patient","validSince":"0"}]}`))
+			}
+			return
+		}
 		w.Header().Set("Cache-Control", "max-age=3600")
 		_, _ = w.Write(certificates)
 	}))
@@ -45,7 +64,7 @@ func TestFirebaseSignedTokenVerification(t *testing.T) {
 	previous := http.DefaultTransport
 	http.DefaultTransport = transport
 	t.Cleanup(func() { http.DefaultTransport = previous; transport.CloseIdleConnections() })
-	verifier, err := NewFirebase(context.Background(), "demo-medication-test")
+	verifier, err := newFirebase(context.Background(), "demo-medication-test", option.WithoutAuthentication())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +86,14 @@ func TestFirebaseSignedTokenVerification(t *testing.T) {
 		_, cause := verifier.client.VerifyIDToken(context.Background(), sign(claims(), key))
 		t.Fatal(uid, e, cause)
 	}
+	for _, state := range []int32{1, 2, 3, 4} {
+		accountState.Store(state)
+		if _, e := verifier.Verify(context.Background(), sign(claims(), key)); e == nil {
+			t.Fatalf("accepted disabled, revoked, deleted or unavailable account state %d", state)
+		}
+	}
+	accountState.Store(0)
+
 	for _, field := range []string{"aud", "iss", "sub", "exp", "iat"} {
 		t.Run(field, func(t *testing.T) {
 			c := claims()

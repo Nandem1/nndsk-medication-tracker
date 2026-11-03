@@ -30,6 +30,35 @@ class LocalDatabaseTest {
             assertEquals("conflict", db.local().operations("owner-a", "patient-a").single().status)
         } finally { db.close(); context.deleteDatabase(name) }
     }
+    @Test fun logoutClearsIdentityWhenDatabaseCleanupFails() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val secret = SecretStore(context, "test-logout-failure.enc")
+        secret.save(Credentials("synthetic-owner", "token", "refresh", Long.MAX_VALUE))
+        val identity = Identity(secret)
+        val db = Room.inMemoryDatabaseBuilder(context, LocalDatabase::class.java).build()
+        val repository = Repository(identity, Api(identity), db)
+        db.close()
+        try {
+            repository.logout()
+            assertNull(identity.uid)
+            assertEquals(Session.SignedOut, repository.state.value.session)
+            assertNull(repository.state.value.snapshot)
+            assertTrue(repository.state.value.operations.isEmpty())
+            assertTrue(repository.state.value.message.orEmpty().contains("no se pudieron borrar"))
+        } finally { secret.clear() }
+    }
+    @Test fun incompleteCredentialDeletionCannotRestoreSession() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "test-incomplete-deletion.enc"
+        val secret = SecretStore(context, name)
+        secret.save(Credentials("synthetic-owner", "token", "refresh", Long.MAX_VALUE))
+        java.io.File(context.noBackupFilesDir, "$name.deleting").writeText("pending")
+        try {
+            val identity = Identity(SecretStore(context, name))
+            assertNull(identity.uid)
+            assertTrue(identity.storageFailure)
+        } finally { secret.clear() }
+    }
     @Test fun unreadableSessionCanBeRecoveredWithoutCrashing() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val secret = SecretStore(context, "test-corrupt-session.enc")

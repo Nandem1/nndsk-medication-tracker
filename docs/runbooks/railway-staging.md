@@ -2,7 +2,7 @@
 
 Desplegado y verificado el 2026-11-03. Proyecto `medication-tracker`, con ambientes `staging` y `production`. Production permanece reservado: cero instancias y cero volúmenes. Staging contiene PostgreSQL, API y worker en `us-east4-eqdc4a` (Virginia). No se cargaron datos reales ni fixtures clínicos.
 
-La API está en https://api-staging-a498.up.railway.app. `/healthz` y `/readyz` responden 200; `/v1/me` sin token responde 401. El portal web y las apps nativas no se desplegaron como parte de este paso.
+La API está en el dominio de la API configurado en Railway. `/healthz` y `/readyz` responden 200; `/v1/me` sin token responde 401. El portal web y las apps nativas no se desplegaron como parte de este paso.
 
 ## Configuración desplegada
 
@@ -18,18 +18,18 @@ ghcr.io/railwayapp-templates/postgres-ssl:18@sha256:4fc833b43d2aaf6ecc9b18615f55
 
 El template administra sus certificados en el volumen. Una renovación que cambie la CA exige actualizar `DATABASE_CA_PEM` y redesplegar API y worker; verifica `/readyz` y los ciclos después. No soluciones un fallo de confianza desactivando TLS. Los certificados cubren localhost y el dominio privado; no se configuró un proxy TCP público.
 
-`FIREBASE_PROJECT_ID=medication-tracker-dev-8ebde` está configurado en API y worker. Desarrollo y staging comparten usuarios Firebase; PostgreSQL permanece separado. El usuario confirmó login y uso en iOS y posteriormente el flujo completo con web y Android en staging. No hay emulador ni bypass de autenticación. APNs y FCM siguen desactivados y sin credenciales de envío.
+`FIREBASE_PROJECT_ID=<firebase-project-id>` está configurado en API y worker. Desarrollo y staging comparten usuarios Firebase; PostgreSQL permanece separado. El usuario confirmó login y uso en iOS y posteriormente el flujo completo con web y Android en staging. No hay emulador ni bypass de autenticación. APNs y FCM siguen desactivados y sin credenciales de envío.
 
 ## Evidencia
 
 | Recurso | Identificador |
 | --- | --- |
-| Proyecto | `b910701b-28dc-4d5f-80b1-0a9fd4c70883` |
-| Staging | `b185d7b6-fca4-4897-adb3-4ea97d7cd22c` |
-| Production reservado | `d513f258-902a-4354-8f1e-7a010938a079` |
-| Despliegue PostgreSQL SUCCESS | `e73a5c48-9386-4516-adc4-e6b5c8198272` |
-| Despliegue API F7 SUCCESS | `47052715-40bf-44cf-ba52-063c9cdb5ba5` |
-| Despliegue worker F7 SUCCESS | `38c7cd01-9413-4160-9b0d-87b161f209b0` |
+| Proyecto | Consultar en Railway |
+| Staging | Consultar en Railway |
+| Production reservado | Consultar en Railway |
+| Despliegue PostgreSQL SUCCESS | Consultar en Railway |
+| Despliegue API F7 SUCCESS | Consultar en Railway |
+| Despliegue worker F7 SUCCESS | Consultar en Railway |
 
 Se aplicaron las cinco migraciones con Goose a la base nueva mediante túnel SSH y TLS `verify-full`. No se ejecutó down remoto. El worker registra ciclos consecutivos sin errores, con cero avisos y push desactivado.
 
@@ -56,6 +56,6 @@ Las probes públicas `/healthz` y `/readyz` respondieron 200. `/v1/me`, la consu
 
 El portal sigue servido localmente en `http://127.0.0.1:5173`, con proxy hacia esta API. Se comprobó que entrega el módulo F7 de Seguimiento y que `/v1/me` por el proxy devuelve 401 sin sesión. Para la prueba manual, recargar el portal, iniciar sesión y abrir un paciente en Seguimiento. No se creó un servicio web público nuevo.
 
-Los despliegues anteriores registrados antes de la actualización eran API `399f356c-911e-48da-90de-16c3470f3c83` y worker `4973a96e-5f08-445d-bb63-770fca29c4bf`, ambos saludables. Quedan como referencia operacional para una reversión autorizada. La [verificación F7](f7-verification.md) conserva las pruebas locales previas y sus límites.
+Los despliegues anteriores registrados antes de la actualización eran API `<deployment-id>` y worker `<deployment-id>`, ambos saludables. Quedan como referencia operacional para una reversión autorizada. La [verificación F7](f7-verification.md) conserva las pruebas locales previas y sus límites.
 
 El usuario confirmó su E2E de F7 en staging el 2026-11-03 con «excelente, todo correcto» y autorizó el commit de cierre. La aceptación conserva los límites y pendientes que no fueron detallados en esa prueba.

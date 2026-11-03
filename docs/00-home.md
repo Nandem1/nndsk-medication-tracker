@@ -90,7 +90,7 @@ El worker comparte transacciones y reglas del backend, pero es un proceso separa
 
 ## Despliegue Railway
 
-El proyecto `medication-tracker` contiene `staging` con PostgreSQL, API y worker separados, y `production` reservado sin instancias ni volúmenes. Sólo la API publica HTTPS. PostgreSQL usa red privada y TLS con validación de nombre y CA mediante el [pool compartido](../services/api/internal/config/database.go). El worker mantiene push desactivado. Firebase de staging usa `medication-tracker-dev-8ebde`; el usuario aceptó el flujo manual con web y teléfonos. Las probes públicas funcionan y los endpoints protegidos requieren token. Ver [operación y evidencia](runbooks/railway-staging.md).
+El proyecto `medication-tracker` contiene `staging` con PostgreSQL, API y worker separados, y `production` reservado sin instancias ni volúmenes. Sólo la API publica HTTPS. PostgreSQL usa red privada y TLS con validación de nombre y CA mediante el [pool compartido](../services/api/internal/config/database.go). El worker mantiene push desactivado. Firebase de staging usa `<firebase-project-id>`; el usuario aceptó el flujo manual con web y teléfonos. Las probes públicas funcionan y los endpoints protegidos requieren token. Ver [operación y evidencia](runbooks/railway-staging.md).
 
 ## Seguimiento F7
 
@@ -111,3 +111,20 @@ flowchart TB
 Las correcciones cambian el resultado efectivo sin sumar otra dosis al denominador. Una omisión explícita cuenta como respuesta en el calendario. No hay premios por consumo ni inferencias de ingestión. La antelación de reposición se guarda en la cuenta existente y no crea movimientos de stock.
 
 No hay migraciones ni cambios de clientes móviles en F7. API y worker F7 están desplegados en staging. El portal continúa local; el usuario aceptó F7 tras su E2E contra staging el 2026-11-03. Ver [decisión F7](decisions/0008-f7-dashboard.md) y [verificación F7](runbooks/f7-verification.md).
+
+## Endurecimiento F8
+
+La API verifica firma y revocación de Firebase mediante credenciales administrativas externas. Una cuenta deshabilitada, eliminada o con token revocado no alcanza `ResolveUser`. Una indisponibilidad del proveedor rechaza la sesión. Esta dependencia no está desplegada ni verificada contra Firebase remoto en F8.
+
+`GET /v1/me/export` obtiene una instantánea de la cuenta propia mediante [ExportAccount](../services/api/internal/application/export.go). Selecciona campos explícitos, convierte cantidades en cadenas exactas y excluye secretos e historia clínica de otros pacientes, incluso si el actor es cuidador. La respuesta tiene versión, límite de filas/bytes y máximo de dos exportaciones simultáneas por proceso. No materializa agenda futura ni crea archivos en el servidor.
+
+```mermaid
+flowchart TB
+    Session[ID token] --> Firebase[Verificar firma y revocación con ADC]
+    Firebase --> Actor[Resolver usuario interno]
+    Actor --> Export[Exportación propia con snapshot consistente]
+    Export --> Data[(PostgreSQL)]
+    Export --> Download[JSON versionado sin secretos]
+```
+
+El esquema de datos no cambia. Borrado de cuenta y supresiones de backups siguen pendientes de política e implementación. Los workflows separan Go, web, Android e iOS habilitable. No hay publicación ni despliegue F8. Ver [seguridad](runbooks/f8-security.md), [evidencia](runbooks/f8-verification.md), [release](runbooks/f8-release.md) y [entrega a Claude](design/claude-redesign-handoff.md).

@@ -7,6 +7,7 @@ enum SessionPhase: Equatable {
     case misconfigured
     /// La base local no abrió. No se ofrece registrar nada que no se pueda guardar.
     case storageUnavailable
+    case signingOut
     case signedOut
     /// Las credenciales vencieron. La caché y la cola se conservan para la misma cuenta.
     case expired
@@ -39,6 +40,7 @@ final class AppModel {
     private let push: PushRegistration?
     private(set) var pushDiagnostic = "Avisos remotos sin configurar."
     private var pendingCredentialsUID: String?
+    private var sessionGeneration = 0
     private var retryTask: Task<Void, Never>?
     private var retryDelay: Duration = .seconds(15)
     private let pathMonitor = NWPathMonitor()
@@ -106,9 +108,11 @@ final class AppModel {
     // MARK: Sesión
 
     func signIn(email: String, password: String) async -> String? {
-        guard let identity else { return nil }
+        guard phase == .signedOut || phase == .expired, let identity else { return nil }
+        let generation = sessionGeneration
         do {
             let uid = try await identity.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
+            guard generation == sessionGeneration else { return IdentityError.sessionExpired.message }
             await enter(uid: uid)
             return nil
         } catch let error as IdentityError {
@@ -156,6 +160,9 @@ final class AppModel {
     }
 
     private func completeSignIn() async {
+        sessionGeneration += 1
+        await sync?.resume()
+        await scheduler.resume()
         phase = .signedIn
         push?.signedIn()
         syncProblem = nil
@@ -165,27 +172,40 @@ final class AppModel {
 
     /// Borra sesión, caché, cola y recordatorios de este dispositivo.
     func signOut() async {
-        retryTask?.cancel()
-        await sync?.finishCurrent()
-        let removedPush = if let uid = await identity?.uid { await push?.signOut(owner: uid) ?? true } else { true }
-        await scheduler.removeAll()
-        try? await store?.wipe()
-        await identity?.signOut()
+        guard phase != .signingOut else { return }
+        guard let store, let identity else {
+            alertMessage = "No se pudo abrir el almacenamiento para borrar los datos. Reinicia la app y revisa el espacio disponible. El borrado no se ha completado."
+            return
+        }
+        phase = .signingOut
+        sessionGeneration += 1
         snapshot = LocalSnapshot()
+        retryTask?.cancel()
+        await sync?.stop()
+        let removedPush = if let uid = await identity.uid { await push?.signOut(owner: uid) ?? true } else { true }
+        await scheduler.removeAll()
+        var cleanupFailed = false
+        do { try await store.wipe() } catch { cleanupFailed = true }
+        if await identity.signOut() == false { cleanupFailed = true }
+        snapshot = LocalSnapshot()
+        isSyncing = false
         reminders = ReminderDiagnostic()
         syncProblem = nil
         todayPath = []
         selectedTab = .today
-        phase = .signedOut
-        if !removedPush { alertMessage = "La sesión se cerró. No se pudo desactivar el registro remoto en el servidor; podría llegar un aviso genérico hasta que venza." }
+        phase = cleanupFailed ? .storageUnavailable : .signedOut
+        if cleanupFailed { alertMessage = "La sesión se cerró, pero no se pudieron borrar los datos locales. Intenta borrar nuevamente desde esta pantalla." }
+        if !removedPush && !cleanupFailed { alertMessage = "La sesión se cerró. No se pudo desactivar el registro remoto en el servidor; podría llegar un aviso genérico hasta que venza." }
     }
 
     // MARK: Sincronización
 
     func syncNow() async {
-        guard let sync else { return }
+        guard phase == .signedIn, let sync else { return }
+        let generation = sessionGeneration
         isSyncing = true
         let outcome = await sync.sync()
+        guard generation == sessionGeneration, phase == .signedIn else { return }
         isSyncing = false
         handle(outcome)
         await refreshLocal()
@@ -224,12 +244,16 @@ final class AppModel {
     }
 
     private func refreshLocal() async {
-        guard let store else { return }
-        if let fresh = try? await store.snapshot() { snapshot = fresh }
+        guard phase == .signedIn, let store else { return }
+        let generation = sessionGeneration
+        let fresh = try? await store.snapshot()
+        guard generation == sessionGeneration, phase == .signedIn else { return }
+        if let fresh { snapshot = fresh }
         await reconcileReminders()
     }
 
     private func reconcileReminders() async {
+        guard phase == .signedIn else { return }
         let now = Date.now
         let plan = ReminderPlanner.plan(doses: snapshot.doses, operations: snapshot.operations, now: now)
         reminders = await scheduler.reconcile(plan: plan, now: now)
@@ -257,7 +281,7 @@ final class AppModel {
     }
 
     private func enqueue(_ make: () throws -> PendingOperation) async {
-        guard let store else { return }
+        guard phase == .signedIn, let store else { return }
         do {
             try await store.enqueue(make())
         } catch {
@@ -269,9 +293,11 @@ final class AppModel {
     }
 
     private func drainAfterChange() async {
-        guard let sync else { return }
+        guard phase == .signedIn, let sync else { return }
+        let generation = sessionGeneration
         isSyncing = true
         let outcome = await sync.drain()
+        guard generation == sessionGeneration, phase == .signedIn else { return }
         isSyncing = false
         handle(outcome)
         await refreshLocal()
@@ -280,7 +306,7 @@ final class AppModel {
     // MARK: Conflictos
 
     func discard(_ operation: PendingOperation) async {
-        guard let store else { return }
+        guard phase == .signedIn, let store else { return }
         try? await store.discardOperation(operation.id)
         await syncNow()
     }
@@ -298,7 +324,7 @@ final class AppModel {
     }
 
     private func replace(_ operation: PendingOperation, _ make: () throws -> PendingOperation) async {
-        guard let store else { return }
+        guard phase == .signedIn, let store else { return }
         do {
             try await store.replaceOperation(operation.id, with: make())
         } catch {
@@ -313,35 +339,36 @@ final class AppModel {
 
     /// Amplía la caché hacia atrás. La API admite 30 días por consulta.
     func loadHistory(from: Date, to: Date) async -> String? {
-        guard let api, let store else { return nil }
-        do {
-            guard let patient = try await store.patientID() else { return APIError.transport.message }
-            let doses = try await api.doses(patient: patient, from: LocalDay.string(from), to: LocalDay.string(to))
-            try await store.mergeDoses(doses)
+        guard phase == .signedIn, let sync else { return nil }
+        let generation = sessionGeneration
+        let outcome = await sync.loadHistory(from: LocalDay.string(from), to: LocalDay.string(to))
+        guard generation == sessionGeneration, phase == .signedIn else { return nil }
+        switch outcome {
+        case .synced:
             await refreshLocal()
             return nil
-        } catch let error as APIError {
-            return error.message
-        } catch {
-            return APIError.server.message
+        case .sessionExpired:
+            handle(outcome)
+            return APIError.unauthenticated.message
+        case let .unavailable(error): return error.message
         }
     }
 
     // MARK: Consentimiento
 
     func preview(invitation token: String) async throws -> InvitationPreview {
-        guard let api else { throw APIError.server }
+        guard phase == .signedIn, let api else { throw APIError.unauthenticated }
         return try await api.previewInvitation(token: token)
     }
 
     func accept(invitation token: String, operationID: String) async throws {
-        guard let api else { throw APIError.server }
+        guard phase == .signedIn, let api else { throw APIError.unauthenticated }
         _ = try await api.acceptInvitation(token: token, operationID: operationID)
         await syncNow()
     }
 
     func revoke(_ link: CaregiverLink) async throws {
-        guard let api else { throw APIError.server }
+        guard phase == .signedIn, let api else { throw APIError.unauthenticated }
         try await api.revoke(link: link.id)
         await syncNow()
     }

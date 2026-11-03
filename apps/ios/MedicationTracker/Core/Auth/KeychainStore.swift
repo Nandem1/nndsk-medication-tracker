@@ -4,11 +4,15 @@ import Security
 protocol SecretStore: Sendable {
     func read() -> Data?
     func write(_ data: Data) throws
-    func delete()
+    func delete() throws
 }
 
 struct KeychainStore: SecretStore {
-    private let service = "dev.nndsk.MedicationTracker.session"
+    let service: String
+
+    init(service: String = "dev.nndsk.MedicationTracker.session") { self.service = service }
+
+    private var deletionMarker: String { service + ".deleting" }
     private let account = "firebase"
 
     private var query: [String: Any] {
@@ -16,6 +20,7 @@ struct KeychainStore: SecretStore {
     }
 
     func read() -> Data? {
+        guard !UserDefaults.standard.bool(forKey: deletionMarker) else { return nil }
         var request = query
         request[kSecReturnData as String] = true
         request[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -25,7 +30,7 @@ struct KeychainStore: SecretStore {
     }
 
     func write(_ data: Data) throws {
-        delete()
+        try delete()
         var item = query
         item[kSecValueData as String] = data
         // Disponible tras el primer desbloqueo y excluido de copias y migraciones de dispositivo.
@@ -34,7 +39,10 @@ struct KeychainStore: SecretStore {
         guard status == errSecSuccess else { throw IdentityError.storage }
     }
 
-    func delete() {
-        SecItemDelete(query as CFDictionary)
+    func delete() throws {
+        UserDefaults.standard.set(true, forKey: deletionMarker)
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw IdentityError.storage }
+        UserDefaults.standard.removeObject(forKey: deletionMarker)
     }
 }

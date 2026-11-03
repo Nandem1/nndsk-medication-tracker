@@ -40,7 +40,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     val state by model.state.collectAsStateWithLifecycle()
     val requested by incoming.collectAsStateWithLifecycle()
     val stack = rememberNavBackStack(Tab("Hoy"))
-    var exitExpired by remember { mutableStateOf(false) }
+    var confirmClearLocal by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) { while (true) { now = Instant.now(); delay(30_000) } }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.run { model.repository.sync() } }
@@ -65,7 +65,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
             state.message?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp)) }
             if (state.session != Session.Active) {
                 Login(state.busy, state.session == Session.Expired) { email, password -> model.run { model.repository.login(email, password) } }
-                if (state.session == Session.Expired) TextButton(onClick = { exitExpired = true }) { Text("Cerrar sesión y cambiar de cuenta") }
+                TextButton(enabled = !state.busy, onClick = { confirmClearLocal = true }) { Text("Cerrar sesión y borrar datos locales") }
             } else {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${state.operations.size} pendientes", modifier = Modifier.weight(1f))
@@ -83,10 +83,10 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
             }
         }
     }
-    if (exitExpired) AlertDialog(onDismissRequest = { exitExpired = false }, title = { Text("Cerrar sesión vencida") },
-        text = { Text("Se borrarán los datos locales y ${state.operations.size} declaraciones pendientes. No se enviarán con otra cuenta.") },
-        confirmButton = { TextButton(onClick = { exitExpired = false; model.run { model.repository.logout() } }) { Text("Cerrar y borrar") } },
-        dismissButton = { TextButton(onClick = { exitExpired = false }) { Text("Volver") } })
+    if (confirmClearLocal) AlertDialog(onDismissRequest = { confirmClearLocal = false }, title = { Text("Borrar datos locales") },
+        text = { Text("Se borrarán los datos de este dispositivo y todas las declaraciones pendientes de sincronizar, aunque no se puedan mostrar en esta pantalla. No se enviarán con otra cuenta.") },
+        confirmButton = { TextButton(onClick = { confirmClearLocal = false; model.run { model.repository.logout() } }) { Text("Cerrar y borrar") } },
+        dismissButton = { TextButton(onClick = { confirmClearLocal = false }) { Text("Volver") } })
 }
 
 @Composable private fun Login(busy: Boolean, expired: Boolean, submit: (String, String) -> Unit) {
