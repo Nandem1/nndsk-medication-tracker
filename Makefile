@@ -95,3 +95,23 @@ web-install:
 test-web-e2e:
 	@test -n "$$TEST_DATABASE_URL" || { echo "Set TEST_DATABASE_URL to a migrated disposable medication_f3_ database." >&2; exit 1; }
 	pnpm --dir apps/web test:e2e
+
+.PHONY: build-android test-android lint-android test-android-device test-android-e2e
+build-android:
+	sh scripts/android-gradle.sh :app:assembleDebug
+
+test-android:
+	sh scripts/android-gradle.sh :app:testDebugUnitTest
+
+lint-android:
+	sh scripts/android-gradle.sh :app:lintDebug :app:lintRelease
+
+test-android-device:
+	sh scripts/android-gradle.sh :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=cl.nndsk.medication.core.LocalDatabaseTest,cl.nndsk.medication.core.ReminderTest
+
+test-android-e2e:
+	sh scripts/android-e2e.sh
+
+.PHONY: test-android-reboot
+test-android-reboot:
+	sh scripts/android-reboot-test.sh

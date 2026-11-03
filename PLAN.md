@@ -561,18 +561,20 @@ Evidencia local en [verificación F3](docs/runbooks/f3-verification.md). El DoD 
 
 **DoD:** flujo real iOS: cuidador crea → paciente recibe agenda → confirma offline → sincroniza → stock se descuenta una sola vez.
 
-Evidencia en [verificación F4](docs/runbooks/f4-verification.md). **F4 cerrada el 2026-11-03 por decisión del usuario, con pendientes.** El flujo de la DoD pasó en simulador con API y PostgreSQL reales. En iPhone físico se verificaron instalación, login contra Firebase real y lectura desde la API; la confirmación offline no se ejecutó allí, así que la DoD no está acreditada en dispositivo. F5 no se inició.
+Evidencia en [verificación F4](docs/runbooks/f4-verification.md). **F4 cerrada el 2026-11-03 por decisión del usuario, con pendientes.** El flujo de la DoD pasó en simulador con API y PostgreSQL reales. En iPhone físico se verificaron instalación, login contra Firebase real y lectura desde la API; la confirmación offline no se ejecutó allí, así que la DoD no está acreditada en dispositivo. Al cerrar F4, F5 aún no se había iniciado.
 
 ### F5 — Android Jetpack Compose MVP
 
-- [ ] Crear proyecto Android válido con Android Studio; minSdk 26 inicial, compatible con los teléfonos actuales declarados; target SDK vigente.
-- [ ] Single-Activity + Material 3, Navigation 3, ViewModel/StateFlow, Hilt si aporta, Retrofit/OkHttp, Room.
-- [ ] Replicar **comportamiento y design tokens**, no copiar mecánicamente UI de iOS.
-- [ ] Pantallas Hoy/Historial/Ajustes y login/consentimiento.
-- [ ] Notificaciones con permisos Android 13+/alarmas exactas cuando legítimamente aplican; fallback y rescheduling tras reboot.
-- [ ] Cola local idempotente, manejo de conflictos, test con Doze/ahorro de batería y dispositivo físico.
+- [ ] Crear proyecto Android válido con Android Studio; minSdk 26 inicial, compatible con los teléfonos actuales declarados; target SDK vigente. Proyecto generado con Android CLI oficial, compilado con minSdk 26/target 37 y ejecutado en emulador. Instalación manual y revisión del usuario en Xiaomi 2107113SG con Android 13. Falta importación en Studio.
+- [x] Single-Activity + Material 3, Navigation 3, ViewModel/StateFlow, Hilt si aporta, Retrofit/OkHttp, Room.
+- [x] Replicar **comportamiento y design tokens**, no copiar mecánicamente UI de iOS.
+- [x] Pantallas Hoy/Historial/Ajustes y login/consentimiento.
+- [x] Notificaciones con permisos Android 13+/alarmas exactas cuando legítimamente aplican; fallback y rescheduling tras reboot. Verificados en emulador; límites físicos pendientes.
+- [ ] Cola local idempotente, manejo de conflictos, test con Doze/ahorro de batería y dispositivo físico. Cola, conflictos, Doze y reboot verificados en emulador; dispositivo físico y ahorro de batería del fabricante pendientes.
 
 **DoD:** mismo flujo real de F4 validado en Android físico, incluidos reintentos y permisos denegados. Es el flujo del que dependen los pacientes: la prueba offline pendiente en iPhone no lo sustituye.
+
+Evidencia y comandos en [verificación F5](docs/runbooks/f5-verification.md). **F5 cerrada el 2026-11-03 por aceptación explícita del usuario: «Bastante bien, PASS F5».** Se instaló la app en Xiaomi 2107113SG con Android 13 y se conectaron Auth emulado y API local mediante ADB por Wi-Fi. La aceptación no acredita los casos físicos no ejecutados; los checkboxes pendientes conservan ese alcance. El flujo completo de stock pasó en emulador con HTTP/PostgreSQL reales. F5b y fases posteriores no se iniciaron.
 
 ### F5b — Vista de cuidador en iOS y Android
 

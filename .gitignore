@@ -21,3 +21,8 @@ apps/ios/*.xcodeproj/
 apps/ios/Config/Local.xcconfig
 firebase-debug.log*
 ui-debug.log*
+
+# Android build artifacts
+apps/android/**/build/
+
+apps/android/.kotlin/

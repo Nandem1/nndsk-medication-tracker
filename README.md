@@ -1,6 +1,6 @@
 # Medication Tracker
 
-F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. F4 añade la app iOS del paciente, con el flujo completo verificado en simulador; en iPhone físico se verificaron instalación y login. La API Go autoriza cada operación y PostgreSQL conserva auditoría. iOS, Android y el worker permanecen sin implementar.
+F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. F4 añade la app iOS del paciente, con el flujo completo verificado en simulador; en iPhone físico se verificaron instalación y login. La API Go autoriza cada operación y PostgreSQL conserva auditoría. F5 añade Android del paciente, con pruebas locales en emulador y aceptación del usuario en Android físico; quedan casos físicos pendientes en el runbook. El worker permanece sin implementar.
 
 ## Herramientas y versiones
 
@@ -136,7 +136,7 @@ Para ejecutarla, crear `apps/ios/Config/Local.xcconfig`, ignorado por Git, con `
 
 `services/api/cmd/api` compone configuración, pool, verificador Firebase y servidor. `internal/config` valida entorno, `internal/auth` verifica identidad e `internal/http` adapta JSON a los servicios. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` aplica permisos, consentimiento y casos de uso transaccionales. `infrastructure/migrations` contiene usuarios, dominio e invitaciones. `packages/contracts/openapi.yaml` describe las probes y las rutas implementadas de F2 y F3.
 
-Android y el worker siguen reservados, sin proyecto Gradle ni ejecutables. La app iOS se describe arriba. No hay clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 y las fases posteriores no se ejecutaron.
+El worker sigue reservado, sin ejecutable. iOS y Android tienen apps nativas del paciente; sus resultados y pendientes están en los runbooks F4 y F5. No hay clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 se cerró con pendientes por decisión del usuario. F5 se cerró por aceptación del usuario con cobertura física pendiente; F5b y las fases posteriores no se ejecutaron.
 
 ## Iniciar el portal
 
@@ -168,3 +168,42 @@ El [runbook F3](docs/runbooks/f3-verification.md) contiene resultados, límites 
 ## Mapa de arquitectura
 
 El [mapa del monorepo](docs/00-home.md) describe el sistema implementado y enlaza los mapas locales de iOS, Android y web. La [política Living Architecture](AGENTS.md#living-architecture) define cuándo actualizarlos.
+
+
+## Android F5
+
+La app del paciente está en `apps/android`. El proyecto y wrapper provienen de Android CLI oficial. No se necesita un generador durante el build. Android Studio puede importar esa carpeta; su sincronización en Studio no fue verificada en este equipo.
+
+Versiones fijadas: JDK de toolchain 21, Gradle 9.4.1 con checksum, AGP 9.2.0, Kotlin/Compose compiler 2.3.20, Compose BOM 2026.03.01, Material 3 a través del BOM, Navigation 3 1.0.1, Room 2.8.5, KSP 2.3.13, Retrofit 3.0.0 y serialization JSON 1.9.0. El catálogo y `apps/android/app/gradle.lockfile` fijan las dependencias directas y transitivas resueltas. minSdk 26 y target/compile SDK 37. La compatibilidad con teléfonos concretos aún requiere sus modelos y versiones.
+
+Instalar JDK 21 y SDK Android 37 con build tools 36.0.0, configurar `JAVA_HOME` y `ANDROID_HOME`, o indicar `sdk.dir` en `apps/android/local.properties`. El script también detecta las herramientas locales de esta sesión bajo `.tmp/android-tools` y `.tmp/android-sdk`. Esas descargas no forman parte del repositorio. Las cachés de Gradle se guardan en `.tmp/gradle-home` por defecto.
+
+```sh
+make build-android
+make test-android
+make lint-android
+ANDROID_SERIAL=emulator-5554 make test-android-device
+```
+
+`test-android-device` ejecuta Room, Keystore y permisos/fallback. Usa un paquete debug de pruebas sin permiso de notificaciones ni alarmas exactas al iniciar; la prueba concede notificaciones. Para repetir sobre ese paquete sintético, revoca previamente sus notificaciones con `adb shell pm revoke cl.nndsk.medication.debug android.permission.POST_NOTIFICATIONS`. No ejecutar pruebas sobre una instalación que contenga información que se quiera conservar.
+
+Configurar una compilación debug con propiedades Gradle locales, sin claves privadas:
+
+```sh
+sh scripts/android-gradle.sh :app:assembleDebug \
+  -PapiBaseUrl=https://api.example.invalid \
+  -PfirebaseApiKey=replace-with-public-client-key
+```
+
+El valor inicial `example.invalid` no conecta con un servicio. HTTP sólo se admite en debug/e2e contra loopback, `10.0.2.2` o nombre `.local`. Para un teléfono por USB, `adb reverse` permite usar los servicios locales sin exponerlos a la red. Release exige HTTPS y rechaza el emulador de identidad. No se proporcionan credenciales de producción ni claves de servicio.
+
+Para el E2E, crear una base local desechable `medication_f4_android_*`, aplicar las migraciones existentes y exportar `TEST_DATABASE_URL`. Se conserva el prefijo admitido por el servidor E2E existente; no se modificó su contrato para Android.
+
+```sh
+ANDROID_SERIAL=emulator-5554 make test-android-e2e
+ANDROID_SERIAL=emulator-5554 make test-android-reboot
+```
+
+El primer comando arranca Firebase Auth emulado y API Go, conecta los puertos por `adb reverse` y prueba UI, consentimiento, Doze, entrega de alarma, offline, retries y conflictos. Sólo usa el paquete `cl.nndsk.medication.e2e` y datos sintéticos. Restaura el estado de batería/Doze al salir. El segundo reinicia exclusivamente un emulador y comprueba que el receptor de arranque restaura una alarma; no reinicia teléfonos físicos automáticamente.
+
+`make test` y `make lint` siguen comprobando Go y web. Android usa los targets explícitos anteriores para no exigir SDK a colaboradores del backend. Resultado y límites en [verificación F5](docs/runbooks/f5-verification.md). No hay vista de cuidador móvil, worker ni despliegue.
