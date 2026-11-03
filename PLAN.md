@@ -21,6 +21,10 @@ Un cuidador necesita configurar los medicamentos de sus padres, recordarles las 
 - **Paciente:** consulta próximas tomas, registra «Me lo tomé», «Me lo tomé tarde» o «No me lo tomé», revisa su agenda e inventario, y autoriza o revoca el acceso del cuidador.
 - **Sistema:** crea ocurrencias de dosis, sincroniza eventos, proyecta inventario y envía recordatorios / alertas; **no prescribe ni modifica pautas clínicas**.
 
+### Uso previsto
+
+Los pacientes usan Android. Los cuidadores usan iPhone y Android. Por eso ambas apps móviles tienen dos vistas: paciente y cuidador. La vista disponible depende de los permisos que el backend confirma, no de un rol enviado por el cliente.
+
 ### Objetivo de éxito para el MVP
 
 Una prueba real de extremo a extremo debe demostrar:
@@ -426,7 +430,9 @@ Ejemplo de comando:
 
 Pantalla «Hoy» debe priorizar: nombre claro, dosis indicada, hora local y botón principal **«Me lo tomé»**; acciones «Me lo tomé tarde» y «No me lo tomé» igual de accesibles sin penalización visual.
 
-### Cuidador — web
+### Cuidador — web y móvil
+
+El portal web es la herramienta completa, y crear o editar tratamientos sólo se hace allí. La vista móvil cubre el trabajo diario; su alcance está en F5b.
 
 1. Pacientes vinculados y estado de consentimiento.
 2. Tratamientos + formulario de pauta + inventario y reposiciones.
@@ -559,14 +565,29 @@ Evidencia en [verificación F4](docs/runbooks/f4-verification.md). **F4 cerrada 
 
 ### F5 — Android Jetpack Compose MVP
 
-- [ ] Crear proyecto Android válido con Android Studio; minSdk 26 inicial sujeto a dispositivos reales; target SDK vigente.
+- [ ] Crear proyecto Android válido con Android Studio; minSdk 26 inicial, compatible con los teléfonos actuales declarados; target SDK vigente.
 - [ ] Single-Activity + Material 3, Navigation 3, ViewModel/StateFlow, Hilt si aporta, Retrofit/OkHttp, Room.
 - [ ] Replicar **comportamiento y design tokens**, no copiar mecánicamente UI de iOS.
 - [ ] Pantallas Hoy/Historial/Ajustes y login/consentimiento.
 - [ ] Notificaciones con permisos Android 13+/alarmas exactas cuando legítimamente aplican; fallback y rescheduling tras reboot.
 - [ ] Cola local idempotente, manejo de conflictos, test con Doze/ahorro de batería y dispositivo físico.
 
-**DoD:** mismo flujo real de F4 validado en Android, incluidos reintentos y permisos denegados.
+**DoD:** mismo flujo real de F4 validado en Android físico, incluidos reintentos y permisos denegados. Es el flujo del que dependen los pacientes: la prueba offline pendiente en iPhone no lo sustituye.
+
+### F5b — Vista de cuidador en iOS y Android
+
+- [ ] Reemplazar en iOS el supuesto de que el paciente es siempre quien inició sesión; Android nace sin ese supuesto.
+- [ ] Selector de paciente y cambio explícito entre «Mis tomas» y «Mis pacientes», con cachés y colas separadas por paciente.
+- [ ] Ver agenda, historial, dosis sin confirmar e inventario de cada paciente vinculado.
+- [ ] Registrar y corregir declaraciones, y reponer stock, con el mismo flujo idempotente.
+- [ ] Crear invitaciones y revisar o revocar vínculos.
+- [ ] Mostrar sólo las acciones permitidas: un cuidador con alcance `read` audita sin poder modificar. El backend sigue autorizando cada operación.
+- [ ] Mostrar conflictos cuando dos cuidadores o el paciente registran la misma dosis.
+- [ ] Decidir cómo crear cuentas y recuperar contraseñas, y cómo simplificar la aceptación de invitaciones para los pacientes.
+
+**Fuera de alcance:** crear o editar tratamientos y pautas; siguen en el portal web.
+
+**DoD:** un cuidador en cada plataforma gestiona dos pacientes con permisos distintos, un cuidador `read` no puede modificar y una revocación se refleja en su dispositivo.
 
 ### F6 — Alertas del cuidador y resiliencia
 
@@ -682,7 +703,7 @@ Al implementar, el agente debe:
 
 Registrar decisiones más adelante, sin frenar el bootstrap:
 
-- ¿Qué iPhone/versión de iOS y qué Android/versión usan realmente los pacientes?
+- ¿Qué iPhone/versión de iOS y qué Android/versión usan realmente los pacientes? **Pacientes en Android con teléfonos actuales; cuidadores en iPhone y Android. Falta el modelo exacto para la prueba física.**
 - ¿Quieren ambos un solo perfil compartido o cada paciente su propia cuenta? **Default seguro: una cuenta por persona.**
 - ¿Qué tratamientos son diarios y cuáles tienen ciclos o pautas variables? **MVP: horarios fijos.**
 - ¿Cuál es la unidad física para cada tratamiento y cómo se registra media unidad?
