@@ -1,0 +1,4 @@
+#include "Shared.xcconfig"
+#include? "Local.xcconfig"
+// Release nunca usa el emulador de identidad, aunque Local.xcconfig lo declare.
+FIREBASE_AUTH_EMULATOR_ORIGIN =

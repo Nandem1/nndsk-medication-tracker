@@ -1,6 +1,6 @@
 # Medication Tracker
 
-F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. La API Go autoriza cada operación y PostgreSQL conserva auditoría. iOS, Android y el worker permanecen sin implementar.
+F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. F4 añade la app iOS del paciente, con el flujo completo verificado en simulador; en iPhone físico se verificaron instalación y login. La API Go autoriza cada operación y PostgreSQL conserva auditoría. iOS, Android y el worker permanecen sin implementar.
 
 ## Herramientas y versiones
 
@@ -22,6 +22,10 @@ F3 incorpora el portal web del cuidador con login Firebase, consentimiento, trat
 | Firebase cliente | 13.2.0 |
 | Zod | 4.3.6 |
 | Vitest / Playwright | 4.1.0 / 1.64.1 |
+| Xcode / SDK iOS verificados | 27.2 / 27.2 (destino iOS 17.0) |
+| Swift | 6 en la app, 5 en XCUITest |
+| XcodeGen | 2.46.0, commit fijado en el Makefile |
+| firebase-tools, sólo emulador E2E | 15.34.2 |
 
 Go usa go.mod y go.sum. Goose se instala en `.bin` con versión explícita. Las versiones de pgx y goose se consultaron en proxy.golang.org. La imagen se verificó en el [registro oficial de imágenes](https://github.com/docker-library/official-images/blob/master/library/postgres). PostgreSQL 18 monta el volumen en `/var/lib/postgresql`.
 
@@ -52,7 +56,7 @@ make lint
 
 `make dev` carga `.env` y ejecuta la API en el host. El archivo debe contener asignaciones válidas de shell. Las credenciales de `.env.example` son exclusivamente de desarrollo. PostgreSQL y HTTP escuchan en loopback. Si 55433 está ocupado, cambiar POSTGRES_PORT y el puerto de DATABASE_URL juntos.
 
-La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de base. HTTP_ADDR usa host:puerto y por defecto es `127.0.0.1:8080`. APP_ENV admite development, test y production; production exige `sslmode=verify-full`. No hay un despliegue de producción configurado. FIREBASE_PROJECT_ID identifica el proyecto cuyos ID tokens acepta la API. El valor demo de `.env.example` permite arrancar las probes, pero no habilita identidades ficticias. El ejecutable rechaza FIREBASE_AUTH_EMULATOR_HOST en cualquier entorno. Los verificadores sintéticos existen en pruebas y en `cmd/e2e`, excluido del ejecutable normal por el build tag `e2e`. Ese servidor exige una base local desechable con prefijo `medication_f3_`.
+La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de base. HTTP_ADDR usa host:puerto y por defecto es `127.0.0.1:8080`. APP_ENV admite development, test y production; production exige `sslmode=verify-full`. No hay un despliegue de producción configurado. FIREBASE_PROJECT_ID identifica el proyecto cuyos ID tokens acepta la API. El valor demo de `.env.example` permite arrancar las probes, pero no habilita identidades ficticias. El ejecutable rechaza FIREBASE_AUTH_EMULATOR_HOST en cualquier entorno. Los verificadores sintéticos existen en pruebas y en `cmd/e2e`, excluido del ejecutable normal por el build tag `e2e`. Ese servidor exige una base local desechable con prefijo `medication_f3_` o `medication_f4_`.
 
 `/healthz` devuelve 200 y `{"status":"ok"}` sin consultar la DB. `/readyz` hace Ping real y devuelve 200 con `{"status":"ready"}` o 503 con `{"status":"not_ready"}`. Tiene un límite de dos segundos. Readiness sólo comprueba conectividad; las migraciones se ejecutan aparte. Los errores de conexión no salen en JSON ni logs. SIGINT y SIGTERM dejan hasta diez segundos para completar peticiones antes de cerrar el pool.
 
@@ -72,6 +76,13 @@ La API requiere DATABASE_URL con esquema postgres/postgresql, host y nombre de b
 | `make web-install` | Instalar dependencias web con lockfile fijo |
 | `make web-dev` | Portal en `http://127.0.0.1:5173`, proxy API al puerto 8080 |
 | `make test-web-e2e` | Playwright con HTTP y PostgreSQL reales; exige base F3 desechable migrada |
+| `make ios-project` | Compilar XcodeGen fijado si falta y generar el proyecto Xcode |
+| `make build-ios` | Compilar la app para simulador |
+| `make test-ios` | Pruebas unitarias iOS en simulador, con dobles de red |
+| `make lint-ios` | Compilar app y pruebas con advertencias como errores |
+| `make dev-lan` | API en la red local, puerto 8081 o `LAN_PORT`, para un iPhone de desarrollo |
+| `make run-ios-device` | Compilar, instalar y abrir la app en el iPhone conectado |
+| `make test-ios-e2e` | XCUITest con simulador, API y PostgreSQL reales y emulador Firebase; exige base `medication_f4_` desechable migrada |
 | `make generate` | Fallar con explicación; generación aún no configurada |
 
 No ejecutar migrate-down sobre información que se quiera conservar. Para comprobar up/down/up usar una base nueva y desechable. No borrar volúmenes como parte del arranque normal. Las pruebas de F1 insertan fixtures sintéticos y conservan su historial append-only; requieren una base de pruebas dedicada.
@@ -115,11 +126,17 @@ Las peticiones JSON tienen un máximo de 64 KiB. La API genera un request ID, pr
 
 El SDK verifica firmas mediante certificados públicos sin credenciales de servicio. No se activa revocación de tokens en Firebase Admin. Los permisos del cuidador se revisan en PostgreSQL en cada operación. Las pruebas de firma locales usan claves y certificados sintéticos; no acreditan conexión a un proyecto Firebase desplegado.
 
+## App iOS
+
+Los comandos usan `/Applications/Xcode.app` mediante `DEVELOPER_DIR`, sin cambiar la selección global; `XCODE_DEVELOPER_DIR` e `IOS_DESTINATION` los sobrescriben. `make test` y `make lint` no incluyen iOS porque CI corre en Linux.
+
+Para ejecutarla, crear `apps/ios/Config/Local.xcconfig`, ignorado por Git, con `FIREBASE_API_KEY`, `DEVELOPMENT_TEAM`, `CODE_SIGN_STYLE = Automatic` y `API_BASE_URL = http:/$()/<nombre-del-mac>.local:8081`. Luego iniciar `make dev-lan` y ejecutar `make run-ios-device`. La cuenta de Apple se añade una vez en Xcode. Release sólo acepta HTTPS. Las cuentas se crean fuera de la app, igual que en el portal. Consulta la [verificación F4](docs/runbooks/f4-verification.md).
+
 ## Estructura y siguientes fases
 
 `services/api/cmd/api` compone configuración, pool, verificador Firebase y servidor. `internal/config` valida entorno, `internal/auth` verifica identidad e `internal/http` adapta JSON a los servicios. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` aplica permisos, consentimiento y casos de uso transaccionales. `infrastructure/migrations` contiene usuarios, dominio e invitaciones. `packages/contracts/openapi.yaml` describe las probes y las rutas implementadas de F2 y F3.
 
-Los directorios móviles y worker siguen reservados. No hay proyectos Xcode o Gradle ni clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 y las fases posteriores no se ejecutaron.
+Android y el worker siguen reservados, sin proyecto Gradle ni ejecutables. La app iOS se describe arriba. No hay clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 y las fases posteriores no se ejecutaron.
 
 ## Iniciar el portal
 

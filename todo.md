@@ -52,3 +52,14 @@ Architect: Ground, Sketch, Agree (no checkpoint requested), Implement, Scrap (on
 Arena design: Frame, Fan out, Cross-judge, Pick, Graft, Verify.
 
 Design synthesis used small route/feature components, exact strings, versioned editor snapshots and memory-only sessions. The independent review identified lost invitation response recovery and stale-editor version drift; both were fixed and passed real browser regressions. See docs/runbooks/f3-verification.md. No commits, PR or deployment.
+
+# F4
+
+- [x] Leer plan, contrato y comportamiento de replay antes de implementar.
+- [x] Implementar app iOS, cola durable, recordatorios y consentimiento.
+- [x] Verificar en simulador con API, PostgreSQL y emulador Firebase reales.
+- [x] Instalación y login en iPhone físico.
+- [ ] DoD offline y restricciones de notificación en iPhone físico. skip: fase cerrada por el usuario con este pendiente.
+- [ ] Commits y PR. skip: usuario prohíbe commits.
+
+Ver docs/runbooks/f4-verification.md.

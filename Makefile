@@ -43,6 +43,48 @@ generate:
 	@echo 'F2 uses manual typed HTTP adapters in services/api/internal/http/dto.go. No generator is configured; verify the OpenAPI contract with make test.' >&2
 	@exit 1
 
+XCODE_DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
+XCODEGEN_VERSION := 2.46.0
+XCODEGEN_COMMIT := 8445e778451c7e44237b90281bde622d764b0084
+XCODEGEN := $(CURDIR)/.bin/xcodegen-$(XCODEGEN_VERSION)/xcodegen
+IOS_DIR := apps/ios
+IOS_PROJECT := $(IOS_DIR)/MedicationTracker.xcodeproj
+IOS_DESTINATION ?= platform=iOS Simulator,name=iPhone 17
+IOS_XCODEBUILD := DEVELOPER_DIR=$(XCODE_DEVELOPER_DIR) xcodebuild -project $(IOS_PROJECT) -derivedDataPath .tmp/ios-derived
+
+.PHONY: ios-project build-ios test-ios lint-ios test-ios-e2e dev-lan run-ios-device
+
+$(XCODEGEN):
+	@rm -rf .tmp/xcodegen-src && mkdir -p .tmp .bin/xcodegen-$(XCODEGEN_VERSION)
+	git clone --quiet --depth 1 --branch $(XCODEGEN_VERSION) https://github.com/yonaskolb/XcodeGen.git .tmp/xcodegen-src
+	@test "$$(git -C .tmp/xcodegen-src rev-parse HEAD)" = "$(XCODEGEN_COMMIT)" || { echo 'XcodeGen tag does not match the pinned commit.' >&2; exit 1; }
+	cd .tmp/xcodegen-src && DEVELOPER_DIR=$(XCODE_DEVELOPER_DIR) swift build -c release --product xcodegen
+	cp .tmp/xcodegen-src/.build/release/xcodegen $(XCODEGEN)
+	cp -R .tmp/xcodegen-src/.build/release/XcodeGen_XcodeGenKit.bundle .bin/xcodegen-$(XCODEGEN_VERSION)/
+
+ios-project: $(XCODEGEN)
+	cd $(IOS_DIR) && DEVELOPER_DIR=$(XCODE_DEVELOPER_DIR) $(XCODEGEN) generate --quiet
+
+build-ios: ios-project
+	$(IOS_XCODEBUILD) -scheme MedicationTracker -destination '$(IOS_DESTINATION)' build
+
+test-ios: ios-project
+	$(IOS_XCODEBUILD) -scheme MedicationTracker -destination '$(IOS_DESTINATION)' test
+
+lint-ios: ios-project
+	$(IOS_XCODEBUILD) -scheme MedicationTracker -destination '$(IOS_DESTINATION)' SWIFT_TREAT_WARNINGS_AS_ERRORS=YES build-for-testing
+
+# Expone la API en la red local para un iPhone de desarrollo. Sólo redes de confianza y datos sintéticos.
+dev-lan:
+	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; HTTP_ADDR=:$${LAN_PORT:-8081}; cd services/api && go run ./cmd/api
+
+run-ios-device: ios-project
+	XCODE_DEVELOPER_DIR='$(XCODE_DEVELOPER_DIR)' sh scripts/ios-run-device.sh
+
+test-ios-e2e: ios-project
+	@test -n "$$TEST_DATABASE_URL" || { echo "Set TEST_DATABASE_URL to a migrated disposable medication_f4_ database." >&2; exit 1; }
+	IOS_DESTINATION='$(IOS_DESTINATION)' XCODE_DEVELOPER_DIR='$(XCODE_DEVELOPER_DIR)' sh scripts/ios-e2e.sh
+
 .PHONY: web-dev web-install test-web-e2e
 web-dev:
 	pnpm --dir apps/web dev

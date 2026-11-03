@@ -1,11 +1,13 @@
 # Mapa del monorepo
 
-El portal web del cuidador consume la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. Las apps móviles y el worker siguen como carpetas reservadas, sin ejecutables.
+El portal web del cuidador y la app iOS del paciente consumen la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. Android y el worker siguen como carpetas reservadas, sin ejecutables.
 
 ```mermaid
 flowchart TB
     Web[Portal web React] --> HTTP[API Go y DTOs tipados]
     Web --> Login[Firebase Auth cliente]
+    IOS[App iOS con cola durable] --> HTTP
+    IOS --> Login
     Client[Otros clientes HTTP] --> HTTP
     HTTP --> Identity[Firebase Admin verifica ID token]
     Identity --> User[UID a usuario interno]
@@ -30,13 +32,14 @@ flowchart TB
 - [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda materializa ocurrencias mediante ese generador, sin worker.
 - [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado bajo bloqueo de cuenta y crea un ajuste exacto sólo si existe diferencia.
 - [OpenAPI](../packages/contracts/openapi.yaml) es el contrato compartido. Los adaptadores son manuales y tipados. No hay clientes móviles o web generados.
+- [`cmd/e2e`](../services/api/cmd/e2e/main.go), sólo con la etiqueta `e2e`, acepta identidades sintéticas o del emulador de Firebase y añade un [proxy de fallos](../services/api/cmd/e2e/proxy.go). Exige una base local desechable. El ejecutable productivo sigue rechazando el emulador.
 - [Compose](../compose.yaml) mantiene PostgreSQL y su volumen. El puerto host predeterminado es 55433 y el puerto del contenedor es 5432.
 
 ## Mapas por app
 
 | App | Mapa local | Estado |
 | --- | --- | --- |
-| iOS | [Mapa iOS](../apps/ios/docs/00-home.md) | Carpetas reservadas, sin proyecto Xcode |
+| iOS | [Mapa iOS](../apps/ios/docs/00-home.md) | App SwiftUI del paciente. Flujo completo verificado en simulador; en iPhone físico, instalación y login |
 | Android | [Mapa Android](../apps/android/docs/00-home.md) | Carpetas reservadas, sin proyecto Gradle compilable |
 | Web | [Mapa web](../apps/web/docs/00-home.md) | Portal React con login, consentimiento, tratamientos, inventario y agenda |
 
@@ -56,3 +59,5 @@ Los detalles internos de cada app se documentan en su mapa local cuando se imple
 
 - [Decisión del portal F3](decisions/0004-f3-caregiver-portal.md) explica sesión en memoria, archivo auditable y conteos físicos.
 - [Verificación F3](runbooks/f3-verification.md) distingue pruebas reales de HTTP y PostgreSQL, identidad sintética y verificaciones pendientes de Firebase.
+- [Decisión de la app iOS F4](decisions/0005-f4-ios-patient-app.md) explica el proyecto generado, la identidad por REST, la cola durable y los recordatorios.
+- [Verificación F4](runbooks/f4-verification.md) distingue lo comprobado en simulador y en iPhone físico de lo pendiente.

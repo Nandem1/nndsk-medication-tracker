@@ -1,13 +1,59 @@
 # Mapa de iOS
 
-Sólo existen carpetas reservadas en `MedicationTracker/`. No hay proyecto Xcode, código Swift, navegación, persistencia ni conexión a la API.
+App SwiftUI del paciente: agenda de hoy, tres declaraciones, historial con corrección, consentimiento y recordatorios locales. Registra declaraciones, no ingestión, y no recomienda cambiar ni compensar dosis. Los contratos y el backend se describen en el [mapa del monorepo](../../../docs/00-home.md).
 
-`App`, `Core`, `DesignSystem` y `Features` son la organización prevista. Swift y SwiftUI corresponden a F4 del plan y todavía no están implementados.
+```mermaid
+flowchart TB
+    UI[Hoy, Historial, Ajustes] --> Model[AppModel @Observable]
+    Model --> Factory[OperationFactory fija occurred_at y el cuerpo]
+    Factory --> Store[(LocalStore SQLite: caché y cola)]
+    Model --> Sync[SyncEngine serializa envío y refresco]
+    Sync --> Store
+    Sync --> API[API Go /v1]
+    API --> Tokens[IdentityStore]
+    Tokens --> Keychain[(Keychain)]
+    Tokens --> Firebase[Firebase Auth REST]
+    Store --> Planner[ReminderPlanner]
+    Planner --> Notifications[Notificaciones locales]
+    Notifications -->|el toque abre la dosis| UI
+```
 
-[Carpetas reservadas](../MedicationTracker/).
+## Declarar sin conexión
 
-## Alcance de este mapa
+```mermaid
+sequenceDiagram
+    participant P as Paciente
+    participant S as LocalStore
+    participant E as SyncEngine
+    participant A as API
+    P->>S: Toque: guarda operación en disco
+    S-->>P: Pendiente de sincronizar y saldo estimado
+    E->>A: POST con los mismos bytes
+    Note over E,A: Si se pierde la respuesta, la operación sigue en la cola
+    E->>A: POST repetido con el mismo client_operation_id
+    A-->>E: Resultado original, sin otro consumo
+    E->>S: Aplica resultado y retira la operación en una transacción
+```
 
-Documentar aquí los límites, flujos y responsabilidades internos cuando exista implementación. No hay un flujo ejecutable que diagramar en F0.
+## Invariantes
 
-Los contratos HTTP, backend e infraestructura se describen en el [mapa del monorepo](../../../docs/00-home.md). El [plan](../../../PLAN.md) contiene el diseño futuro. La [política común](../../../AGENTS.md#living-architecture) aplica a esta app sin duplicarla.
+- La declaración está en disco antes de cualquier intento de red. Una dosis admite una operación activa.
+- 409, 400/422 y 403/404 dejan la operación visible en «Por revisar», o en Ajustes si su dosis ya no está en la agenda. Sólo la persona puede resolverla.
+- El saldo confirmado viene del servidor. El estimado se calcula aparte, con decimal exacto, y se rotula como tal.
+- «Sin confirmar» se deriva del reloj y nunca se presenta como omitida. Las dosis futuras no admiten declaración, igual que en la API.
+- Abrir un recordatorio nunca declara. Su texto no incluye el nombre del medicamento.
+- Los cuerpos y datos médicos no se registran en logs. La base local queda fuera de las copias de seguridad.
+
+## Responsabilidades
+
+- [AppModel](../MedicationTracker/App/AppModel.swift) coordina sesión, sincronización, reintentos y navegación desde avisos.
+- [SyncEngine](../MedicationTracker/Core/Sync/SyncEngine.swift) clasifica las respuestas. [LocalStore](../MedicationTracker/Core/Persistence/LocalStore.swift) es dueño de la caché, la cola y el propietario de los datos.
+- [IdentityStore](../MedicationTracker/Core/Auth/IdentityStore.swift) es el único dueño de las credenciales.
+- [ReminderPlanner](../MedicationTracker/Core/Notifications/ReminderPlanner.swift) decide qué recordar. [ReminderScheduler](../MedicationTracker/Core/Notifications/ReminderScheduler.swift) reconcilia con el sistema y diagnostica permisos.
+- [DesignSystem](../MedicationTracker/DesignSystem/DesignSystem.swift) define colores semánticos con contraste verificado y los textos de estado.
+
+## Proyecto y pruebas
+
+[project.yml](../project.yml) genera el proyecto; `.xcodeproj` no se versiona. La configuración pública está en [Config](../Config). Debug admite HTTP hacia loopback y nombres `.local`. Release mantiene `NSAllowsLocalNetworking` en el plist, pero `AppConfig` rechaza todo lo que no sea HTTPS. Las razones están en la [decisión F4](../../../docs/decisions/0005-f4-ios-patient-app.md) y la evidencia y los pendientes en la [verificación F4](../../../docs/runbooks/f4-verification.md).
+
+La [política común](../../../AGENTS.md#living-architecture) aplica a esta app sin duplicarla.

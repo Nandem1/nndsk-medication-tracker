@@ -544,15 +544,18 @@ Evidencia local en [verificación F3](docs/runbooks/f3-verification.md). El DoD 
 
 ### F4 — iOS SwiftUI MVP (primera app de paciente)
 
-- [ ] Crear proyecto iOS válido con Xcode; destino iOS 17+ sujeto a comprobación de dispositivos.
-- [ ] `App / Core / DesignSystem / Features`, @Observable, NavigationStack, URLSession, cache/cola offline persistente.
-- [ ] Inicio de sesión seguro y consentimiento del paciente.
-- [ ] Pantalla Hoy con 3 acciones, historial, corrección de registro, accesibilidad.
-- [ ] Notificaciones locales, reconciliación de agenda y diagnóstico de permisos.
-- [ ] Reintentos offline idempotentes; estados «Pendiente de sincronizar» y conflictos visibles.
-- [ ] Tests unitarios/UI y prueba manual en iPhone físico, incluidas restricciones de notificación.
+- [x] Crear proyecto iOS válido con Xcode; destino iOS 17+ sujeto a comprobación de dispositivos. Generado con XcodeGen fijado; compilado para iOS 17.0, ejecutado sólo en iOS 27.2.
+- [x] `App / Core / DesignSystem / Features`, @Observable, NavigationStack, URLSession, cache/cola offline persistente.
+- [x] Inicio de sesión seguro y consentimiento del paciente. Verificado con el emulador de Firebase; proyecto real pendiente.
+- [x] Pantalla Hoy con 3 acciones, historial, corrección de registro, accesibilidad. Auditoría automática; sin revisión manual con VoiceOver.
+- [x] Notificaciones locales, reconciliación de agenda y diagnóstico de permisos. Entrega verificada en simulador.
+- [x] Reintentos offline idempotentes; estados «Pendiente de sincronizar» y conflictos visibles.
+- [x] Tests unitarios/UI.
+- [ ] Prueba manual en iPhone físico del flujo offline y las restricciones de notificación. Instalación y login sí verificados; ver pendientes.
 
 **DoD:** flujo real iOS: cuidador crea → paciente recibe agenda → confirma offline → sincroniza → stock se descuenta una sola vez.
+
+Evidencia en [verificación F4](docs/runbooks/f4-verification.md). **F4 cerrada el 2026-11-03 por decisión del usuario, con pendientes.** El flujo de la DoD pasó en simulador con API y PostgreSQL reales. En iPhone físico se verificaron instalación, login contra Firebase real y lectura desde la API; la confirmación offline no se ejecutó allí, así que la DoD no está acreditada en dispositivo. F5 no se inició.
 
 ### F5 — Android Jetpack Compose MVP
 

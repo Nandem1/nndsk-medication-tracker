@@ -15,3 +15,9 @@ local.properties
 
 apps/web/test-results/
 apps/web/playwright-report/
+
+# iOS
+apps/ios/*.xcodeproj/
+apps/ios/Config/Local.xcconfig
+firebase-debug.log*
+ui-debug.log*
