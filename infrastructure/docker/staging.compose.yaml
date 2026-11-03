@@ -1,0 +1,45 @@
+name: medication-staging
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/backend.Dockerfile
+      args:
+        COMMAND: api
+    environment:
+      APP_ENV: staging
+      HTTP_ADDR: 0.0.0.0:8080
+      DATABASE_URL: ${STAGING_DATABASE_URL:?Set an isolated TLS staging database}
+      FIREBASE_PROJECT_ID: ${STAGING_FIREBASE_PROJECT_ID:?Set a synthetic staging project}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_credentials
+    secrets:
+      - firebase_credentials
+    ports:
+      - "127.0.0.1:18080:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  worker:
+    profiles: [notifications]
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/backend.Dockerfile
+      args:
+        COMMAND: worker
+    environment:
+      APP_ENV: staging
+      DATABASE_URL: ${STAGING_DATABASE_URL:?Set an isolated TLS staging database}
+      FIREBASE_PROJECT_ID: ${STAGING_FIREBASE_PROJECT_ID:?Set a synthetic staging project}
+      WORKER_PUSH_MODE: enabled
+      PUSH_FCM_PROJECT_ID: ${STAGING_FIREBASE_PROJECT_ID:?Set a synthetic staging project}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_credentials
+    secrets:
+      - firebase_credentials
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+secrets:
+  firebase_credentials:
+    file: ${STAGING_FIREBASE_CREDENTIALS_FILE:?Set path outside the repository}

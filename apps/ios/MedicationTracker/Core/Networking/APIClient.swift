@@ -57,6 +57,14 @@ struct APIClient: Sendable {
     let transport: any HTTPTransport
     let tokens: any TokenProviding
 
+    func registerDevice(_ registration: DeviceRegistration) async throws {
+        _ = try await send("/v1/devices", query: [], method: "POST", body: JSONEncoder().encode(registration))
+    }
+
+    func unregisterDevice(id: String) async throws {
+        _ = try await send("/v1/devices/\(id)", query: [], method: "DELETE", body: nil, timeout: 5)
+    }
+
     func me() async throws -> Me {
         try await request("/v1/me")
     }
@@ -118,11 +126,12 @@ struct APIClient: Sendable {
         }
     }
 
-    private func send(_ path: String, query: [URLQueryItem], method: String, body: Data?) async throws -> Data {
+    private func send(_ path: String, query: [URLQueryItem], method: String, body: Data?, timeout: TimeInterval? = nil) async throws -> Data {
         var url = baseURL.appending(path: path)
         if !query.isEmpty { url.append(queryItems: query) }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if let timeout { request.timeoutInterval = timeout }
         request.httpBody = body
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
 

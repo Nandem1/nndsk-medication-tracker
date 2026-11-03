@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"context"
+	"medication-tracker/services/api/internal/observability"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,6 +79,11 @@ func (a *API) middleware(next http.Handler) http.Handler {
 			if recover() != nil {
 				fail(sw, r, 500, "internal_error", "Request could not be completed")
 			}
+			status := sw.status
+			if status == 0 {
+				status = 200
+			}
+			observability.Default.Request(status, r.Method == "POST" && (strings.HasSuffix(r.URL.Path, "/events") || strings.HasSuffix(r.URL.Path, "/corrections")), time.Since(start))
 			if a.logger != nil {
 				a.logger.Info("http request", "request_id", id, "method", r.Method, "status", sw.status, "duration_ms", time.Since(start).Milliseconds())
 			}

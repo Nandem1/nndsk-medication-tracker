@@ -1,6 +1,6 @@
 # Mapa del monorepo
 
-El portal web del cuidador y las apps iOS y Android del paciente consumen la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. El worker sigue como carpeta reservada, sin ejecutable. Android tiene proyecto compilable y pruebas en emulador. F5 está aceptada por el usuario tras revisión en teléfono físico, con cobertura pendiente documentada.
+El portal web del cuidador y las apps iOS y Android del paciente consumen la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. El worker Go comparte módulo con la API y procesa una outbox de alertas. APNs y FCM tienen adaptadores y registro nativo, con entrega remota aún pendiente de verificar. Android tiene proyecto compilable y pruebas en emulador. F5 está aceptada por el usuario tras revisión en teléfono físico, con cobertura pendiente documentada.
 
 ```mermaid
 flowchart TB
@@ -21,6 +21,12 @@ flowchart TB
     Probe[Cliente de diagnóstico] --> Health[healthz sin DB]
     Probe --> Ready[readyz con Ping]
     Ready --> DB
+    Worker[Worker Go] --> UseCases
+    UseCases --> Outbox[Outbox y dispositivos en PostgreSQL]
+    Worker --> Push[APNs y FCM]
+    Push -. aviso genérico .-> IOS
+    Push -. aviso genérico .-> Android
+    Backup[Backup cifrado y ensayo restore] --> DB
     Goose[Goose desde Makefile] --> DB
     Contract[OpenAPI 3.1] -. describe .-> HTTP
 ```
@@ -31,7 +37,7 @@ flowchart TB
 - [HTTP](../services/api/internal/http/api.go) verifica identidad, limita peticiones y adapta JSON. Usa cantidades decimales como texto y errores sin contenido médico. Los logs contienen metadatos de petición, sin tokens, cuerpos ni URLs.
 - [Aplicación](../services/api/internal/application/service.go) autoriza antes de consultar respuestas idempotentes. Resuelve el paciente desde el recurso y mantiene el bloqueo compartido del vínculo hasta terminar la transacción. El propio paciente puede operar sus datos. Los cuidadores necesitan consentimiento activo y el alcance correspondiente.
 - [Consentimiento](../services/api/internal/application/consent.go) emite invitaciones con hash de token, registra aceptación y revocación. Reactivar un vínculo requiere consentimiento nuevo.
-- [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda materializa ocurrencias mediante ese generador, sin worker.
+- [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda y el worker materializan ocurrencias mediante el mismo generador.
 - [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado bajo bloqueo de cuenta y crea un ajuste exacto sólo si existe diferencia.
 - [OpenAPI](../packages/contracts/openapi.yaml) es el contrato compartido. Los adaptadores son manuales y tipados. No hay clientes móviles o web generados.
 - [`cmd/e2e`](../services/api/cmd/e2e/main.go), sólo con la etiqueta `e2e`, acepta identidades sintéticas o del emulador de Firebase y añade un [proxy de fallos](../services/api/cmd/e2e/proxy.go). Exige una base local desechable. El ejecutable productivo sigue rechazando el emulador.
@@ -66,3 +72,22 @@ Los detalles internos de cada app se documentan en su mapa local cuando se imple
 
 - [Decisión Android F5](decisions/0006-f5-android-patient-app.md) explica identidad, separación de paciente, cola y alarmas.
 - [Verificación F5](runbooks/f5-verification.md) distingue pruebas de emulador y pendientes físicos.
+
+
+## Alertas y resiliencia F6
+
+[Worker](../services/api/cmd/worker/main.go) materializa una ventana de agenda, evalúa preferencias por vínculo y procesa [outbox](../services/api/internal/application/alerts.go). Una reserva durable precede cada envío. Los resultados inciertos no se reenvían automáticamente. La frecuencia se reserva por cuidador, incluso entre sus dispositivos. Consentimiento, token y condición se revisan antes de reservar.
+
+[Dispositivos](../services/api/internal/application/devices.go) pertenecen al actor autenticado. Los tokens no aparecen en respuestas ni logs. Las preferencias están vinculadas a la generación de consentimiento. Las alertas están desactivadas hasta configurarlas. El payload push es genérico y no concede acceso a datos.
+
+[Reconciliación](../services/api/internal/application/reconcile.go) inspecciona estado, consumo, ledger, ventana de agenda y entregas/dispositivos obsoletos. No reescribe historia. [Métricas](../services/api/internal/observability/metrics.go) sirven contadores agregados en listeners privados. El [backup](../services/api/cmd/backup/main.go) cifra dumps y restringe el restore de ensayo a bases locales vacías.
+
+El worker comparte transacciones y reglas del backend, pero es un proceso separado. La planificación bloquea tratamientos dentro de un ciclo global y está pensada para escala familiar. Antes de aumentar volumen hay que medir su duración y contención.
+
+- [Decisión F6](decisions/0007-f6-alerts-resilience.md).
+- [Recuperación y staging](runbooks/f6-recovery.md).
+- [Verificación F6](runbooks/f6-verification.md).
+
+## Despliegue Railway
+
+El proyecto `medication-tracker` contiene `staging` con PostgreSQL, API y worker separados, y `production` reservado sin instancias ni volúmenes. Sólo la API publica HTTPS. PostgreSQL usa red privada y TLS con validación de nombre y CA mediante el [pool compartido](../services/api/internal/config/database.go). El worker mantiene push desactivado. Firebase de staging usa `medication-tracker-dev-8ebde`; el usuario aceptó el flujo manual con web y teléfonos. Las probes públicas funcionan y los endpoints protegidos requieren token. Ver [operación y evidencia](runbooks/railway-staging.md).

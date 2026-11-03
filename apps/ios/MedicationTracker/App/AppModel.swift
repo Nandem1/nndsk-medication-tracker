@@ -36,6 +36,8 @@ final class AppModel {
     private let api: APIClient?
     private let sync: SyncEngine?
     private let scheduler = ReminderScheduler()
+    private let push: PushRegistration?
+    private(set) var pushDiagnostic = "Avisos remotos sin configurar."
     private var pendingCredentialsUID: String?
     private var retryTask: Task<Void, Never>?
     private var retryDelay: Duration = .seconds(15)
@@ -61,6 +63,7 @@ final class AppModel {
         identity = parts?.0
         store = parts?.1
         api = parts?.2
+        push = parts.map { PushRegistration(api: $0.2) }
         sync = parts?.3
         phase = failure
     }
@@ -70,6 +73,7 @@ final class AppModel {
     func start() async {
         guard phase == .loading, let identity else { return }
         NotificationRouter.shared.connect { [weak self] dose in self?.open(dose: dose) }
+        RemotePush.shared.onChange = { [weak self] in Task { await self?.refreshPush() } }
         watchNetwork()
         // Una decisión pendiente sobre otra cuenta puede haber quedado abierta al cerrar la app:
         // sin este control, sus registros se enviarían con la identidad nueva.
@@ -153,6 +157,7 @@ final class AppModel {
 
     private func completeSignIn() async {
         phase = .signedIn
+        push?.signedIn()
         syncProblem = nil
         await refreshLocal()
         await syncNow()
@@ -162,6 +167,7 @@ final class AppModel {
     func signOut() async {
         retryTask?.cancel()
         await sync?.finishCurrent()
+        let removedPush = if let uid = await identity?.uid { await push?.signOut(owner: uid) ?? true } else { true }
         await scheduler.removeAll()
         try? await store?.wipe()
         await identity?.signOut()
@@ -171,6 +177,7 @@ final class AppModel {
         todayPath = []
         selectedTab = .today
         phase = .signedOut
+        if !removedPush { alertMessage = "La sesión se cerró. No se pudo desactivar el registro remoto en el servidor; podría llegar un aviso genérico hasta que venza." }
     }
 
     // MARK: Sincronización
@@ -182,6 +189,13 @@ final class AppModel {
         isSyncing = false
         handle(outcome)
         await refreshLocal()
+        await refreshPush()
+    }
+
+    private func refreshPush() async {
+        guard phase == .signedIn, let uid = await identity?.uid, let push else { return }
+        await push.reconcile(owner: uid)
+        pushDiagnostic = push.diagnostic
     }
 
     private func handle(_ outcome: SyncOutcome) {
@@ -228,6 +242,7 @@ final class AppModel {
     func requestReminderPermission() async {
         _ = await scheduler.requestPermission()
         await reconcileReminders()
+        await refreshPush()
     }
 
     // MARK: Declaraciones

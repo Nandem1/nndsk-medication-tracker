@@ -16,6 +16,8 @@ func TestLoad(t *testing.T) {
 		{"missing URL", "", "", "", true},
 		{"wrong scheme", "", "https://localhost/db", "", true},
 		{"unknown environment", "", "postgres://localhost/db", "prod", true},
+		{"insecure staging", "", "postgres://localhost/db?sslmode=disable", "staging", true},
+		{"verified staging", "", "postgres://localhost/db?sslmode=verify-full", "staging", false},
 		{"insecure production", "", "postgres://localhost/db?sslmode=disable", "production", true},
 		{"verified production", "", "postgres://localhost/db?sslmode=verify-full", "production", false},
 	} {

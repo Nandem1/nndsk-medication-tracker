@@ -115,3 +115,23 @@ test-android-e2e:
 .PHONY: test-android-reboot
 test-android-reboot:
 	sh scripts/android-reboot-test.sh
+
+.PHONY: build-worker dev-worker backup restore-test
+build-worker:
+	cd services/api && go build -o ../../.bin/worker ./cmd/worker
+
+dev-worker:
+	@set -a; if [ -f .env ]; then . ./.env; fi; set +a; cd services/api && go run ./cmd/worker
+
+backup:
+	@test -n "$$BACKUP_ARCHIVE" || { echo 'Set BACKUP_ARCHIVE to a new encrypted archive path.' >&2; exit 1; }
+	cd services/api && go run ./cmd/backup create "$$BACKUP_ARCHIVE"
+
+restore-test:
+	@test -n "$$BACKUP_ARCHIVE" || { echo 'Set BACKUP_ARCHIVE to an encrypted archive path.' >&2; exit 1; }
+	cd services/api && go run ./cmd/backup restore-test "$$BACKUP_ARCHIVE"
+
+.PHONY: test-backup
+test-backup:
+	cd services/api && go build -o ../../.bin/backup ./cmd/backup
+	python3 scripts/f6-restore-test.py

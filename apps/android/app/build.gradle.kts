@@ -18,6 +18,9 @@ android {
     fun config(name: String, fallback: String) = providers.gradleProperty(name).orElse(fallback).get()
     buildConfigField("String", "API_BASE_URL", "\"${config("apiBaseUrl", "https://example.invalid")}\"")
     buildConfigField("String", "FIREBASE_API_KEY", "\"${config("firebaseApiKey", "configure-me")}\"")
+    buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${config("firebaseProjectId", "")}\"")
+    buildConfigField("String", "FIREBASE_APP_ID", "\"${config("firebaseAppId", "")}\"")
+    buildConfigField("String", "FIREBASE_SENDER_ID", "\"${config("firebaseSenderId", "")}\"")
     buildConfigField("String", "AUTH_EMULATOR", "\"${config("authEmulator", "")}\"")
   }
 
@@ -60,6 +63,7 @@ kotlin {
 }
 
 dependencies {
+  implementation(libs.firebase.messaging)
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)

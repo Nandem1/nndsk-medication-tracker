@@ -593,13 +593,15 @@ Evidencia y comandos en [verificación F5](docs/runbooks/f5-verification.md). **
 
 ### F6 — Alertas del cuidador y resiliencia
 
-- [ ] Worker Go + outbox para avisos de dosis sin confirmar y stock próximo a agotarse.
-- [ ] APNs/FCM con registro de dispositivos, privacidad del payload, deduplicación y control de frecuencia.
-- [ ] Despliegue `staging` sin datos reales; backup y ensayo de restore.
-- [ ] Reconciliación integral entre ledger, estado de dosis, agenda y dispositivos.
-- [ ] Observabilidad: métricas de éxito/error de sync, latencia API, fallos del worker y retrasos de avisos **sin PII**.
+- [x] Worker Go + outbox para avisos de dosis sin confirmar y stock próximo a agotarse. Verificado con PostgreSQL real y proveedores HTTP controlados.
+- [ ] APNs/FCM con registro de dispositivos, privacidad del payload, deduplicación y control de frecuencia. Implementados backend y registro nativo; pruebas locales pasan. Entrega real en teléfonos pendiente.
+- [x] Despliegue `staging` sin datos reales; backup y ensayo de restore. Railway staging desplegado con PostgreSQL, API y worker. Backup cifrado desde staging restaurado en una base local desechable: hashes de 21 tablas iguales. Restore cloud/PITR pendiente.
+- [x] Reconciliación integral entre ledger, estado de dosis, agenda y dispositivos. Verificada en PostgreSQL sintético, incluida copia restaurada; no acredita recepción push remota.
+- [x] Observabilidad: métricas de éxito/error de sync, latencia API, fallos del worker y retrasos de avisos **sin PII**. Contadores privados, tests y worker real verificados; scrape remoto pendiente.
 
 **DoD:** ningún fallo temporal de worker/reintento crea consumo duplicado ni spam de push; existen runbooks de recuperación.
+
+Evidencia en [verificación F6](docs/runbooks/f6-verification.md) y [recuperación](docs/runbooks/f6-recovery.md). **F6 cerrada el 2026-11-03 por aceptación explícita del usuario como MVP, con pendientes.** Firebase real está configurado; el usuario confirmó login y uso en iOS y después el flujo completo con web y Android contra staging. La aceptación manual no acredita los casos físicos no detallados ni entrega APNs/FCM real, que permanece pendiente con push desactivado. Restore cloud/PITR y scrape remoto siguen pendientes. Se autoriza un commit de cierre; F5b y F7 no se ejecutaron.
 
 ### F7 — Dashboard y gamificación
 

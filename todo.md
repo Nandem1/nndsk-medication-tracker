@@ -63,3 +63,24 @@ Design synthesis used small route/feature components, exact strings, versioned e
 - [ ] Commits y PR. skip: usuario prohíbe commits.
 
 Ver docs/runbooks/f4-verification.md.
+
+## F6
+
+- [x] 1. `how` over the affected subsystem.
+- [x] 2. `architect` for parallel design exploration.
+- [x] 3. Write the throughput checkpoint as four todo items.
+  - Blocking first steps. Read full plan, domain and authorization; decide delivery ambiguity before implementation.
+  - Independent workstreams. Worker/database/API and provider adapters/operations can use separate worktrees.
+  - Shared mutable state. Only one writer per worktree; integrate patches sequentially.
+  - Smallest safe decomposition. Domain owner keeps generation, outbox and authorization together; provider owner handles transport and restore.
+- [x] 4. Delegate code-writing to a subagent using your configured feature model.
+- [x] 5. Verify on the matching surface. Local checks, Railway probes and user staging acceptance pass; real push delivery remains pending.
+- [ ] 6. Rebase into small, ordered commits. Stack follow-ups.
+  - skip: user prohibits commits.
+- [ ] 7. If the design is contested, `interrogate` before shipping.
+  - skip: conditional on review findings.
+- [ ] 8. Run **Opening a PR**.
+  - skip: outside requested scope.
+- [x] Architecture MAINTAIN, runbooks, evidence and F6 checkboxes.
+
+F6 cerrada por aceptación del usuario el 2026-11-03 como MVP, conservando pendientes externos. Commit de cierre expresamente autorizado después de la prohibición inicial. F5b y F7 no iniciadas.

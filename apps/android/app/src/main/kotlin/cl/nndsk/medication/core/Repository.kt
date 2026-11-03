@@ -24,6 +24,8 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
     val state = mutable.asStateFlow()
     private val dao = db.local()
     var onChanged: suspend () -> Unit = {}
+    var onSignedIn: suspend () -> Unit = {}
+    var onSigningOut: suspend () -> String? = { null }
 
     private suspend fun publish(snapshot: Snapshot?) {
         val c = snapshot?.context
@@ -52,6 +54,7 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
                 message = "Correo o contraseña incorrectos. Revisa tus datos.")
             return@action
         }
+        onSignedIn()
         mutable.value = AppState(session = Session.Active, busy = true)
         publish(dao.snapshots(uid).singleOrNull()?.let { wireJson.decodeFromString<Snapshot>(it.json) })
         syncLocked()
@@ -122,9 +125,10 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         syncLocked()
     }
     suspend fun logout() = action {
+        val pushWarning = onSigningOut()
         identity.clear()
         db.withTransaction { dao.clearAllOperations(); dao.clearAllSnapshots() }
-        mutable.value = AppState()
+        mutable.value = AppState(message = pushWarning)
     }
     private suspend fun action(invalidateOnDenied: Boolean = false, block: suspend () -> Unit) = mutex.withLock {
         mutable.value = mutable.value.copy(busy = true, message = null)

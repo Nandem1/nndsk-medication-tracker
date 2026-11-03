@@ -9,6 +9,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 remindersSection
+                Section("Avisos remotos del cuidador") { Text(model.pushDiagnostic) }
                 syncSection
                 Section("Inventario") {
                     if model.snapshot.inventory.isEmpty {

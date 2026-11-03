@@ -17,6 +17,10 @@ flowchart TB
     Alarm --> Receiver[Validar contexto y hora vigente]
     Receiver --> Notification[Notificación discreta]
     Notification --> UI
+    FCM[Firebase Messaging] --> Push[RemotePushRegistration y servicio]
+    Repo --> Push
+    Push --> API
+    Push --> Notification
 ```
 
 ## Responsabilidades e invariantes
@@ -35,3 +39,15 @@ F5 selecciona el acceso propio devuelto por la API. No existe todavía el select
 - [Pruebas F5 y pendientes físicos](../../../docs/runbooks/f5-verification.md).
 - [Configuración y comandos](../../../README.md#android-f5).
 - [Contrato compartido](../../../packages/contracts/openapi.yaml).
+
+## Avisos remotos F6
+
+[RemotePush.kt](../app/src/main/kotlin/cl/nndsk/medication/notifications/RemotePush.kt) registra el token FCM con identidad verificada, permiso y un ID estable distinto por cuenta e instalación. Renueva el registro al entrar, sincronizar, volver a foreground y recibir un token nuevo. El servicio muestra texto genérico y abre la app, sin registrar declaraciones ni añadir la vista de cuidador de F5b.
+
+Firebase Messaging está fijado a 26.0.1 en el catálogo de versiones y sus dependencias en el lockfile. Su mínimo API 24 es compatible con minSdk 26 del proyecto, según las [notas oficiales](https://firebase.google.com/support/release-notes/android). Se usa el modo de token compatible con el contrato HTTP v1 del servidor. `getToken`, `deleteToken` y `onNewToken` siguen disponibles pero están deprecados en este SDK. Migrar al nuevo modo FID exige cambiar también el destino del envío en el servidor; F6 no activa `firebase_messaging_installation_id_enabled`. Analytics y auto-init están desactivados en el manifest. La app habilita el registro sólo con sesión y permiso.
+
+Configurar `firebaseProjectId`, `firebaseAppId` y `firebaseSenderId` como propiedades de Gradle junto a la API key pública ya existente. `firebaseAppId` es el identificador Firebase `1:…:android:…`, no el applicationId de Android. El paquete registrado en Firebase debe coincidir con el variant instalado, incluido su sufijo. No se usa `google-services.json` ni se añaden claves de servicio. Sin estos valores, o con Auth emulado, Ajustes muestra «Avisos remotos sin configurar» y mantiene los recordatorios locales.
+
+Logout intenta DELETE en la API durante cinco segundos, desactiva auto-init e intenta borrar el token durante otros cinco segundos. Después borra la identidad aunque no haya red. Si falla la revocación remota, muestra que puede quedar un aviso genérico hasta el vencimiento del registro. El callback de token nunca registra una instalación sin sesión. Las notificaciones ya aceptadas por FCM pueden seguir siendo entregadas; el payload del servidor no contiene datos médicos.
+
+Las pruebas unitarias verifican identidad por instalación/cuenta y el cuerpo del contrato. Build y lint no acreditan entrega FCM real. Falta probarla con configuración Firebase y permisos en un dispositivo registrado.

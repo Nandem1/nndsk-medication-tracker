@@ -21,7 +21,7 @@ flowchart TB
 - [Pantallas](../src/features/) contienen pacientes, consentimiento y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
 - [Cliente HTTP](../src/lib/api/client.ts) transmite tokens, recorre páginas y valida respuestas con los [esquemas](../src/lib/api/contracts.ts). Los datos clínicos no se guardan en almacenamiento persistente del navegador.
 - [Formularios](../src/components/forms.tsx) conservan la clave idempotente mientras se reintenta el mismo contenido. Las [validaciones](../src/lib/forms.ts) mantienen cantidades decimales como texto y comprueban horarios.
-- [Configuración Vite](../vite.config.ts) separa la identidad de pruebas de Firebase productivo. El desarrollo usa proxy para `/v1`; un despliegue necesitaría servir web y API bajo el mismo origen.
+- [Configuración Vite](../vite.config.ts) separa la identidad de pruebas de Firebase real. `make web-dev` sirve el portal local y dirige `/v1` por HTTPS a la API de Railway staging; PostgreSQL se accede sólo desde esa API. El modo E2E mantiene su API local en el puerto 18083. Un despliegue del portal necesitaría servir web y API bajo el mismo origen.
 
 ## Invariantes de la interfaz
 

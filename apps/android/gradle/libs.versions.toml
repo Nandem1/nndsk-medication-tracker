@@ -14,6 +14,7 @@ kotlin = "2.3.20"
 nav3Core = "1.0.1"
 
 [libraries]
+firebase-messaging = { module = "com.google.firebase:firebase-messaging", version = "26.0.1" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "androidxComposeBom" }

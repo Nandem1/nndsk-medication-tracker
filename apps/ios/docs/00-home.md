@@ -16,6 +16,9 @@ flowchart TB
     Store --> Planner[ReminderPlanner]
     Planner --> Notifications[Notificaciones locales]
     Notifications -->|el toque abre la dosis| UI
+    APNs[APNs token remoto] --> Push[PushRegistration]
+    Model --> Push
+    Push --> API
 ```
 
 ## Declarar sin conexión
@@ -57,3 +60,21 @@ sequenceDiagram
 [project.yml](../project.yml) genera el proyecto; `.xcodeproj` no se versiona. La configuración pública está en [Config](../Config). Debug admite HTTP hacia loopback y nombres `.local`. Release mantiene `NSAllowsLocalNetworking` en el plist, pero `AppConfig` rechaza todo lo que no sea HTTPS. Las razones están en la [decisión F4](../../../docs/decisions/0005-f4-ios-patient-app.md) y la evidencia y los pendientes en la [verificación F4](../../../docs/runbooks/f4-verification.md).
 
 La [política común](../../../AGENTS.md#living-architecture) aplica a esta app sin duplicarla.
+
+## Avisos remotos F6
+
+[RemotePush.swift](../MedicationTracker/Core/Notifications/RemotePush.swift) recibe el token de APNs y registra una instalación distinta por cuenta. El registro se renueva al entrar, sincronizar, volver a foreground y cambiar el token o permiso. La API deriva el propietario desde la sesión. El cliente no envía pacientes ni tratamientos en el registro y nunca registra el token en logs.
+
+Push está desactivado por defecto. Para una firma con capacidad APNs, añadir a `Config/Local.xcconfig` los valores públicos siguientes y configurar el App ID y perfil en Apple Developer.
+
+```xcconfig
+REMOTE_PUSH_ENABLED = YES
+CODE_SIGN_ENTITLEMENTS = Config/Push.entitlements
+APNS_ENVIRONMENT = development
+```
+
+Usar `production` para la firma y el servidor APNs correspondientes a distribución. No habilitar esta configuración con un perfil personal que carezca de push. Los builds locales y el emulador de identidad no requieren APNs.
+
+Logout espera el registro en curso, intenta desregistrar en la API y llama a `unregisterForRemoteNotifications` antes de borrar la identidad. Un fallo de red no bloquea el cierre. Se informa que el servidor podría conservar el registro hasta su vencimiento. Los avisos remotos son genéricos y sólo abren la app. No crean declaraciones ni añaden la vista de cuidador de F5b.
+
+Las pruebas de contrato usan transporte controlado. La compilación y los tests en simulador no acreditan entrega APNs real; ésta necesita firma habilitada, credenciales del proveedor y un dispositivo registrado.

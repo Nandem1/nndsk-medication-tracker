@@ -196,8 +196,9 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
 @Composable private fun PatientSettings(model: PatientViewModel, state: AppState, open: (String) -> Unit) {
     val context = LocalContext.current
     var diagnostic by remember { mutableStateOf(model.app.reminders.diagnostic()) }
+    val pushDiagnostic by model.app.remotePush.diagnostic.collectAsStateWithLifecycle()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        model.run { model.app.reminders.reconcile(); diagnostic = model.app.reminders.diagnostic() }
+        model.run { model.app.reminders.reconcile(); model.app.remotePush.reconcile(); diagnostic = model.app.reminders.diagnostic() }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { diagnostic = model.app.reminders.diagnostic() }
     var logout by remember { mutableStateOf(false) }
@@ -214,6 +215,8 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
         if (Build.VERSION.SDK_INT >= 31 && !model.app.reminders.exact()) Action("Permitir mayor precisión") {
             context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
         }
+        Text("Avisos remotos del cuidador", style = MaterialTheme.typography.titleLarge)
+        Text(pushDiagnostic)
         Text("Registros pendientes", style = MaterialTheme.typography.titleLarge)
         state.operations.forEach { op ->
             val body = wireJson.decodeFromString<Command>(op.body)

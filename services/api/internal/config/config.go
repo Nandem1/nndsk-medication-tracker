@@ -11,11 +11,12 @@ import (
 type Config struct {
 	HTTPAddr          string
 	DatabaseURL       string
+	DatabaseCAPEM     string
 	FirebaseProjectID string
 }
 
 func Load() (Config, error) {
-	c := Config{HTTPAddr: os.Getenv("HTTP_ADDR"), DatabaseURL: os.Getenv("DATABASE_URL")}
+	c := Config{HTTPAddr: os.Getenv("HTTP_ADDR"), DatabaseURL: os.Getenv("DATABASE_URL"), DatabaseCAPEM: os.Getenv("DATABASE_CA_PEM")}
 	if c.HTTPAddr == "" {
 		c.HTTPAddr = "127.0.0.1:8080"
 	}
@@ -33,12 +34,12 @@ func Load() (Config, error) {
 	}
 	switch os.Getenv("APP_ENV") {
 	case "", "development", "test":
-	case "production":
+	case "production", "staging":
 		if u.Query().Get("sslmode") != "verify-full" {
-			return Config{}, errors.New("production requires DATABASE_URL sslmode=verify-full")
+			return Config{}, errors.New("staging and production require DATABASE_URL sslmode=verify-full")
 		}
 	default:
-		return Config{}, errors.New("APP_ENV must be development, test or production")
+		return Config{}, errors.New("APP_ENV must be development, test, staging or production")
 	}
 	if os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
 		return Config{}, errors.New("Firebase emulator environment is forbidden in the API executable")

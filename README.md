@@ -1,6 +1,6 @@
 # Medication Tracker
 
-F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. F4 añade la app iOS del paciente, con el flujo completo verificado en simulador; en iPhone físico se verificaron instalación y login. La API Go autoriza cada operación y PostgreSQL conserva auditoría. F5 añade Android del paciente, con pruebas locales en emulador y aceptación del usuario en Android físico; quedan casos físicos pendientes en el runbook. El worker permanece sin implementar.
+F3 incorpora el portal web del cuidador con login Firebase, consentimiento, tratamientos, inventario y agenda. F4 añade la app iOS del paciente, con el flujo completo verificado en simulador; en iPhone físico se verificaron instalación y login. La API Go autoriza cada operación y PostgreSQL conserva auditoría. F5 añade Android del paciente, con pruebas locales en emulador y aceptación del usuario en Android físico; quedan casos físicos pendientes en el runbook. F6 incorpora worker, alertas push y recuperación; PostgreSQL, API y worker están desplegados en Railway staging. El usuario aceptó el flujo completo en staging como MVP; la entrega push real sigue pendiente. Consulta [Railway staging](docs/runbooks/railway-staging.md).
 
 ## Herramientas y versiones
 
@@ -136,7 +136,7 @@ Para ejecutarla, crear `apps/ios/Config/Local.xcconfig`, ignorado por Git, con `
 
 `services/api/cmd/api` compone configuración, pool, verificador Firebase y servidor. `internal/config` valida entorno, `internal/auth` verifica identidad e `internal/http` adapta JSON a los servicios. `internal/domain` contiene cantidades exactas, estados y calendario local. `internal/application` aplica permisos, consentimiento y casos de uso transaccionales. `infrastructure/migrations` contiene usuarios, dominio e invitaciones. `packages/contracts/openapi.yaml` describe las probes y las rutas implementadas de F2 y F3.
 
-El worker sigue reservado, sin ejecutable. iOS y Android tienen apps nativas del paciente; sus resultados y pendientes están en los runbooks F4 y F5. No hay clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 se cerró con pendientes por decisión del usuario. F5 se cerró por aceptación del usuario con cobertura física pendiente; F5b y las fases posteriores no se ejecutaron.
+El worker Go comparte módulo con la API y ejecuta planificación y outbox sin modificar el ledger. iOS y Android tienen apps nativas del paciente; sus resultados y pendientes están en los runbooks F4 y F5. No hay clientes móviles generados. La [decisión F1](docs/decisions/0002-f1-domain.md) documenta pgx sin sqlc; la [decisión F2](docs/decisions/0003-f2-http-identity.md), identidad y permisos; y la [decisión F3](docs/decisions/0004-f3-caregiver-portal.md), sesión, archivo y conteos físicos. F4 se cerró con pendientes por decisión del usuario. F5 se cerró por aceptación del usuario con cobertura física pendiente; F5b no se ejecutó. F6 se implementó con los límites de verificación indicados en su runbook.
 
 ## Iniciar el portal
 
@@ -163,7 +163,7 @@ make test-web-e2e
 
 Playwright inicia el servidor Go con tag `e2e` y Vite en modo `e2e`. Sólo sustituye la identidad; HTTP, autorización y PostgreSQL son reales. El build productivo rechaza ese modo y excluye el adaptador sintético. Las pruebas de red interceptadas están separadas del flujo integrado.
 
-El [runbook F3](docs/runbooks/f3-verification.md) contiene resultados, límites y reproducción de las migraciones. El login contra Firebase real sigue pendiente de un proyecto y cuentas configuradas. La instalación no necesita aprobar skills opcionales de TanStack ni ejecutar los scripts opcionales de Firebase/protobuf que el workspace deniega.
+El [runbook F3](docs/runbooks/f3-verification.md) contiene resultados, límites y reproducción de las migraciones. El login contra Firebase real y el flujo manual en staging fueron aceptados por el usuario al cerrar F6. La instalación no necesita aprobar skills opcionales de TanStack ni ejecutar los scripts opcionales de Firebase/protobuf que el workspace deniega.
 
 ## Mapa de arquitectura
 
@@ -206,4 +206,13 @@ ANDROID_SERIAL=emulator-5554 make test-android-reboot
 
 El primer comando arranca Firebase Auth emulado y API Go, conecta los puertos por `adb reverse` y prueba UI, consentimiento, Doze, entrega de alarma, offline, retries y conflictos. Sólo usa el paquete `cl.nndsk.medication.e2e` y datos sintéticos. Restaura el estado de batería/Doze al salir. El segundo reinicia exclusivamente un emulador y comprueba que el receptor de arranque restaura una alarma; no reinicia teléfonos físicos automáticamente.
 
-`make test` y `make lint` siguen comprobando Go y web. Android usa los targets explícitos anteriores para no exigir SDK a colaboradores del backend. Resultado y límites en [verificación F5](docs/runbooks/f5-verification.md). No hay vista de cuidador móvil, worker ni despliegue.
+`make test` y `make lint` siguen comprobando Go y web. Android usa los targets explícitos anteriores para no exigir SDK a colaboradores del backend. Resultado y límites en [verificación F5](docs/runbooks/f5-verification.md). No hay vista de cuidador móvil ni despliegue remoto verificado.
+
+
+## Alertas y recuperación F6
+
+`make build-worker` compila el worker. `make dev-worker` lo ejecuta con la configuración local. Push está desactivado por defecto mediante `WORKER_PUSH_MODE=disabled`; habilitarlo requiere proveedores y preferencias explícitas por vínculo. No hay un umbral predeterminado de aviso por dosis sin confirmar.
+
+Desde `services/api`, `go run ./cmd/worker --once` ejecuta un ciclo y `go run ./cmd/worker --reconcile` inspecciona consistencia sin reparar el ledger. API y worker sirven métricas privadas en los puertos 9090 y 9091 respectivamente.
+
+`make backup`, `make restore-test` y `make test-backup` usan PostgreSQL 18.6 y cifrado autenticado. Consulta [recuperación y staging](docs/runbooks/f6-recovery.md), [decisión F6](docs/decisions/0007-f6-alerts-resilience.md) y [verificación F6](docs/runbooks/f6-verification.md). Los mapas nativos documentan la configuración APNs y FCM. La UI de cuidador F5b y F7 no forman parte de este cambio.

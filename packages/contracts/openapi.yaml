@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Medication Tracker API",
-    "version": "0.2.0",
-    "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. No UI, worker or future-phase routes."
+    "version": "0.6.0",
+    "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. F6 adds caregiver alert preferences and owner-scoped device registration. Push is best effort and contains no medical details."
   },
   "servers": [
     {
@@ -1301,6 +1301,242 @@
           }
         ]
       }
+    },
+    "/v1/devices": {
+      "post": {
+        "operationId": "registerDevice",
+        "description": "Idempotent owner-scoped installation replacement. Refresh at foreground/token rotation; expires after 30 days. Tokens never appear in responses. Denied/unknown clears the token. Reusing another owner installation returns 404; duplicate active token returns409. APNs tokens use even-length hexadecimal text.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}": {
+      "delete": {
+        "operationId": "deleteDevice",
+        "description": "Owner only. Idempotently revokes this installation before logout.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "204": {
+            "description": "Removed"
+          }
+        },
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/caregiver-links/{linkId}/alert-preferences": {
+      "get": {
+        "operationId": "getAlertPreferences",
+        "description": "Active caregiver with read consent only. Defaults disable all alerts and use UTC with 60 minute separation.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertPreferences"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "setAlertPreferences",
+        "description": "Idempotent full replacement scoped to current consent generation. Quiet start/end must both be null or distinct local minutes; supports overnight hours. No clinical delay default. Frequency is enforced across all recipient devices.",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertPreferences"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertPreferences"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "linkId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2430,6 +2666,127 @@
           "movement_id",
           "balance"
         ]
+      },
+      "DeviceInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "device_id",
+          "platform",
+          "token",
+          "permission"
+        ],
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "apns",
+              "fcm"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "granted",
+              "denied",
+              "unknown"
+            ]
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "device_id",
+          "platform",
+          "permission",
+          "expires_at"
+        ],
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "apns",
+              "fcm"
+            ]
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "granted",
+              "denied",
+              "unknown"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AlertPreferences": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unconfirmed_delay_minutes",
+          "stock_enabled",
+          "min_interval_minutes",
+          "timezone",
+          "quiet_start_minute",
+          "quiet_end_minute"
+        ],
+        "properties": {
+          "unconfirmed_delay_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "stock_enabled": {
+            "type": "boolean"
+          },
+          "min_interval_minutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 1440
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "quiet_start_minute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439
+          },
+          "quiet_end_minute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439
+          }
+        }
       }
     },
     "responses": {

@@ -3,6 +3,7 @@ import UserNotifications
 
 @main
 struct MedicationTrackerApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 

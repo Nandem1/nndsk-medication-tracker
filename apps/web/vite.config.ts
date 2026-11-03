@@ -22,8 +22,13 @@ export default defineConfig(({ mode, command }) => {
       port: 5173,
       strictPort: true,
       proxy: {
-        "/v1":
-          mode === "e2e" ? "http://127.0.0.1:18083" : "http://127.0.0.1:8080",
+        "/v1": {
+          target:
+            mode === "e2e"
+              ? "http://127.0.0.1:18083"
+              : "https://api-staging-a498.up.railway.app",
+          changeOrigin: true,
+        },
       },
     },
     build: { sourcemap: false },
