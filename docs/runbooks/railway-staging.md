@@ -28,8 +28,8 @@ El template administra sus certificados en el volumen. Una renovación que cambi
 | Staging | `b185d7b6-fca4-4897-adb3-4ea97d7cd22c` |
 | Production reservado | `d513f258-902a-4354-8f1e-7a010938a079` |
 | Despliegue PostgreSQL SUCCESS | `e73a5c48-9386-4516-adc4-e6b5c8198272` |
-| Despliegue API SUCCESS | `0b2fa1a3-74cc-4704-a919-8a3b340b5853` |
-| Despliegue worker SUCCESS | `50bf9827-5502-44cf-b4bd-efb750c9d370` |
+| Despliegue API F7 SUCCESS | `47052715-40bf-44cf-ba52-063c9cdb5ba5` |
+| Despliegue worker F7 SUCCESS | `38c7cd01-9413-4160-9b0d-87b161f209b0` |
 
 Se aplicaron las cinco migraciones con Goose a la base nueva mediante túnel SSH y TLS `verify-full`. No se ejecutó down remoto. El worker registra ciclos consecutivos sin errores, con cero avisos y push desactivado.
 
@@ -39,8 +39,23 @@ No se ha ensayado restauración dentro de Railway, PITR ni una programación aut
 
 ## Siguiente paso dentro de F6
 
-Login y flujo manual en staging aceptados por el usuario como MVP. Quedan proveedores push y firma nativa, registro de teléfonos y comprobación de recepción, revocación y permisos. F6 se cierra con esos pendientes; F5b y F7 no se ejecutaron.
+Login y flujo manual en staging aceptados por el usuario como MVP. Quedan proveedores push y firma nativa, registro de teléfonos y comprobación de recepción, revocación y permisos. F6 se cerró con esos pendientes. F5b sigue pendiente; F7 se desplegó después, según el registro siguiente.
 
 ## Architecture Impact
 
 API y worker comparten la construcción del pool TLS, pero se despliegan como procesos separados. Staging aísla variables, servicios y volumen de production dentro del mismo proyecto. No cambian contratos HTTP ni reglas del dominio con esta configuración.
+
+
+## Actualización a F7
+
+El usuario autorizó subir staging a F7 el 2026-11-03 para ejecutar su propio E2E. API y worker se actualizaron mediante `railway up --path-as-root`, con proyecto y ambiente explícitos. Ambos despliegues de la tabla alcanzaron `SUCCESS`. El despliegue se hizo desde el worktree sin commit, sin migraciones ni cambios en production.
+
+El paquete incluyó 67 archivos de backend, Dockerfile y contrato, tomados del workspace con los archivos nuevos sin commit. No incluyó variables locales ni credenciales. Su manifiesto de rutas y hashes SHA-256 quedó en `.tmp/f7-deploy/source-manifest.json`, con hash `0b3116783d7f9d8f0f23c35c99d683038c51cfcdac2a5720eac84abade365375`. Tras desplegar se comprobó que el código local seguía coincidiendo con ese manifiesto.
+
+Las probes públicas `/healthz` y `/readyz` respondieron 200. `/v1/me`, la consulta de adherencia y la mutación de antelación devolvieron 401 sin token. Estas comprobaciones acreditan salud y protección de acceso; no sustituyen un E2E autenticado remoto. El worker completó ciclos a las 22:38 y 22:39 UTC con cero avisos encolados y `push_mode=disabled`.
+
+El portal sigue servido localmente en `http://127.0.0.1:5173`, con proxy hacia esta API. Se comprobó que entrega el módulo F7 de Seguimiento y que `/v1/me` por el proxy devuelve 401 sin sesión. Para la prueba manual, recargar el portal, iniciar sesión y abrir un paciente en Seguimiento. No se creó un servicio web público nuevo.
+
+Los despliegues anteriores registrados antes de la actualización eran API `399f356c-911e-48da-90de-16c3470f3c83` y worker `4973a96e-5f08-445d-bb63-770fca29c4bf`, ambos saludables. Quedan como referencia operacional para una reversión autorizada. La [verificación F7](f7-verification.md) conserva las pruebas locales previas y sus límites.
+
+El usuario confirmó su E2E de F7 en staging el 2026-11-03 con «excelente, todo correcto» y autorizó el commit de cierre. La aceptación conserva los límites y pendientes que no fueron detallados en esa prueba.

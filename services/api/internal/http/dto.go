@@ -113,14 +113,18 @@ type InventoryResponse struct {
 	Balance    string `json:"balance"`
 }
 type Projection struct {
-	AccountID         string     `json:"account_id"`
-	TreatmentID       string     `json:"treatment_id"`
-	Balance           string     `json:"balance"`
-	Unit              string     `json:"unit"`
-	From              time.Time  `json:"from"`
-	Through           time.Time  `json:"through"`
-	FirstUncoveredAt  *time.Time `json:"first_uncovered_at"`
-	ScheduledQuantity string     `json:"scheduled_quantity"`
+	AccountID             string     `json:"account_id"`
+	TreatmentID           string     `json:"treatment_id"`
+	Balance               string     `json:"balance"`
+	Unit                  string     `json:"unit"`
+	From                  time.Time  `json:"from"`
+	Through               time.Time  `json:"through"`
+	FirstUncoveredAt      *time.Time `json:"first_uncovered_at"`
+	ScheduledQuantity     string     `json:"scheduled_quantity"`
+	LowStockDaysThreshold int        `json:"low_stock_days_threshold"`
+	Timezone              string     `json:"timezone"`
+	ReplenishOn           *string    `json:"replenish_on"`
+	LowStock              bool       `json:"low_stock"`
 }
 type Page[T any] struct {
 	Items      []T    `json:"items"`

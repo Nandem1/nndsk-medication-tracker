@@ -91,3 +91,23 @@ El worker comparte transacciones y reglas del backend, pero es un proceso separa
 ## Despliegue Railway
 
 El proyecto `medication-tracker` contiene `staging` con PostgreSQL, API y worker separados, y `production` reservado sin instancias ni volúmenes. Sólo la API publica HTTPS. PostgreSQL usa red privada y TLS con validación de nombre y CA mediante el [pool compartido](../services/api/internal/config/database.go). El worker mantiene push desactivado. Firebase de staging usa `medication-tracker-dev-8ebde`; el usuario aceptó el flujo manual con web y teléfonos. Las probes públicas funcionan y los endpoints protegidos requieren token. Ver [operación y evidencia](runbooks/railway-staging.md).
+
+## Seguimiento F7
+
+El dashboard web consulta [métricas de declaraciones](../services/api/internal/application/adherence.go) en una transacción autorizada. El backend materializa el rango usando las revisiones existentes y agrega las dosis evaluables con su evento vigente. El historial usa el mismo rango y filtro de tratamiento. Las fechas son las locales originales de cada dosis, incluso cuando cambia la zona entre revisiones.
+
+```mermaid
+flowchart TB
+    Dashboard[Dashboard y calendario web] --> Report[Consulta autorizada por paciente y tratamiento]
+    Report --> Generate[Generación existente en bloques de 30 días]
+    Generate --> Counts[Dosis no canceladas anteriores al corte y evento vigente]
+    Counts --> Metrics[Conteos y proporciones por período y día]
+    Inventory[Inventario web] --> Threshold[Umbral idempotente con permiso inventory]
+    Threshold --> Account[Cuenta de inventario existente]
+    Account --> Projection[Proyección por calendario de 30 días]
+    Account --> Worker[Planificación existente de alertas]
+```
+
+Las correcciones cambian el resultado efectivo sin sumar otra dosis al denominador. Una omisión explícita cuenta como respuesta en el calendario. No hay premios por consumo ni inferencias de ingestión. La antelación de reposición se guarda en la cuenta existente y no crea movimientos de stock.
+
+No hay migraciones ni cambios de clientes móviles en F7. API y worker F7 están desplegados en staging. El portal continúa local; el usuario aceptó F7 tras su E2E contra staging el 2026-11-03. Ver [decisión F7](decisions/0008-f7-dashboard.md) y [verificación F7](runbooks/f7-verification.md).

@@ -120,7 +120,7 @@ El paciente autoriza los alcances al aceptar una invitación. El cuidador necesi
 
 Las mutaciones JSON usan `client_operation_id`. El cliente debe conservarlo junto con el contenido original al reintentar. Reutilizarlo con otro contenido produce 409. La creación de invitaciones entrega el token una sola vez y devuelve conflicto al repetir la operación. La revocación por DELETE es idempotente sin cuerpo. Ningún reintento evita la comprobación de permisos vigentes.
 
-Las cantidades son cadenas como `"0.500"`. La agenda recibe fechas locales `from` inclusiva y `to` exclusiva, con un máximo de 30 días. El contrato especifica paginación y las respuestas de cada ruta. La consulta genera las ocurrencias que falten y mantiene sus identificadores estables. Las páginas se ordenan por UUID; el cliente debe obtenerlas y ordenar las dosis por horario.
+Las cantidades son cadenas como `"0.500"`. La agenda recibe fechas locales `from` inclusiva y `to` exclusiva, con un máximo de 366 días y un filtro opcional `treatment_id`. La generación usa bloques de 30 días; el horizonte de proyección de inventario sigue siendo de 30 días. El contrato especifica paginación y las respuestas de cada ruta. La consulta genera las ocurrencias que falten y mantiene sus identificadores estables. Las páginas se ordenan por UUID; el cliente debe obtenerlas y ordenar las dosis por horario.
 
 Las peticiones JSON tienen un máximo de 64 KiB. La API genera un request ID, propaga un deadline de ocho segundos y aplica un límite inicial por IP directa. No confía en `X-Forwarded-For`. No se configura CORS permisivo. Los límites están en memoria por proceso y no coordinan varias réplicas.
 
@@ -215,4 +215,15 @@ El primer comando arranca Firebase Auth emulado y API Go, conecta los puertos po
 
 Desde `services/api`, `go run ./cmd/worker --once` ejecuta un ciclo y `go run ./cmd/worker --reconcile` inspecciona consistencia sin reparar el ledger. API y worker sirven métricas privadas en los puertos 9090 y 9091 respectivamente.
 
-`make backup`, `make restore-test` y `make test-backup` usan PostgreSQL 18.6 y cifrado autenticado. Consulta [recuperación y staging](docs/runbooks/f6-recovery.md), [decisión F6](docs/decisions/0007-f6-alerts-resilience.md) y [verificación F6](docs/runbooks/f6-verification.md). Los mapas nativos documentan la configuración APNs y FCM. La UI de cuidador F5b y F7 no forman parte de este cambio.
+`make backup`, `make restore-test` y `make test-backup` usan PostgreSQL 18.6 y cifrado autenticado. Consulta [recuperación y staging](docs/runbooks/f6-recovery.md), [decisión F6](docs/decisions/0007-f6-alerts-resilience.md) y [verificación F6](docs/runbooks/f6-verification.md). Los mapas nativos documentan la configuración APNs y FCM. La UI de cuidador móvil F5b sigue pendiente. F7 se describe a continuación.
+
+
+## Dashboard e historial F7
+
+El portal incluye una sección Seguimiento con semana, mes y rango personalizado. Permite filtrar un tratamiento del paciente seleccionado, consultar el historial y ver un calendario de respuestas. Las omisiones explícitas cuentan como respuestas; no hay rachas ni premios por declarar consumo.
+
+La API calcula adherencia declarada, confirmación, puntualidad y dosis sin confirmar. Sólo incluye dosis no canceladas cuyo horario ya pasó. Cada porcentaje muestra su numerador y denominador; sin denominador se muestra ausencia de datos. La ventana de puntualidad es organizativa y configurable, inicialmente 60 minutos antes o después del horario. No cambia la pauta ni recomienda dosis.
+
+Inventario permite configurar entre 0 y 30 días de antelación con permiso de edición. La proyección usa las próximas dosis reales y muestra su zona horaria. Si no encuentra agotamiento dentro del horizonte de 30 días, no inventa una fecha. La configuración comparte el umbral existente del worker, pero no habilita avisos push.
+
+Consulta la [decisión F7](docs/decisions/0008-f7-dashboard.md) y la [verificación F7](docs/runbooks/f7-verification.md) para reproducir las pruebas sobre una base local desechable migrada a versión 5. API y worker F7 están desplegados en staging; el portal se sirve localmente en `http://127.0.0.1:5173` y consulta esa API. El usuario aceptó F7 tras su prueba E2E en staging el 2026-11-03. F5b y F8 quedan fuera del alcance.

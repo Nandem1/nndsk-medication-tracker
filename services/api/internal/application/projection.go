@@ -36,7 +36,7 @@ func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from 
 	var starts time.Time
 	var ends *time.Time
 	var archived *time.Time
-	if err = tx.QueryRow(ctx, "SELECT a.treatment_id::text,a.unit,t.starts_on,t.ends_on,t.archived_at FROM inventory_accounts a JOIN treatments t ON t.id=a.treatment_id WHERE a.id=$1", accountID).Scan(&tr, &result.Unit, &starts, &ends, &archived); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT a.treatment_id::text,a.unit,a.low_stock_days_threshold,t.starts_on,t.ends_on,t.archived_at FROM inventory_accounts a JOIN treatments t ON t.id=a.treatment_id WHERE a.id=$1", accountID).Scan(&tr, &result.Unit, &result.LowStockDaysThreshold, &starts, &ends, &archived); err != nil {
 		return result, translate(err)
 	}
 	result.Balance, err = balance(ctx, tx, accountID)
@@ -57,7 +57,8 @@ func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from 
 			active = r
 		}
 	}
-	loc, _ := time.LoadLocation(active.schedule.Timezone)
+	result.Timezone = active.schedule.Timezone
+	loc, _ := time.LoadLocation(result.Timezone)
 	localDay, _ := domain.ParseDate(from.In(loc).Format("2006-01-02"))
 	through, err := domain.StartOfDay(localDay.AddDate(0, 0, domain.HorizonDays).Format("2006-01-02"), loc)
 	if err != nil {
@@ -120,6 +121,12 @@ func inventoryProjection(ctx context.Context, tx pgx.Tx, accountID string, from 
 			result.FirstUncoveredAt = &at
 		}
 		stock -= o.Quantity
+	}
+	if result.FirstUncoveredAt != nil {
+		day, _ := domain.ParseDate(result.FirstUncoveredAt.In(loc).Format("2006-01-02"))
+		date := day.AddDate(0, 0, -result.LowStockDaysThreshold).Format("2006-01-02")
+		result.ReplenishOn = &date
+		result.LowStock = from.In(loc).Format("2006-01-02") >= date
 	}
 	return result, nil
 }

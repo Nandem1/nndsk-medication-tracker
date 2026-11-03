@@ -16,3 +16,14 @@ export function useRefresh() {
     void client.invalidateQueries();
   };
 }
+
+export function useResource<T>(path: string, schema: z.ZodType<T>, enabled = true) {
+  const { api, identity } = useSession();
+  return useQuery({
+    queryKey: [identity.uid, path],
+    queryFn: ({ signal }) => api.request(path, schema, undefined, "GET", signal),
+    enabled,
+    retry: false,
+    staleTime: 0,
+  });
+}

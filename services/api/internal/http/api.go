@@ -52,6 +52,8 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("GET /v1/patients/{patientId}/treatments", a.treatments)
 	business.HandleFunc("POST /v1/patients/{patientId}/treatments", a.createTreatment)
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/schedule-revisions", a.reviseSchedule)
+	business.HandleFunc("GET /v1/patients/{patientId}/adherence", a.adherence)
+	business.HandleFunc("POST /v1/inventory/{accountId}/threshold", a.stockThreshold)
 	business.HandleFunc("GET /v1/patients/{patientId}/doses", a.agenda)
 	business.HandleFunc("POST /v1/doses/{doseId}/events", a.recordEvent)
 	business.HandleFunc("POST /v1/doses/{doseId}/corrections", a.correctEvent)
@@ -253,7 +255,7 @@ func (a *API) reviseSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, treatmentResponse(out))
 }
 func (a *API) agenda(w http.ResponseWriter, r *http.Request) {
-	items, next, err := a.service.Agenda(r.Context(), actor(r), r.PathValue("patientId"), r.URL.Query().Get("from"), r.URL.Query().Get("to"), r.URL.Query().Get("cursor"))
+	items, next, err := a.service.FilteredAgenda(r.Context(), actor(r), r.PathValue("patientId"), r.URL.Query().Get("from"), r.URL.Query().Get("to"), r.URL.Query().Get("cursor"), r.URL.Query().Get("treatment_id"))
 	if err != nil {
 		resultError(w, r, err)
 		return
@@ -293,7 +295,7 @@ func (a *API) inventory(w http.ResponseWriter, r *http.Request) {
 	out := []Projection{}
 	for _, v := range items {
 		p := v.Projection
-		out = append(out, Projection{v.AccountID, v.TreatmentID, p.Balance.String(), p.Unit, p.From, p.Through, p.FirstUncoveredAt, p.ScheduledQuantity.String()})
+		out = append(out, Projection{v.AccountID, v.TreatmentID, p.Balance.String(), p.Unit, p.From, p.Through, p.FirstUncoveredAt, p.ScheduledQuantity.String(), p.LowStockDaysThreshold, p.Timezone, p.ReplenishOn, p.LowStock})
 	}
 	writeJSON(w, 200, Page[Projection]{out, next})
 }

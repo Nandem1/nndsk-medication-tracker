@@ -174,7 +174,7 @@ func TestAPIBOLAAndValidation(t *testing.T) {
 	f.request("stranger", "POST", "/v1/treatments/"+tr.TreatmentID+"/schedule-revisions", ReviseScheduleRequest{OperationID: domain.NewID(), ExpectedVersion: 1, EffectiveFrom: time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC), Schedule: Schedule{Timezone: "UTC", Policy: domain.RejectDST, Weekdays: []time.Weekday{1}, Slots: []Slot{{"08:00", "0.500"}}}}, 404, nil)
 	f.request("patient", "POST", "/v1/doses/"+dose.ID+"/events", map[string]any{"actor_id": f.stranger}, 400, nil)
 	f.request("patient", "POST", "/v1/inventory/"+tr.AccountID+"/movements", ReplenishRequest{domain.NewID(), "0.0001"}, 422, nil)
-	f.request("patient", "GET", "/v1/patients/"+f.patient+"/doses?from=2026-11-01&to=2027-11-02", nil, 422, nil)
+	f.request("patient", "GET", "/v1/patients/"+f.patient+"/doses?from=2026-11-01&to=2027-11-03", nil, 422, nil)
 	f.request("patient", "GET", "/v1/patients/"+f.patient+"/treatments?cursor=invalid", nil, 422, nil)
 	f.request("patient", "GET", "/v1/patients/not-a-uuid/inventory", nil, 422, nil)
 	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{domain.NewID(), []application.Scope{application.ScopeDoses}}, 422, nil)

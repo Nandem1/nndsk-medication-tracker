@@ -99,70 +99,50 @@ func (s *Service) Treatments(ctx context.Context, actor, patient, cursor string)
 	return out, next, tx.Commit(ctx)
 }
 func (s *Service) Agenda(ctx context.Context, actor, patient, from, to, cursor string) ([]DoseView, string, error) {
-	start, err := domain.ParseDate(from)
-	if err != nil {
+	return s.FilteredAgenda(ctx, actor, patient, from, to, cursor, "")
+}
+func (s *Service) FilteredAgenda(ctx context.Context, actor, patient, from, to, cursor, treatment string) ([]DoseView, string, error) {
+	start, end, err := reportRange(from, to)
+	if err != nil || !validCursor(cursor) {
 		return nil, "", ErrInvalid
 	}
-	end, err := domain.ParseDate(to)
-	if err != nil || !end.After(start) || end.Sub(start) > domain.HorizonDays*24*time.Hour || !validCursor(cursor) {
-		return nil, "", ErrInvalid
-	}
-	tx, err := s.pool.Begin(ctx)
+	now := s.now()
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
-		return nil, "", err
+		return nil, "", translate(err)
 	}
 	defer tx.Rollback(ctx)
 	if err = authorize(ctx, tx, actor, patientTarget(patient), ScopeRead); err != nil {
-		return nil, "", err
+		return nil, "", translate(err)
 	}
-	rows, err := tx.Query(ctx, `SELECT id::text FROM treatments WHERE patient_user_id=$1 ORDER BY id`, patient)
+	if err = materializeReport(ctx, tx, patient, treatment, start, end); err != nil {
+		return nil, "", translate(err)
+	}
+	rows, err := tx.Query(ctx, `SELECT d.id::text,d.treatment_id::text,d.schedule_revision_id::text,d.scheduled_at,d.scheduled_local_date::text,to_char(d.scheduled_local_time,'HH24:MI'),r.timezone,d.dst_adjusted,d.dose_quantity::text,d.status,d.version,d.current_event_id::text FROM dose_occurrences d JOIN treatments t ON t.id=d.treatment_id JOIN schedule_revisions r ON r.id=d.schedule_revision_id WHERE t.patient_user_id=$1 AND d.cancelled_at IS NULL AND d.scheduled_local_date >= $2::date AND d.scheduled_local_date < $3::date AND d.id>$4::uuid AND ($5::text='' OR d.treatment_id=NULLIF($5,'')::uuid) ORDER BY d.id LIMIT 101`, patient, from, to, cursorValue(cursor), treatment)
 	if err != nil {
-		return nil, "", err
-	}
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, "", err
-		}
-		ids = append(ids, id)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, "", err
-	}
-	for _, id := range ids {
-		if _, err = generateOccurrences(ctx, tx, id, from, int(end.Sub(start)/(24*time.Hour))); err != nil {
-			return nil, "", err
-		}
-	}
-	rows, err = tx.Query(ctx, `SELECT d.id::text,d.treatment_id::text,d.schedule_revision_id::text,d.scheduled_at,d.scheduled_local_date::text,to_char(d.scheduled_local_time,'HH24:MI'),r.timezone,d.dst_adjusted,d.dose_quantity::text,d.status,d.version,d.current_event_id::text FROM dose_occurrences d JOIN treatments t ON t.id=d.treatment_id JOIN schedule_revisions r ON r.id=d.schedule_revision_id WHERE t.patient_user_id=$1 AND d.cancelled_at IS NULL AND d.scheduled_local_date >= $2::date AND d.scheduled_local_date < $3::date AND d.id>$4::uuid ORDER BY d.id LIMIT 101`, patient, from, to, cursorValue(cursor))
-	if err != nil {
-		return nil, "", err
+		return nil, "", translate(err)
 	}
 	out := []DoseView{}
 	for rows.Next() {
 		var v DoseView
 		if err = rows.Scan(&v.ID, &v.TreatmentID, &v.RevisionID, &v.ScheduledAt, &v.LocalDate, &v.LocalTime, &v.Timezone, &v.DSTAdjusted, &v.Quantity, &v.State, &v.Version, &v.EventID); err != nil {
 			rows.Close()
-			return nil, "", err
+			return nil, "", translate(err)
 		}
-		v.State = domain.DoseState(v.State).Display(v.ScheduledAt, s.now())
+		v.State = domain.DoseState(v.State).Display(v.ScheduledAt, now)
 		out = append(out, v)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return nil, "", err
+		return nil, "", translate(err)
 	}
 	next := ""
 	if len(out) > PageSize {
 		out = out[:PageSize]
 		next = out[PageSize-1].ID
 	}
-	return out, next, tx.Commit(ctx)
+	return out, next, translate(tx.Commit(ctx))
 }
 func (s *Service) Inventory(ctx context.Context, actor, patient, cursor string) ([]InventoryView, string, error) {
 	if !validCursor(cursor) {

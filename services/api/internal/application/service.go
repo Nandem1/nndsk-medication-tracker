@@ -97,12 +97,16 @@ type ReviseScheduleCommand struct {
 	Schedule        domain.Schedule
 }
 type Projection struct {
-	Balance           domain.Quantity
-	Unit              string
-	From              time.Time
-	Through           time.Time
-	FirstUncoveredAt  *time.Time
-	ScheduledQuantity domain.Quantity
+	LowStockDaysThreshold int
+	Timezone              string
+	ReplenishOn           *string
+	LowStock              bool
+	Balance               domain.Quantity
+	Unit                  string
+	From                  time.Time
+	Through               time.Time
+	FirstUncoveredAt      *time.Time
+	ScheduledQuantity     domain.Quantity
 }
 
 func transact[T any](ctx context.Context, s *Service, m Mutation, target accessTarget, scope Scope, kind string, payload any, work func(pgx.Tx) (T, error)) (T, error) {

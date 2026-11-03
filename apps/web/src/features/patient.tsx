@@ -5,11 +5,12 @@ import { QueryState } from "../components/query-state";
 import { Treatments } from "./treatments";
 import { Inventory } from "./inventory";
 import { Agenda } from "./agenda";
+import { Dashboard } from "./dashboard";
 import { Button } from "../components/ui/button";
 export function PatientDetail({ patientId }: { patientId: string }) {
   const access = useList("/patients", patient);
   const query = useList("/patients/" + patientId + "/treatments", treatment);
-  const [tab, setTab] = useState<"treatments" | "inventory" | "agenda">(
+  const [tab, setTab] = useState<"treatments" | "inventory" | "agenda" | "dashboard">(
     "treatments",
   );
   const permissions =
@@ -20,6 +21,7 @@ export function PatientDetail({ patientId }: { patientId: string }) {
       <h1>Tratamientos y seguimiento</h1>
       <p className="reference">Paciente {patientId}</p>
       <nav aria-label="Secciones del paciente">
+        <Button aria-pressed={tab === "dashboard"} variant={tab === "dashboard" ? "default" : "outline"} onClick={() => setTab("dashboard")}>Seguimiento</Button>
         <Button
           aria-pressed={tab === "treatments"}
           variant={tab === "treatments" ? "default" : "outline"}
@@ -57,6 +59,8 @@ export function PatientDetail({ patientId }: { patientId: string }) {
                 treatments={query.data}
                 canEdit={permissions.includes("inventory")}
               />
+            ) : tab === "dashboard" ? (
+              <Dashboard key={patientId} patientId={patientId} treatments={query.data} />
             ) : (
               <Agenda patientId={patientId} treatments={query.data} />
             ))}

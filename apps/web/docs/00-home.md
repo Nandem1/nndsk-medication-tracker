@@ -8,8 +8,10 @@ flowchart TB
     Session --> Router[TanStack Router]
     Router --> Patients[Pacientes y consentimiento]
     Router --> Patient[Tratamientos, inventario y agenda]
+    Patient --> Dashboard[Dashboard, historial y calendario de respuestas]
     Patients --> Query[TanStack Query en memoria]
     Patient --> Query
+    Dashboard --> Query
     Query --> Adapter[Adaptador HTTP y esquemas Zod]
     Adapter --> API[API compartida /v1]
 ```
@@ -33,6 +35,18 @@ Las cantidades viajan como cadenas. El servidor calcula diferencias de inventari
 
 La agenda diferencia pendiente, sin confirmar, tomada, tomada tarde y omitida mediante texto. El historial describe declaraciones, no demuestra ingestión.
 
+## Seguimiento F7
+
+La sección Seguimiento permite elegir semana, mes o rango y filtrar un tratamiento del paciente seleccionado. El backend entrega los conteos y proporciones; la UI no agrega una página parcial de agenda. Cada porcentaje muestra su numerador y denominador, y la puntualidad indica su ventana organizativa. El calendario presenta respuestas explícitas, incluidas omisiones, sin rachas ni recompensas por consumo.
+
+El historial usa el mismo filtro y ordena las dosis por instante programado. Los días del calendario conservan la fecha local original de la pauta. Los rangos admiten hasta 366 días, mientras que inventario conserva su proyección de 30 días.
+
+La antelación de reposición se edita en Inventario con permiso `inventory`. El formulario conserva la operación al reintentar y envía el umbral previo esperado para detectar una edición concurrente. La fecha orientativa y la zona horaria provienen de la API. Guardar antelación no activa push.
+
 ## Evidencia y límites
 
 El [runbook F3](../../../docs/runbooks/f3-verification.md) registra las pruebas y sus límites. Los contratos, permisos e infraestructura compartidos pertenecen al [mapa general](../../../docs/00-home.md). La [decisión F3](../../../docs/decisions/0004-f3-caregiver-portal.md) explica las alternativas consideradas. La [política común](../../../AGENTS.md#living-architecture) aplica sin duplicarse aquí.
+
+La [verificación F7](../../../docs/runbooks/f7-verification.md) registra el dashboard y sus pruebas. API y worker F7 están desplegados en staging; este portal continúa servido localmente y consulta esa API. El usuario aceptó F7 tras su E2E contra staging el 2026-11-03.
+
+Las pruebas web admiten `E2E_PORT_OFFSET` para levantar API, proxy de fallos y Vite en puertos alternativos de loopback cuando hay servicios locales abiertos. El valor predeterminado conserva los puertos anteriores y el modo normal del portal mantiene su destino staging.

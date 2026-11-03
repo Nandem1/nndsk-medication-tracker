@@ -38,6 +38,10 @@ export const projection = z.object({
   through: z.string(),
   first_uncovered_at: z.string().nullable(),
   scheduled_quantity: z.string(),
+  low_stock_days_threshold: z.number().int().nonnegative(),
+  timezone: z.string(),
+  replenish_on: z.string().nullable(),
+  low_stock: z.boolean(),
 });
 export const movement = z.object({
   movement_id: z.string(),
@@ -100,3 +104,24 @@ export const stateLabels = {
   taken_late: "Declarada tomada tarde",
   skipped: "Declarada omitida",
 };
+export const adherenceCounts = z.object({
+  evaluable: z.number().int().nonnegative(),
+  taken: z.number().int().nonnegative(),
+  taken_late: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  unconfirmed: z.number().int().nonnegative(),
+  confirmed: z.number().int().nonnegative(),
+  punctual: z.number().int().nonnegative(),
+  adherence_rate: z.number().min(0).max(1).nullable(),
+  confirmation_rate: z.number().min(0).max(1).nullable(),
+  punctuality_rate: z.number().min(0).max(1).nullable(),
+  unconfirmed_rate: z.number().min(0).max(1).nullable(),
+});
+export const adherence = z.object({
+  from: z.string(),
+  to: z.string(),
+  as_of: z.string(),
+  window_minutes: z.number().int(),
+  summary: adherenceCounts,
+  days: z.array(adherenceCounts.extend({ date: z.string() })),
+});

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
+import { e2eApiURL, e2eWebPort } from "./e2e-ports.ts";
 export default defineConfig(({ mode, command }) => {
   if (mode === "e2e" && command === "build")
     throw new Error("Test identity cannot be built for distribution");
@@ -19,13 +20,13 @@ export default defineConfig(({ mode, command }) => {
     },
     server: {
       host: "127.0.0.1",
-      port: 5173,
+      port: mode === "e2e" ? e2eWebPort : 5173,
       strictPort: true,
       proxy: {
         "/v1": {
           target:
             mode === "e2e"
-              ? "http://127.0.0.1:18083"
+              ? e2eApiURL
               : "https://api-staging-a498.up.railway.app",
           changeOrigin: true,
         },

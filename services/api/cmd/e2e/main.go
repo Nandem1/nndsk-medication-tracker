@@ -14,6 +14,7 @@ import (
 	httpapi "medication-tracker/services/api/internal/http"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -72,7 +73,22 @@ func main() {
 		log.Fatal("test database unavailable")
 	}
 	defer pool.Close()
-	go serveFaultProxy("127.0.0.1:18084", "http://127.0.0.1:18083")
-	server := &http.Server{Addr: "127.0.0.1:18083", Handler: httpapi.NewAPI(pool.Ping, application.New(pool, nil), verifier{emulatorClient(context.Background())}, nil), ReadHeaderTimeout: 5 * time.Second}
+	address, proxyAddress, err := testAddresses(os.Getenv("E2E_PORT_OFFSET"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	go serveFaultProxy(proxyAddress, "http://"+address)
+	server := &http.Server{Addr: address, Handler: httpapi.NewAPI(pool.Ping, application.New(pool, nil), verifier{emulatorClient(context.Background())}, nil), ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(server.ListenAndServe())
+}
+
+func testAddresses(raw string) (string, string, error) {
+	if raw == "" {
+		raw = "0"
+	}
+	offset, err := strconv.Atoi(raw)
+	if err != nil || offset < 0 || offset > 40000 {
+		return "", "", errors.New("E2E_PORT_OFFSET must be an integer between 0 and 40000")
+	}
+	return "127.0.0.1:" + strconv.Itoa(18083+offset), "127.0.0.1:" + strconv.Itoa(18084+offset), nil
 }

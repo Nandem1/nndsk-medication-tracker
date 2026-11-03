@@ -605,11 +605,13 @@ Evidencia en [verificación F6](docs/runbooks/f6-verification.md) y [recuperaci�
 
 ### F7 — Dashboard y gamificación
 
-- [ ] Panel semanal/mensual con adherencia declarada, puntualidad, confirmación y `unconfirmed` visibles.
-- [ ] Historial por tratamiento y paciente; filtros por rango.
-- [ ] Predicción de reposición por calendario, configurable con antelación.
-- [ ] Calendario visual de constancia sin castigos por omisiones y sin incentivar declaraciones falsas.
-- [ ] Pruebas de denominadores, dosis canceladas, cambios de pauta y ventanas horarias.
+- [x] Panel semanal/mensual con adherencia declarada, puntualidad, confirmación y `unconfirmed` visibles.
+- [x] Historial por tratamiento y paciente; filtros por rango.
+- [x] Predicción de reposición por calendario, configurable con antelación.
+- [x] Calendario visual de constancia sin castigos por omisiones y sin incentivar declaraciones falsas.
+- [x] Pruebas de denominadores, dosis canceladas, cambios de pauta y ventanas horarias.
+
+Evidencia local en [verificación F7](docs/runbooks/f7-verification.md). Las métricas, historial, calendario y antelación se verificaron con navegador, HTTP y PostgreSQL reales e identidad sintética. Después, por autorización explícita del usuario, API y worker F7 se desplegaron en staging y pasaron los smoke checks. **F7 cerrada el 2026-11-03 por aceptación explícita del usuario tras su E2E en staging: «excelente, todo correcto».** El usuario autoriza el commit de cierre de todo el worktree. La aceptación no amplía la cobertura de casos que no detalló. F5b y F8 permanecen fuera del alcance de esta entrega.
 
 ### F8 — Endurecimiento y lanzamiento familiar
 

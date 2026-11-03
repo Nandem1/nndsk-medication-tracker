@@ -1,3 +1,4 @@
+import { e2eApiURL } from "../e2e-ports";
 import { test, expect, type Page } from "@playwright/test";
 import { localDate, nextDate } from "../src/lib/forms";
 async function login(page: Page, name: string) {
@@ -56,7 +57,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
     cp.getByRole("heading", { name: "Tratamiento sintético F3", exact: true }),
   ).toBeVisible();
   const response = await request.get(
-    "http://127.0.0.1:18083/v1/patients/" +
+    e2eApiURL + "/v1/patients/" +
       patientId +
       "/doses?from=" +
       localDate() +
@@ -227,11 +228,11 @@ test("an open editor retains its version after a background update", async ({
   await page.getByRole("button", { name: "Editar datos" }).click();
   await page.getByLabel("Nombre del medicamento").fill("Synthetic stale draft");
   const listURL =
-    "http://127.0.0.1:18083/v1/patients/" + patientId + "/treatments";
+    e2eApiURL + "/v1/patients/" + patientId + "/treatments";
   const initial = await request.get(listURL, { headers });
   const treatment = (await initial.json()).items[0];
   const update = await request.patch(
-    "http://127.0.0.1:18083/v1/treatments/" + treatment.treatment_id,
+    e2eApiURL + "/v1/treatments/" + treatment.treatment_id,
     {
       headers,
       data: {

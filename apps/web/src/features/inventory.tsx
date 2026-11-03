@@ -59,6 +59,20 @@ function Account({
         Estimación según la agenda, hasta 30 días. El saldo se basa en registros
         declarados, no en una verificación de ingestión.
       </p>
+      <p>Antelación configurada: {item.low_stock_days_threshold} días.</p>
+      {item.replenish_on && <p className={item.low_stock ? "notice" : "hint"}>
+        {item.low_stock ? "Revisar reposición. " : "Revisar reposición desde el "}{item.replenish_on} · {item.timezone}.
+      </p>}
+      <p className="hint">La fecha de revisión usa días de calendario de la pauta. No activa notificaciones push.</p>
+      {canEdit && <MutationForm
+        key={item.low_stock_days_threshold}
+        label="Guardar antelación"
+        prepare={(f) => ({ expected_days: item.low_stock_days_threshold, days: z.coerce.number().int().min(0).max(30).parse(f.get("days")) })}
+        submit={(data) => api.request("/inventory/" + item.account_id + "/threshold", z.unknown(), data)}
+        done={refresh}
+      >
+        <Field label="Días de antelación" name="days" type="number" min="0" max="30" value={String(item.low_stock_days_threshold)} />
+      </MutationForm>}
       {canEdit && (
         <div className="columns">
           <div>
