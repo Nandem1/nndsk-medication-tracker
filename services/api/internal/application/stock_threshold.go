@@ -19,14 +19,27 @@ func (s *Service) SetStockThreshold(ctx context.Context, c SetStockThresholdComm
 		if c.Days < 0 || c.Days > 30 || c.ExpectedDays < 0 {
 			return StockThreshold{}, ErrInvalid
 		}
+		if _, err := lockInventory(ctx, tx, c.AccountID); err != nil {
+			return StockThreshold{}, err
+		}
+		pool, err := activePool(ctx, tx, c.AccountID)
+		if err != nil {
+			return StockThreshold{}, err
+		}
+		query, id := `SELECT low_stock_days_threshold FROM inventory_accounts WHERE id=$1`, c.AccountID
+		update := `UPDATE inventory_accounts SET low_stock_days_threshold=$2 WHERE id=$1`
+		if pool != "" {
+			query, id = `SELECT low_stock_days_threshold FROM inventory_pools WHERE id=$1`, pool
+			update = `UPDATE inventory_pools SET low_stock_days_threshold=$2 WHERE id=$1`
+		}
 		var previous int
-		if err := tx.QueryRow(ctx, `SELECT low_stock_days_threshold FROM inventory_accounts WHERE id=$1 FOR UPDATE`, c.AccountID).Scan(&previous); err != nil {
+		if err = tx.QueryRow(ctx, query, id).Scan(&previous); err != nil {
 			return StockThreshold{}, err
 		}
 		if previous != c.ExpectedDays {
 			return StockThreshold{}, ErrConflict
 		}
-		_, err := tx.Exec(ctx, `UPDATE inventory_accounts SET low_stock_days_threshold=$2 WHERE id=$1`, c.AccountID, c.Days)
+		_, err = tx.Exec(ctx, update, id, c.Days)
 		return StockThreshold{c.Days}, err
 	})
 }

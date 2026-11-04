@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Medication Tracker API",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. F6 adds caregiver alert preferences and owner-scoped device registration. Push is best effort and contains no medical details."
   },
   "servers": [
@@ -742,7 +742,7 @@
     "/v1/patients/{patientId}/inventory": {
       "get": {
         "operationId": "listInventory",
-        "description": "Requires self or read scope. Exact ledger balance and 30-local-day scheduled projection. 100 accounts per page.",
+        "description": "Requires self or read scope. Exact ledger balance and 30-local-day scheduled projection. 100 accounts per page. With an active pool, balance and projection are the common ones. Pool member names follow the same privacy rules on the server.",
         "responses": {
           "200": {
             "description": "Success",
@@ -877,7 +877,7 @@
       },
       "get": {
         "operationId": "inventoryMovements",
-        "description": "Paginated immutable ledger. Requires read scope.",
+        "description": "Paginated immutable ledger. Requires read scope. With an active pool, also lists the other members' movements since activation. Without access to that member, only quantity and date are returned, with reason shared_activity.",
         "responses": {
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -1647,7 +1647,7 @@
     "/v1/inventory/{accountId}/threshold": {
       "post": {
         "operationId": "setStockThreshold",
-        "description": "Requires inventory scope. Idempotent client_operation_id; compare expected_days with persisted threshold under account lock. Conflicting concurrent changes return 409. Sets 0..30 days to match the bounded projection horizon. Projection replenish_on is a local calendar date in the active schedule timezone; low_stock means that date has arrived. No push is enabled by this operation. Existing worker preferences still control push and use the caregiver timezone.",
+        "description": "Requires inventory scope. Idempotent client_operation_id; compare expected_days with persisted threshold under account lock. Conflicting concurrent changes return 409. Sets 0..30 days to match the bounded projection horizon. Projection replenish_on is a local calendar date in the active schedule timezone; low_stock means that date has arrived. No push is enabled by this operation. Existing worker preferences still control push and use the caregiver timezone. With an active pool, updates and compares the common threshold.",
         "responses": {
           "400": {
             "$ref": "#/components/responses/Error400"
@@ -1897,6 +1897,309 @@
             }
           }
         ]
+      }
+    },
+    "/v1/inventory/{accountId}/pool-candidates": {
+      "get": {
+        "operationId": "poolCandidates",
+        "description": "Requires inventory scope on the account. Lists compatible accounts on which the actor also has inventory scope: same medication name, strength and form after trimming, lower-casing and collapsing spaces, no accent folding, and identical unit.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolCandidatePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/inventory-pools": {
+      "post": {
+        "operationId": "createInventoryPool",
+        "description": "Requires inventory scope on every account. Two or more distinct, unarchived accounts without a live pool and with the same medication; otherwise 422 or 409. A proposer who is a member accepts only their own part. Balances stay separate until every patient accepts. Idempotent client_operation_id.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePool"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inventory-pools/pending": {
+      "get": {
+        "operationId": "pendingInventoryPools",
+        "description": "Decisions pending for the authenticated actor as patient. A caregiver never receives another patient's decisions.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingPoolPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        }
+      }
+    },
+    "/v1/inventory-pools/{poolId}/decision": {
+      "post": {
+        "operationId": "decideInventoryPool",
+        "description": "Only the patient decides for their own accounts; caregiver scopes do not count. Accepting from every member activates the pool with the lowest member threshold. Declining dissolves it if fewer than two accounts remain. Idempotent client_operation_id.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "poolId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoolDecision"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/inventory-pools/{poolId}/leave": {
+      "post": {
+        "operationId": "leaveInventoryPool",
+        "description": "Requires self or inventory scope on the account. In an active pool, the account's balance moves to the first remaining account through two audited pool_transfer movements. The leaving account ends at zero and a single remaining account dissolves the pool. Idempotent client_operation_id.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "poolId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeavePool"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -2633,6 +2936,16 @@
           },
           "low_stock": {
             "type": "boolean"
+          },
+          "pool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PoolView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2647,7 +2960,8 @@
           "low_stock_days_threshold",
           "timezone",
           "replenish_on",
-          "low_stock"
+          "low_stock",
+          "pool"
         ]
       },
       "CreateInvitation": {
@@ -3044,18 +3358,35 @@
             "description": "Exact decimal units, never a JSON floating point number. Up to 9 integer and 3 fractional digits."
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "Ledger reason, including pool_transfer. shared_activity hides the real reason of another member the actor has no access to."
           },
           "note": {
             "type": "string"
           },
           "actor_id": {
             "type": "string",
-            "format": "uuid"
+            "description": "Author. Empty string in a shared_activity row."
           },
           "created_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Exact instant. In a shared_activity row the time is zeroed: use only the date."
+          },
+          "shared": {
+            "type": "boolean",
+            "description": "True when the movement belongs to another account of the active pool. Those rows start at pool activation."
+          },
+          "patient_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member name in shared rows the actor has access to. Absent otherwise."
           }
         },
         "required": [
@@ -3064,7 +3395,8 @@
           "reason",
           "note",
           "actor_id",
-          "created_at"
+          "created_at",
+          "shared"
         ]
       },
       "MovementPage": {
@@ -4551,6 +4883,265 @@
             "description": "Trimmed, without line breaks. Preserves case."
           }
         }
+      },
+      "PoolMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "patient_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the member. The literal «otra persona» replaces it when the actor is neither that member, another member of the pool, nor a caregiver with read access to that member. Null when the visible member has no name yet."
+          },
+          "you": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted"
+            ]
+          }
+        },
+        "required": [
+          "patient_display_name",
+          "you",
+          "status"
+        ]
+      },
+      "PoolView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pool_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PoolMember"
+            }
+          }
+        },
+        "required": [
+          "pool_id",
+          "status",
+          "members"
+        ]
+      },
+      "PoolResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pool_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "dissolved"
+            ]
+          }
+        },
+        "required": [
+          "pool_id",
+          "status"
+        ]
+      },
+      "PendingPool": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pool_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposer_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "medication_name": {
+            "type": "string"
+          },
+          "strength_label": {
+            "type": "string"
+          },
+          "others": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "pool_id",
+          "proposer_display_name",
+          "medication_name",
+          "strength_label",
+          "others"
+        ]
+      },
+      "PendingPoolPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingPool"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "PoolCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "treatment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patient_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patient_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "you": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account_id",
+          "treatment_id",
+          "patient_id",
+          "patient_display_name",
+          "you"
+        ]
+      },
+      "PoolCandidatePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PoolCandidate"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CreatePool": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_ids": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "account_ids"
+        ]
+      },
+      "PoolDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "decline"
+            ]
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "decision"
+        ]
+      },
+      "LeavePool": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "account_id"
+        ]
       }
     },
     "responses": {

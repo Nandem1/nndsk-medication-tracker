@@ -44,6 +44,7 @@ type InventoryView struct {
 	AccountID   string
 	TreatmentID string
 	Projection  Projection
+	Pool        *PoolView
 }
 
 const PageSize = 100
@@ -195,6 +196,10 @@ func (s *Service) Inventory(ctx context.Context, actor, patient, cursor string) 
 	}
 	for i := range out {
 		out[i].Projection, err = inventoryProjection(ctx, tx, out[i].AccountID, s.now())
+		if err != nil {
+			return nil, "", err
+		}
+		out[i].Pool, err = poolView(ctx, tx, actor, out[i].AccountID)
 		if err != nil {
 			return nil, "", err
 		}

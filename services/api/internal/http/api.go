@@ -47,6 +47,11 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/archive", a.archiveTreatment)
 	business.HandleFunc("POST /v1/inventory/{accountId}/counts", a.physicalCount)
 	business.HandleFunc("GET /v1/inventory/{accountId}/movements", a.movements)
+	business.HandleFunc("GET /v1/inventory/{accountId}/pool-candidates", a.poolCandidates)
+	business.HandleFunc("POST /v1/inventory-pools", a.createPool)
+	business.HandleFunc("GET /v1/inventory-pools/pending", a.pendingPools)
+	business.HandleFunc("POST /v1/inventory-pools/{poolId}/decision", a.decidePool)
+	business.HandleFunc("POST /v1/inventory-pools/{poolId}/leave", a.leavePool)
 	business.HandleFunc("GET /v1/caregiver-links", a.links)
 	business.HandleFunc("POST /v1/invitations/preview", a.previewInvitation)
 	business.HandleFunc("GET /v1/patients", a.patients)
@@ -306,7 +311,7 @@ func (a *API) inventory(w http.ResponseWriter, r *http.Request) {
 	out := []Projection{}
 	for _, v := range items {
 		p := v.Projection
-		out = append(out, Projection{v.AccountID, v.TreatmentID, p.Balance.String(), p.Unit, p.From, p.Through, p.FirstUncoveredAt, p.ScheduledQuantity.String(), p.LowStockDaysThreshold, p.Timezone, p.ReplenishOn, p.LowStock})
+		out = append(out, Projection{v.AccountID, v.TreatmentID, p.Balance.String(), p.Unit, p.From, p.Through, p.FirstUncoveredAt, p.ScheduledQuantity.String(), p.LowStockDaysThreshold, p.Timezone, p.ReplenishOn, p.LowStock, v.Pool})
 	}
 	writeJSON(w, 200, Page[Projection]{out, next})
 }

@@ -10,12 +10,13 @@ import (
 )
 
 type Reconciliation struct {
-	DoseStateMismatches   int64 `json:"dose_state_mismatches"`
-	ConsumptionMismatches int64 `json:"consumption_mismatches"`
-	LedgerMismatches      int64 `json:"ledger_mismatches"`
-	AgendaMismatches      int64 `json:"agenda_mismatches"`
-	StaleDeliveries       int64 `json:"stale_deliveries"`
-	ExpiredDevices        int64 `json:"expired_devices"`
+	DoseStateMismatches      int64 `json:"dose_state_mismatches"`
+	ConsumptionMismatches    int64 `json:"consumption_mismatches"`
+	LedgerMismatches         int64 `json:"ledger_mismatches"`
+	AgendaMismatches         int64 `json:"agenda_mismatches"`
+	StaleDeliveries          int64 `json:"stale_deliveries"`
+	ExpiredDevices           int64 `json:"expired_devices"`
+	PoolMembershipMismatches int64 `json:"pool_membership_mismatches"`
 }
 
 func (s *Service) Reconcile(ctx context.Context) (Reconciliation, error) {
@@ -34,6 +35,7 @@ func (s *Service) Reconcile(ctx context.Context) (Reconciliation, error) {
 		{`SELECT count(*) FROM dose_occurrences d LEFT JOIN LATERAL (SELECT COALESCE(sum(quantity_delta),0) AS amount FROM inventory_movements WHERE dose_occurrence_id=d.id) m ON true WHERE m.amount<>CASE WHEN d.status IN ('taken','taken_late') THEN -d.dose_quantity ELSE 0 END`, &out.LedgerMismatches},
 		{`SELECT count(*) FROM notification_outbox o JOIN caregiver_links l ON l.id=o.link_id JOIN device_registrations d ON d.id=o.device_id LEFT JOIN caregiver_alert_preferences p ON p.link_id=o.link_id AND p.consent_id=o.consent_id LEFT JOIN dose_occurrences dose ON dose.id=o.dose_id WHERE o.state IN ('pending','retry') AND (o.expires_at<=$1 OR l.status<>'active' OR NOT ('read'=ANY(l.scopes)) OR l.accepted_invitation_id IS DISTINCT FROM o.consent_id OR d.user_id<>l.caregiver_user_id OR d.revision<>o.device_revision OR d.revoked_at IS NOT NULL OR d.permission<>'granted' OR d.expires_at<=$1 OR p.link_id IS NULL OR (o.kind='unconfirmed' AND (p.unconfirmed_delay_minutes IS NULL OR dose.status<>'pending' OR dose.cancelled_at IS NOT NULL)) OR (o.kind='low_stock' AND NOT p.stock_enabled))`, &out.StaleDeliveries},
 		{`SELECT count(*) FROM device_registrations WHERE revoked_at IS NULL AND permission='granted' AND expires_at<=$1`, &out.ExpiredDevices},
+		{`SELECT (SELECT count(*) FROM (SELECT account_id FROM inventory_pool_members m JOIN inventory_pools p ON p.id=m.pool_id WHERE m.status IN ('pending','accepted') AND p.status<>'dissolved' GROUP BY account_id HAVING count(*)>1) many)+(SELECT count(*) FROM inventory_pools p WHERE p.status='active' AND (SELECT count(*) FROM inventory_pool_members m WHERE m.pool_id=p.id AND m.status='accepted')<2)+(SELECT count(*) FROM inventory_pool_members m JOIN inventory_pools p ON p.id=m.pool_id WHERE p.status='dissolved' AND m.status IN ('pending','accepted'))`, &out.PoolMembershipMismatches},
 	}
 	for _, c := range checks {
 		var args []any
@@ -76,7 +78,7 @@ func (s *Service) Reconcile(ctx context.Context) (Reconciliation, error) {
 		if e != nil {
 			return out, e
 		}
-		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(s.now().In(loc).AddDate(0, 0, c.days)) {
+		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(s.now().In(loc).AddDate(0, 0, projection.LowStockDaysThreshold)) {
 			out.StaleDeliveries++
 		}
 	}

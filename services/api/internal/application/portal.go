@@ -102,11 +102,11 @@ func (s *Service) RecordPhysicalCount(ctx context.Context, c PhysicalCountComman
 		if c.CountedQuantity < 0 || !c.CountedQuantity.Valid() || !c.ExpectedBalance.Valid() || strings.TrimSpace(c.Reason) == "" || len(c.Reason) > 1000 {
 			return r, ErrInvalid
 		}
-		tr, err := accountLock(ctx, tx, c.AccountID)
+		tr, err := lockInventory(ctx, tx, c.AccountID)
 		if err != nil {
 			return r, err
 		}
-		current, err := balance(ctx, tx, c.AccountID)
+		current, err := effectiveBalance(ctx, tx, c.AccountID)
 		if err != nil {
 			return r, err
 		}
@@ -133,52 +133,6 @@ func (s *Service) RecordPhysicalCount(ctx context.Context, c PhysicalCountComman
 	})
 }
 
-type MovementView struct {
-	ID        string    `json:"movement_id"`
-	Quantity  string    `json:"quantity_delta"`
-	Reason    string    `json:"reason"`
-	Note      string    `json:"note"`
-	ActorID   string    `json:"actor_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func (s *Service) InventoryMovements(ctx context.Context, actor, account, cursor string) ([]MovementView, string, error) {
-	if !validCursor(cursor) {
-		return nil, "", ErrInvalid
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, "", err
-	}
-	defer tx.Rollback(ctx)
-	if err = authorize(ctx, tx, actor, accountTarget(account), ScopeRead); err != nil {
-		return nil, "", err
-	}
-	rows, err := tx.Query(ctx, `SELECT m.id::text,m.quantity_delta::text,m.reason,COALESCE(c.reason,''),m.actor_user_id::text,m.created_at FROM inventory_movements m LEFT JOIN inventory_counts c ON c.movement_id=m.id WHERE m.inventory_account_id=$1 AND m.id>$2::uuid ORDER BY m.id LIMIT 101`, account, cursorValue(cursor))
-	if err != nil {
-		return nil, "", err
-	}
-	out := []MovementView{}
-	for rows.Next() {
-		var v MovementView
-		if err = rows.Scan(&v.ID, &v.Quantity, &v.Reason, &v.Note, &v.ActorID, &v.CreatedAt); err != nil {
-			rows.Close()
-			return nil, "", err
-		}
-		out = append(out, v)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, "", err
-	}
-	next := ""
-	if len(out) > PageSize {
-		out = out[:PageSize]
-		next = out[PageSize-1].ID
-	}
-	return out, next, tx.Commit(ctx)
-}
 func (s *Service) CaregiverLinks(ctx context.Context, actor, cursor string) ([]Link, string, error) {
 	if !domain.ValidID(actor) || !validCursor(cursor) {
 		return nil, "", ErrInvalid

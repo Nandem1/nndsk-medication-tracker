@@ -113,18 +113,31 @@ type InventoryResponse struct {
 	Balance    string `json:"balance"`
 }
 type Projection struct {
-	AccountID             string     `json:"account_id"`
-	TreatmentID           string     `json:"treatment_id"`
-	Balance               string     `json:"balance"`
-	Unit                  string     `json:"unit"`
-	From                  time.Time  `json:"from"`
-	Through               time.Time  `json:"through"`
-	FirstUncoveredAt      *time.Time `json:"first_uncovered_at"`
-	ScheduledQuantity     string     `json:"scheduled_quantity"`
-	LowStockDaysThreshold int        `json:"low_stock_days_threshold"`
-	Timezone              string     `json:"timezone"`
-	ReplenishOn           *string    `json:"replenish_on"`
-	LowStock              bool       `json:"low_stock"`
+	AccountID             string                `json:"account_id"`
+	TreatmentID           string                `json:"treatment_id"`
+	Balance               string                `json:"balance"`
+	Unit                  string                `json:"unit"`
+	From                  time.Time             `json:"from"`
+	Through               time.Time             `json:"through"`
+	FirstUncoveredAt      *time.Time            `json:"first_uncovered_at"`
+	ScheduledQuantity     string                `json:"scheduled_quantity"`
+	LowStockDaysThreshold int                   `json:"low_stock_days_threshold"`
+	Timezone              string                `json:"timezone"`
+	ReplenishOn           *string               `json:"replenish_on"`
+	LowStock              bool                  `json:"low_stock"`
+	Pool                  *application.PoolView `json:"pool"`
+}
+type CreatePoolRequest struct {
+	OperationID string   `json:"client_operation_id"`
+	AccountIDs  []string `json:"account_ids"`
+}
+type PoolDecisionRequest struct {
+	OperationID string `json:"client_operation_id"`
+	Decision    string `json:"decision"`
+}
+type LeavePoolRequest struct {
+	OperationID string `json:"client_operation_id"`
+	AccountID   string `json:"account_id"`
 }
 type Page[T any] struct {
 	Items      []T    `json:"items"`

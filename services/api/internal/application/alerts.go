@@ -74,7 +74,7 @@ func (s *Service) PlanAlerts(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	count := int(tag.RowsAffected())
-	rows, err = tx.Query(ctx, `SELECT p.link_id::text,p.consent_id::text,p.timezone,a.id::text,a.low_stock_days_threshold FROM caregiver_alert_preferences p JOIN caregiver_links l ON l.id=p.link_id AND l.accepted_invitation_id=p.consent_id JOIN inventory_accounts a ON a.patient_user_id=l.patient_user_id WHERE l.status='active' AND 'read'=ANY(l.scopes) AND p.stock_enabled ORDER BY p.link_id,a.id`)
+	rows, err = tx.Query(ctx, `SELECT p.link_id::text,p.consent_id::text,p.timezone,a.id::text,a.low_stock_days_threshold FROM caregiver_alert_preferences p JOIN caregiver_links l ON l.id=p.link_id AND l.accepted_invitation_id=p.consent_id JOIN inventory_accounts a ON a.patient_user_id=l.patient_user_id WHERE l.status='active' AND 'read'=ANY(l.scopes) AND p.stock_enabled AND NOT EXISTS (SELECT 1 FROM inventory_pool_members m JOIN inventory_pools pool ON pool.id=m.pool_id AND pool.status='active' JOIN inventory_pool_members o ON o.pool_id=m.pool_id AND o.status='accepted' AND o.account_id<a.id JOIN inventory_accounts oa ON oa.id=o.account_id JOIN caregiver_links ol ON ol.patient_user_id=oa.patient_user_id AND ol.caregiver_user_id=l.caregiver_user_id AND ol.status='active' AND 'read'=ANY(ol.scopes) JOIN caregiver_alert_preferences op ON op.link_id=ol.id AND op.consent_id=ol.accepted_invitation_id AND op.stock_enabled WHERE m.account_id=a.id AND m.status='accepted') ORDER BY p.link_id,a.id`)
 	if err != nil {
 		return 0, err
 	}
@@ -105,7 +105,7 @@ func (s *Service) PlanAlerts(ctx context.Context) (int, error) {
 		if e != nil {
 			return 0, e
 		}
-		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(now.In(loc).AddDate(0, 0, c.days)) {
+		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(now.In(loc).AddDate(0, 0, projection.LowStockDaysThreshold)) {
 			continue
 		}
 		key := "stock/" + c.consent + "/" + c.account + "/" + now.In(loc).Format("2006-01-02")
@@ -269,9 +269,7 @@ func (s *Service) claimAlert(ctx context.Context) (*delivery, bool, error) {
 		if !p.StockEnabled {
 			return suppress()
 		}
-		var days int
-		err = tx.QueryRow(ctx, `SELECT low_stock_days_threshold FROM inventory_accounts WHERE id=$1 FOR SHARE`, *account).Scan(&days)
-		if err != nil {
+		if _, err = lockInventory(ctx, tx, *account); err != nil {
 			return nil, false, err
 		}
 		projection, e := inventoryProjection(ctx, tx, *account, now)
@@ -282,7 +280,7 @@ func (s *Service) claimAlert(ctx context.Context) (*delivery, bool, error) {
 		if e != nil {
 			return nil, false, e
 		}
-		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(now.In(loc).AddDate(0, 0, days)) {
+		if projection.FirstUncoveredAt == nil || projection.FirstUncoveredAt.After(now.In(loc).AddDate(0, 0, projection.LowStockDaysThreshold)) {
 			return suppress()
 		}
 	}

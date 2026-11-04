@@ -71,7 +71,10 @@ func (s *Service) writeEvent(ctx context.Context, tx pgx.Tx, m Mutation, id stri
 		return zero, err
 	}
 	var account string
-	if err = tx.QueryRow(ctx, "SELECT id::text FROM inventory_accounts WHERE treatment_id=$1 FOR UPDATE", tr).Scan(&account); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT id::text FROM inventory_accounts WHERE treatment_id=$1", tr).Scan(&account); err != nil {
+		return zero, err
+	}
+	if _, err = lockInventory(ctx, tx, account); err != nil {
 		return zero, err
 	}
 	eventID := domain.NewID()
@@ -114,7 +117,7 @@ func (s *Service) writeEvent(ctx context.Context, tx pgx.Tx, m Mutation, id stri
 	if _, err = tx.Exec(ctx, "UPDATE dose_occurrences SET status=$2,version=version+1,current_event_id=$3 WHERE id=$1", id, state, eventID); err != nil {
 		return zero, err
 	}
-	stock, err := balance(ctx, tx, account)
+	stock, err := effectiveBalance(ctx, tx, account)
 	if err != nil {
 		return zero, err
 	}
@@ -126,7 +129,7 @@ func (s *Service) ReplenishInventory(ctx context.Context, c ReplenishInventoryCo
 		if !domain.ValidID(c.AccountID) || c.Quantity <= 0 || !c.Quantity.Valid() {
 			return zero, ErrInvalid
 		}
-		tr, err := accountLock(ctx, tx, c.AccountID)
+		tr, err := lockInventory(ctx, tx, c.AccountID)
 		if err != nil {
 			return zero, err
 		}
@@ -134,7 +137,7 @@ func (s *Service) ReplenishInventory(ctx context.Context, c ReplenishInventoryCo
 		if err != nil {
 			return zero, err
 		}
-		stock, err := balance(ctx, tx, c.AccountID)
+		stock, err := effectiveBalance(ctx, tx, c.AccountID)
 		if err != nil {
 			return zero, err
 		}

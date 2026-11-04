@@ -51,7 +51,7 @@ func run(logger *slog.Logger) error {
 			return errors.New("reconciliation failed")
 		}
 		logger.Info("reconciliation", "counts", report)
-		if report.DoseStateMismatches+report.ConsumptionMismatches+report.LedgerMismatches+report.AgendaMismatches > 0 {
+		if report.DoseStateMismatches+report.ConsumptionMismatches+report.LedgerMismatches+report.AgendaMismatches+report.PoolMembershipMismatches > 0 {
 			return errors.New("reconciliation found inconsistencies")
 		}
 		return nil

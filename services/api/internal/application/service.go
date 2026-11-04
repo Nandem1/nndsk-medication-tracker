@@ -179,18 +179,25 @@ func translate(err error) error {
 	}
 	return err
 }
-func balance(ctx context.Context, tx pgx.Tx, account string) (domain.Quantity, error) {
+func balanceOf(ctx context.Context, tx pgx.Tx, accounts []string) (domain.Quantity, error) {
 	var value string
-	err := tx.QueryRow(ctx, "SELECT COALESCE(sum(quantity_delta),0)::text FROM inventory_movements WHERE inventory_account_id=$1", account).Scan(&value)
+	err := tx.QueryRow(ctx, "SELECT COALESCE(sum(quantity_delta),0)::text FROM inventory_movements WHERE inventory_account_id=ANY($1::uuid[])", accounts).Scan(&value)
 	if err != nil {
 		return 0, err
 	}
 	return domain.ParseQuantity(value)
 }
-func accountLock(ctx context.Context, tx pgx.Tx, id string) (string, error) {
-	var treatment string
-	err := tx.QueryRow(ctx, "SELECT treatment_id::text FROM inventory_accounts WHERE id=$1 FOR UPDATE", id).Scan(&treatment)
-	return treatment, translate(err)
+
+// accountBalance is the ledger of one account; effectiveBalance is what its holder can use.
+func accountBalance(ctx context.Context, tx pgx.Tx, account string) (domain.Quantity, error) {
+	return balanceOf(ctx, tx, []string{account})
+}
+func effectiveBalance(ctx context.Context, tx pgx.Tx, account string) (domain.Quantity, error) {
+	accounts, err := sharedAccounts(ctx, tx, account)
+	if err != nil {
+		return 0, err
+	}
+	return balanceOf(ctx, tx, accounts)
 }
 func movement(ctx context.Context, tx pgx.Tx, m Mutation, account, treatment string, quantity domain.Quantity, reason string, event, dose *string, now time.Time) (string, error) {
 	id := domain.NewID()
