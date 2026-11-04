@@ -58,10 +58,10 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await expect(page.getByRole("list", { name: "Leyenda" }).getByRole("listitem")).toHaveText(["Tomada", "Tomada tarde", "Omitida", "Sin confirmar"]);
   await page.getByText("Ver como tabla", { exact: true }).click();
   await expect(page.getByRole("row", { name: day }).getByRole("cell")).toHaveText(["1", "1", "1", "1", "4"]);
-  await page.screenshot({ path: "/private/tmp/medication-f7-dashboard.png", fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("medication-f7-dashboard.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: "/private/tmp/medication-f7-dashboard-mobile.png", fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("medication-f7-dashboard-mobile.png"), fullPage: true });
   await page.getByLabel("Tratamiento del informe").selectOption("");
   await expect(page.locator(".report-history li")).toHaveCount(6);
   await page.getByRole("button", { name: "Este mes", exact: true }).click();
