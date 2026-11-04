@@ -2057,6 +2057,10 @@
           "profile_version": {
             "type": "integer",
             "minimum": 1
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Zona IANA del perfil del paciente."
           }
         },
         "required": [
@@ -2064,7 +2068,8 @@
           "link_id",
           "scopes",
           "display_name",
-          "profile_version"
+          "profile_version",
+          "timezone"
         ]
       },
       "Me": {

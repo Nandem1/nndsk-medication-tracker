@@ -159,3 +159,5 @@ Los vínculos revocados conservan su referencia histórica, pero no revelan el n
 Las consultas de agenda e informe mantienen `RepeatableRead` y reintentan la transacción completa hasta tres intentos ante serialización, interbloqueo o unicidad durante materialización. La espera de 50 a 200 ms admite cancelación. La traducción a error HTTP ocurre después de decidir el reintento. [Pruebas HTTP P1](../services/api/internal/http/profiles_integration_test.go) cubren consultas concurrentes contra PostgreSQL.
 
 Estos cambios no implementan aún la navegación multi-paciente ni el inventario compartido. Su despliegue no está verificado.
+
+La respuesta de pacientes incluye la zona IANA ya guardada en `users.timezone`. El portal P2 la usa para delimitar el día de sus tarjetas, sin inferirla desde una pauta ni cambiar el modelo de horarios.

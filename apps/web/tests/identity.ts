@@ -19,3 +19,11 @@ export async function logout() {
   identity = null;
   listeners.forEach((fn) => fn(null));
 }
+
+export async function register(email: string, password: string) {
+  if (password.length < 8) throw new Error("Invalid synthetic password");
+  const uid = "synthetic-" + email.split("@")[0];
+  identity = { uid, token: async () => uid };
+  listeners.forEach((fn) => fn(identity));
+}
+export async function resetPassword(_email: string) {}

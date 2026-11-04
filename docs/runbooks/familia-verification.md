@@ -47,4 +47,23 @@ Architecture Impact: cambian esquema, contrato, autorización de perfiles y rein
 
 ## Pendiente
 
-P2 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.
+P3 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.
+
+## P2
+
+El portal incorpora registro y recuperación, perfil inicial obligatorio y edición versionada. Las tarjetas, cabeceras y consentimiento muestran nombres sin UUID visibles. Las invitaciones tienen permisos predefinidos, nombre sugerido, copia de código o mensaje y pegado del mensaje completo. La vista conjunta muestra conteos de la API con fecha, zona y denominador.
+
+Se añadió `timezone` a `PatientAccess`, leyendo el valor que ya guarda `users`. Es una diferencia respecto del detalle del plan necesaria para usar el día del paciente. La primera implementación lo infería del primer tratamiento; la revisión detectó que un tratamiento archivado podía desplazar el día. El campo explícito elimina esa inferencia y evita una consulta por tarjeta.
+
+Comandos y evidencia final:
+
+- `make tokens-check`, `make test`, `make lint`, `make build`: PASS, incluidas 24 pruebas unitarias web. Build conserva advertencias previas de Vite sobre directivas de dependencias y tamaño del bundle.
+- `make test-integration` en base desechable local: PASS, incluida exposición de zona del paciente.
+- `FAMILIA_TEST_DB=medication_f3_familia_p2 E2E_PORT_OFFSET=100 make test-web-e2e`, con conexión local inyectada sin imprimirla: 11 de 11 PASS.
+- Los E2E usan navegador, HTTP y PostgreSQL reales, con identidad sintética. No acreditan registro remoto ni entrega de correo Firebase.
+- La suite inicial agotó el límite de 120 peticiones por minuto, confirmado como 429 en trace. El runner inicia API y Vite por caso, sin modificar el límite productivo.
+- Los tests previos se adaptaron a nombres y onboarding, conservando sus aserciones funcionales. Nuevos casos prueban cuentas, recuperación genérica, consentimiento con nombre, replay y conflicto del editor, salida y recarga del onboarding.
+- Capturas reales revisadas por implementador y coordinador en `/private/tmp/familia-p2-{account,onboarding,invitation,patients,patients-mobile}.png`. Se corrigieron radios afectados por estilos de campos de texto y se repitieron las capturas. No se observó desbordamiento horizontal móvil.
+- Revisión independiente final: PASS para zona y limpieza del error de sesión. Revisión de código, sin repetir suites.
+
+Architecture Impact: cambian sesión y navegación web, lectura del perfil y presentación de métricas. El contrato expone la zona existente, sin migración nueva. Mapas general y web actualizados. Sin despliegue ni instalación nativa.

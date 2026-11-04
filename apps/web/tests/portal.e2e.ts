@@ -8,6 +8,8 @@ async function login(page: Page, name: string) {
   await page
     .getByRole("button", { name: "Iniciar sesión", exact: true })
     .click();
+  await page.getByLabel("Nombre visible").fill(name);
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Personas a tu cuidado" }),
   ).toBeVisible();
@@ -42,7 +44,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   await cp.getByRole("link", { name: "Pacientes", exact: true }).click();
   const patientCard = cp
     .getByRole("link")
-    .filter({ has: cp.getByRole("heading", { name: /Paciente vinculado/ }) });
+    .filter({ has: cp.getByRole("heading", { name: patient }) });
   await expect(patientCard).toHaveCount(1);
   await patientCard.click();
   const patientId = new URL(cp.url()).pathname.split("/").pop()!;
@@ -154,11 +156,13 @@ test("network loading, empty, error and permission states", async ({
     await route.fulfill({ json: { items: [], next_cursor: "" } });
   });
   await page.goto("/");
-  await page.getByLabel("Correo electrónico").fill("network@example.test");
+  await page.getByLabel("Correo electrónico").fill("network-" + Date.now() + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
   await page
     .getByRole("button", { name: "Iniciar sesión", exact: true })
     .click();
+  await page.getByLabel("Nombre visible").fill("Persona de prueba");
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Cargando");
   await expect(
     page.getByText("No tienes pacientes vinculados.", { exact: false }),
@@ -215,7 +219,7 @@ test("an open editor retains its version after a background update", async ({
   await login(page, name);
   await page
     .getByRole("link")
-    .filter({ has: page.getByRole("heading", { name: "Mi registro" }) })
+    .filter({ has: page.getByRole("heading", { name }) })
     .click();
   const patientId = new URL(page.url()).pathname.split("/").pop();
   await page.getByRole("button", { name: "Nuevo tratamiento" }).click();

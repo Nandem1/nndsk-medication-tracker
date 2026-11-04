@@ -21,3 +21,12 @@ export function validReportRange(from: string, until: string) {
 export function percent(value: number | null) {
   return value === null ? "Sin datos evaluables" : new Intl.NumberFormat("es-CL", { style: "percent", maximumFractionDigits: 1 }).format(value);
 }
+
+export function patientDate(timezone: string, instant = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+}

@@ -76,6 +76,7 @@ func (s *Service) ResolveUser(ctx context.Context, uid string) (string, error) {
 }
 
 type PatientAccess struct {
+	Timezone       string  `json:"timezone"`
 	DisplayName    *string `json:"display_name"`
 	ProfileVersion int64   `json:"profile_version"`
 	PatientID      string  `json:"patient_id"`
@@ -87,7 +88,7 @@ func (s *Service) Patients(ctx context.Context, actor, cursor string) ([]Patient
 	if !domain.ValidID(actor) || !validCursor(cursor) {
 		return nil, "", ErrInvalid
 	}
-	rows, err := s.pool.Query(ctx, `SELECT accessible.*,CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,u.profile_version FROM (SELECT id::text AS patient,NULL::text AS link,ARRAY['read','treatments','doses','inventory']::text[] AS scopes FROM users WHERE id=$1 UNION ALL SELECT patient_user_id::text,id::text,scopes FROM caregiver_links WHERE caregiver_user_id=$1 AND status='active' AND 'read'=ANY(scopes)) accessible JOIN users u ON u.id=patient::uuid WHERE patient::uuid>$2::uuid ORDER BY patient LIMIT 101`, actor, cursorValue(cursor))
+	rows, err := s.pool.Query(ctx, `SELECT accessible.*,CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,u.profile_version,u.timezone FROM (SELECT id::text AS patient,NULL::text AS link,ARRAY['read','treatments','doses','inventory']::text[] AS scopes FROM users WHERE id=$1 UNION ALL SELECT patient_user_id::text,id::text,scopes FROM caregiver_links WHERE caregiver_user_id=$1 AND status='active' AND 'read'=ANY(scopes)) accessible JOIN users u ON u.id=patient::uuid WHERE patient::uuid>$2::uuid ORDER BY patient LIMIT 101`, actor, cursorValue(cursor))
 	if err != nil {
 		return nil, "", err
 	}
@@ -96,7 +97,7 @@ func (s *Service) Patients(ctx context.Context, actor, cursor string) ([]Patient
 	for rows.Next() {
 		var p PatientAccess
 		var scopes []string
-		if err = rows.Scan(&p.PatientID, &p.LinkID, &scopes, &p.DisplayName, &p.ProfileVersion); err != nil {
+		if err = rows.Scan(&p.PatientID, &p.LinkID, &scopes, &p.DisplayName, &p.ProfileVersion, &p.Timezone); err != nil {
 			return nil, "", err
 		}
 		for _, scope := range scopes {

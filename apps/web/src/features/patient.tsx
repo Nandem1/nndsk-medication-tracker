@@ -1,6 +1,9 @@
+import { useState } from "react";
+import { ProfileEditor } from "./profile";
+import { Button } from "../components/ui/button";
 import { Link } from "@tanstack/react-router";
-import { useList } from "../lib/queries";
-import { patient, treatment } from "../lib/api/contracts";
+import { useList, useRefresh } from "../lib/queries";
+import { patient, treatment, type Patient } from "../lib/api/contracts";
 import { sections, type Section } from "../lib/sections";
 import { QueryState } from "../components/query-state";
 import { Treatments } from "./treatments";
@@ -14,15 +17,37 @@ export function PatientDetail({
   patientId: string;
   section: Section;
 }) {
+  const refresh = useRefresh();
+  const [editing, setEditing] = useState<Patient | null>(null);
   const access = useList("/patients", patient);
   const query = useList("/patients/" + patientId + "/treatments", treatment);
   const permissions =
     access.data?.find((p) => p.patient_id === patientId)?.scopes ?? [];
+  const person = access.data?.find((p) => p.patient_id === patientId);
   return (
     <main>
       <p className="eyebrow">Registro compartido</p>
-      <h1>Tratamientos y seguimiento</h1>
-      <p className="reference">Paciente {patientId}</p>
+      <h1>{person?.display_name ?? "Paciente sin nombre"}</h1>
+      {person && permissions.includes("treatments") && (
+        <Button variant="outline" onClick={() => setEditing(person)}>
+          Cambiar nombre
+        </Button>
+      )}
+      {editing && (
+        <section className="panel">
+          <ProfileEditor
+            initial={editing}
+            path={"/patients/" + patientId + "/profile"}
+            done={() => {
+              setEditing(null);
+              refresh();
+            }}
+          />
+          <Button variant="outline" onClick={() => setEditing(null)}>
+            Cancelar edición
+          </Button>
+        </section>
+      )}
       <nav className="section-nav" aria-label="Secciones del paciente">
         {sections.map((item) => (
           <Link

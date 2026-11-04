@@ -122,7 +122,7 @@ textarea,
 select {
   font: inherit;
 }
-input:not([type="checkbox"]),
+input:not([type="checkbox"]):not([type="radio"]),
 textarea,
 select {
   display: block;
@@ -138,9 +138,11 @@ select {
   outline: 3px solid var(--mt-color-accent);
   outline-offset: 3px;
 }
-input[type="checkbox"] {
+input[type="checkbox"],
+input[type="radio"] {
   width: 1.25rem;
   height: 1.25rem;
+  flex: none;
   accent-color: var(--mt-color-accent-fill);
 }
 textarea {
@@ -832,4 +834,9 @@ td {
   .report-filters {
     gap: 0;
   }
+}
+
+.clipboard-action {
+  margin-right: var(--mt-space-sm);
+  margin-bottom: var(--mt-space-sm);
 }

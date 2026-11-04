@@ -16,6 +16,8 @@ export function Field({
   value?: string;
   required?: boolean;
   maxLength?: number;
+  minLength?: number;
+  autoComplete?: string;
   min?: string;
   max?: string;
   placeholder?: string;

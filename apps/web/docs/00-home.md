@@ -4,8 +4,9 @@ El portal F3 permite al cuidador solicitar consentimiento, registrar tratamiento
 
 ```mermaid
 flowchart TB
-    Login[Correo y contraseña] --> Session[Sesión Firebase en memoria]
-    Session --> Router[TanStack Router]
+    Login[Entrar, crear cuenta y recuperar contraseña] --> Session[Sesión Firebase en memoria]
+    Session --> Profile[Completar perfil antes de navegar]
+    Profile --> Router[TanStack Router]
     Router --> Patients[Pacientes y consentimiento]
     Router --> Patient[Tratamientos, inventario y agenda]
     Patient --> Dashboard[Dashboard, historial y calendario de respuestas]
@@ -18,8 +19,8 @@ flowchart TB
 
 ## Responsabilidades
 
-- [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta y la sección a su parámetro `section`. Las pestañas de paciente viven en el encabezado de [sesión](../src/app/session.tsx). La API no entrega nombres: las etiquetas salen de [`sections.ts`](../src/lib/sections.ts).
-- [Sesión](../src/app/session.tsx) controla carga, acceso anónimo y acceso autenticado. El [adaptador Firebase](../src/app/firebase.ts) obtiene tokens y usa persistencia en memoria.
+- [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta y la sección a su parámetro `section`. Las pestañas de paciente viven en el encabezado de [sesión](../src/app/session.tsx). La API entrega el nombre único de cada persona; [`sections.ts`](../src/lib/sections.ts) sólo aplica el texto alternativo para perfiles incompletos. No se muestran UUID como etiquetas.
+- [Sesión](../src/app/session.tsx) controla carga, acceso anónimo y acceso autenticado. El [adaptador Firebase](../src/app/firebase.ts) obtiene tokens y usa persistencia en memoria. Registro y recuperación llaman al SDK de Firebase. El resultado de recuperación no revela si existe la cuenta.
 - [Pantallas](../src/features/) contienen pacientes, consentimiento y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
 - [Cliente HTTP](../src/lib/api/client.ts) transmite tokens, recorre páginas y valida respuestas con los [esquemas](../src/lib/api/contracts.ts). Los datos clínicos no se guardan en almacenamiento persistente del navegador.
 - [Formularios](../src/components/forms.tsx) conservan la clave idempotente mientras se reintenta el mismo contenido. Las [validaciones](../src/lib/forms.ts) mantienen cantidades decimales como texto y comprueban horarios.
@@ -39,7 +40,7 @@ La agenda diferencia pendiente, sin confirmar, tomada, tomada tarde y omitida me
 
 La sección Seguimiento permite elegir semana, mes o rango y filtrar un tratamiento del paciente seleccionado. El backend entrega los conteos y proporciones; la UI no agrega una página parcial de agenda. Cada porcentaje muestra su numerador y denominador, y la puntualidad indica su ventana organizativa. El calendario presenta respuestas explícitas, incluidas omisiones, sin rachas ni recompensas por consumo.
 
-[Seguimiento](../src/features/dashboard.tsx) abre con alertas y agenda de hoy de todo el paciente, que el filtro del informe no oculta. La consulta del informe espera a la de hoy: ambas materializan dosis bajo `RepeatableRead` y en paralelo chocan con 409 en un paciente sin materializar. Las [barras apiladas](../src/features/adherence-chart.tsx) usan sólo `report.days`, con leyenda, trama para «sin confirmar», `aria-label` resumen y tabla alternativa.
+[Seguimiento](../src/features/dashboard.tsx) abre con alertas y agenda de hoy de todo el paciente, que el filtro del informe no oculta. La consulta del informe conserva la espera de la consulta de hoy. El backend P1 ya reintenta los conflictos transitorios de materialización. Las [barras apiladas](../src/features/adherence-chart.tsx) usan sólo `report.days`, con leyenda, trama para «sin confirmar», `aria-label` resumen y tabla alternativa.
 
 [Inventario](../src/features/inventory.tsx) es una lista de cuentas con días de cobertura y un detalle. El saldo estimado es `balance − scheduled_quantity`, ambos del servidor, con resta exacta en [`inventory.ts`](../src/lib/inventory.ts); no pasa por float. La API no entrega saldo por día, así que la proyección muestra la parte cubierta de la ventana y no una curva. La tabla de movimientos muestra las cantidades como texto.
 
@@ -54,3 +55,13 @@ El [runbook F3](../../../docs/runbooks/f3-verification.md) registra las pruebas 
 La [verificación F7](../../../docs/runbooks/f7-verification.md) registra el dashboard y sus pruebas. API y worker F7 están desplegados en staging; este portal continúa servido localmente y consulta esa API. El usuario aceptó F7 tras su E2E contra staging el 2026-11-03.
 
 Las pruebas web admiten `E2E_PORT_OFFSET` para levantar API, proxy de fallos y Vite en puertos alternativos de loopback cuando hay servicios locales abiertos. El valor predeterminado conserva los puertos anteriores y el modo normal del portal mantiene su destino staging.
+
+## Cuentas y vista conjunta P2
+
+[ProfileGate](../src/features/profile.tsx) consulta `/me` bajo la identidad activa y exige completar el nombre antes de montar la navegación y sus consultas. Permite recargar el perfil tras un conflicto y salir de la cuenta aun si falla la carga. Mi perfil y la edición del nombre de un paciente usan una copia del nombre y su versión al abrir el formulario. Un refresco no reemplaza la versión de una edición en curso. `MutationForm` conserva la operación al reintentar el mismo contenido.
+
+La lista de pacientes consulta los conteos del informe de la API y todas las páginas del inventario. Cada tarjeta muestra fecha y zona IANA del perfil del paciente, confirmadas por `/patients`. La fecha se calcula en esa zona, no en la del navegador ni en la pauta del primer tratamiento. Los conteos representan dosis evaluables de hoy hasta el corte del servidor. No se suman páginas parciales de agenda.
+
+Las invitaciones ofrecen tres conjuntos explícitos de permisos y un nombre sugerido opcional. Copiar y pegar usan el portapapeles sólo al tocar un botón. Se acepta un único código o el mensaje completo y se muestran nombre, permisos y vencimiento antes del consentimiento. Los nombres de contrapartes revocadas llegan nulos y no se sustituyen por identificadores.
+
+`make test-web-e2e` usa [el ejecutor de pruebas](../scripts/e2e.mjs) para iniciar API y Vite por caso. Esto evita que el límite por IP de un caso se consuma con las peticiones de los anteriores. El límite productivo permanece intacto. Los E2E usan identidad sintética, HTTP, PostgreSQL y navegador reales; no prueban entrega de correo ni creación de cuentas en Firebase remoto.

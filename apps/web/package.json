@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "lint": "node ../../packages/design-tokens/build.mjs --check && tsc --noEmit",
     "test": "vitest run src",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "react": "19.3.1",

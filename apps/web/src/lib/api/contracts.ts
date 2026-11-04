@@ -1,11 +1,20 @@
 import { z } from "zod";
 export const scope = z.enum(["read", "treatments", "doses", "inventory"]);
 export const patient = z.object({
+  timezone: z.string(),
+  display_name: z.string().nullable(),
+  profile_version: z.number().int().positive(),
   patient_id: z.string(),
   link_id: z.string().nullable(),
   scopes: z.array(scope),
 });
-export const me = z.object({ user_id: z.string() });
+export const profile = z.object({
+  display_name: z.string().nullable(),
+  profile_version: z.number().int().positive(),
+  profile_complete: z.boolean(),
+});
+export const me = profile.extend({ user_id: z.string() });
+export type Profile = z.infer<typeof profile>;
 export const schedule = z.object({
   timezone: z.string(),
   dst_policy: z.enum(["reject", "next_valid_earliest"]),
@@ -68,11 +77,15 @@ export const invitation = z.object({
   expires_at: z.string(),
 });
 export const preview = z.object({
+  caregiver_display_name: z.string().nullable(),
+  patient_name_hint: z.string().nullable(),
   caregiver_id: z.string(),
   scopes: z.array(scope),
   expires_at: z.string(),
 });
 export const link = z.object({
+  patient_display_name: z.string().nullable(),
+  caregiver_display_name: z.string().nullable(),
   link_id: z.string(),
   patient_id: z.string(),
   caregiver_id: z.string(),

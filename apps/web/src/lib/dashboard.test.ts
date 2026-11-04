@@ -25,3 +25,11 @@ describe("report periods", () => {
     expect(percent(0.5)).toContain("50");
   });
 });
+
+import { patientDate } from "./dashboard";
+it("uses the patient timezone across midnight and Santiago DST", () => {
+  expect(patientDate("America/Santiago", new Date("2026-11-04T01:00:00Z"))).toBe("2026-11-03");
+  expect(patientDate("Pacific/Auckland", new Date("2026-11-04T01:00:00Z"))).toBe("2026-11-04");
+  expect(patientDate("America/Santiago", new Date("2026-09-06T03:30:00Z"))).toBe("2026-09-05");
+  expect(patientDate("America/Santiago", new Date("2026-09-06T04:30:00Z"))).toBe("2026-09-06");
+});

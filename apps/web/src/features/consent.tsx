@@ -1,3 +1,8 @@
+import {
+  invitationPresets,
+  invitationToken,
+  invitationMessage,
+} from "../lib/invitations";
 import { useState } from "react";
 import { z } from "zod";
 import { useSession } from "../app/session";
@@ -6,7 +11,6 @@ import {
   invitation,
   preview,
   link,
-  scope,
   scopeLabels,
 } from "../lib/api/contracts";
 import { MutationForm, Field } from "../components/forms";
@@ -24,6 +28,18 @@ export function Consent() {
     preview: z.infer<typeof preview>;
   } | null>(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState("");
+  const [received, setReceived] = useState("");
+  async function copy(value: string, message: string) {
+    setError("");
+    setCopied("");
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(message);
+    } catch {
+      setError("No pudimos copiar. Selecciona el código y cópialo manualmente.");
+    }
+  }
   return (
     <main>
       <h1>Invitaciones y consentimiento</h1>
@@ -41,35 +57,40 @@ export function Consent() {
           </p>
           <MutationForm
             label="Crear invitación"
-            prepare={(f) => ({
-              scopes: f.getAll("scope").map((v) => scope.parse(v)),
-            })}
-            submit={async ({ scopes }) => {
+            prepare={(f) => {
+              const preset = invitationPresets.find((item) => item.value === f.get("preset"));
+              if (!preset) throw new Error("Elige los permisos.");
+              const hint = String(f.get("patient_name_hint")).trim();
+              return { scopes: preset.scopes, ...(hint ? { patient_name_hint: hint } : {}) };
+            }}
+            submit={async (data) => {
               setCreated(null);
-              setCreated(
-                await api.request("/invitations", invitation, {
-                  scopes,
-                  client_operation_id: crypto.randomUUID(),
-                }),
-              );
+              setCopied("");
+              setCreated(await api.request("/invitations", invitation, {
+                ...data,
+                client_operation_id: crypto.randomUUID(),
+              }));
             }}
             done={() => {}}
           >
+            <Field
+              label="¿Cómo se llama?"
+              name="patient_name_hint"
+              required={false}
+              maxLength={60}
+              placeholder="Por ejemplo, Mamá"
+            />
             <fieldset>
               <legend>Permisos solicitados</legend>
-              {scope.options.map((s) => (
-                <label className="check" key={s}>
+              {invitationPresets.map((preset) => (
+                <label className="check" key={preset.value}>
                   <input
-                    name="scope"
-                    value={s}
-                    type="checkbox"
-                    defaultChecked
-                    disabled={s === "read"}
+                    type="radio"
+                    name="preset"
+                    value={preset.value}
+                    defaultChecked={preset.value === "manage"}
                   />
-                  {scopeLabels[s]}
-                  {s === "read" && (
-                    <input type="hidden" name="scope" value="read" />
-                  )}
+                  {preset.label}
                 </label>
               ))}
             </fieldset>
@@ -84,6 +105,15 @@ export function Consent() {
                 Código de invitación
                 <textarea readOnly value={created.token} />
               </label>
+              <div className="actions">
+                <Button variant="outline" onClick={() => void copy(created.token, "Código copiado.")}>
+                  Copiar código
+                </Button>
+                <Button variant="outline" onClick={() => void copy(invitationMessage(created.token), "Mensaje copiado.")}>
+                  Copiar mensaje
+                </Button>
+              </div>
+              {copied && <p role="status">{copied}</p>}
               <p>
                 No se guarda al cerrar esta pantalla. Si la respuesta se pierde,
                 crea una nueva invitación.
@@ -95,7 +125,7 @@ export function Consent() {
           <h2>Aceptar como paciente</h2>
           <MutationForm
             label="Revisar invitación"
-            prepare={(f) => ({ token: String(f.get("token")).trim() })}
+            prepare={(f) => ({ token: invitationToken(String(f.get("token"))) })}
             submit={async (data) => {
               setConsent(null);
               setConsent({
@@ -107,12 +137,34 @@ export function Consent() {
             }}
             done={() => {}}
           >
-            <Field label="Código recibido" name="token" />
+            <label className="field">
+              Código recibido
+              <textarea
+                name="token"
+                required
+                value={received}
+                onChange={(event) => setReceived(event.target.value)}
+              />
+            </label>
+            <Button
+              className="clipboard-action"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void navigator.clipboard.readText()
+                  .then(setReceived)
+                  .catch(() => setError("No pudimos leer el portapapeles. Pega el código en el campo."));
+              }}
+            >
+              Pegar código
+            </Button>
           </MutationForm>
           {consent && (
             <div className="notice">
               <h3>Revisa antes de aceptar</h3>
-              <p>Darás acceso a la cuenta {consent.preview.caregiver_id}.</p>
+              <p><strong>{consent.preview.caregiver_display_name ?? "Cuidador sin nombre"}</strong> podrá:</p>
+              <p>Vence el {new Date(consent.preview.expires_at).toLocaleString("es-CL")}.</p>
+              {consent.preview.patient_name_hint && <p>Nombre sugerido: {consent.preview.patient_name_hint}</p>}
               <ul>
                 {consent.preview.scopes.map((s) => (
                   <li key={s}>{scopeLabels[s]}</li>
@@ -148,8 +200,8 @@ export function Consent() {
           )}
           {links.data?.map((item) => (
             <article className="panel" key={item.link_id}>
-              <p>Paciente {item.patient_id}</p>
-              <p>Cuidador {item.caregiver_id}</p>
+              <p>Paciente: {item.patient_display_name ?? "Nombre no disponible"}</p>
+              <p>Cuidador: {item.caregiver_display_name ?? "Nombre no disponible"}</p>
               <p>
                 {item.status === "active"
                   ? "Acceso autorizado"

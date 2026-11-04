@@ -179,3 +179,22 @@ func TestProfileAndInvitationRejectNullCharacter(t *testing.T) {
 	f.request("patient", "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 1, "display_name": "a\x00b"}, 422, nil)
 	f.request("caregiver", "POST", "/v1/invitations", map[string]any{"client_operation_id": domain.NewID(), "scopes": []string{"read"}, "patient_name_hint": "a\x00b"}, 422, nil)
 }
+
+func TestPatientAccessExposesProfileTimezone(t *testing.T) {
+	f := newAPIFixture(t)
+	if _, err := f.pool.Exec(context.Background(), "UPDATE users SET timezone='Pacific/Auckland' WHERE id=$1", f.patient); err != nil {
+		t.Fatal(err)
+	}
+	f.invite([]application.Scope{application.ScopeRead})
+	var page Page[application.PatientAccess]
+	f.request("caregiver", "GET", "/v1/patients", nil, 200, &page)
+	for _, patient := range page.Items {
+		if patient.PatientID == f.patient {
+			if patient.Timezone != "Pacific/Auckland" {
+				t.Fatal("patient timezone does not match profile")
+			}
+			return
+		}
+	}
+	t.Fatal("patient missing")
+}

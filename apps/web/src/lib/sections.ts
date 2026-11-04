@@ -12,7 +12,6 @@ export function parseSection(value: unknown): Section {
   return sections.find((item) => item.id === value)?.id ?? "treatments";
 }
 
-/** La API no entrega nombres: se usa la misma etiqueta en tarjetas y pestañas. */
-export function patientLabel(item: Patient, index: number) {
-  return item.link_id ? "Paciente vinculado " + (index + 1) : "Mi registro";
+export function patientLabel(item: Patient) {
+  return item.display_name ?? "Paciente sin nombre";
 }

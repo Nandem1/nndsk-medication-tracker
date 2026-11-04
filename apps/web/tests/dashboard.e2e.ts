@@ -37,7 +37,9 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await page.getByLabel("Correo electrónico").fill(actor + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: "Mi registro" }) }).click();
+  await page.getByLabel("Nombre visible").fill(actor);
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: actor }) }).click();
   await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await page.getByLabel("Desde", { exact: true }).fill(shiftDate(day, -6));
   await page.getByLabel("Hasta, incluido").fill(day);
@@ -112,7 +114,9 @@ test("F7 read-only caregiver can view dashboard but cannot configure stock", asy
   await page.getByLabel("Correo electrónico").fill(caregiver + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: /Paciente vinculado/ }) }).click();
+  await page.getByLabel("Nombre visible").fill(caregiver);
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: "Paciente sin nombre" }) }).click();
   await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await expect(page.getByText("0 tomadas / 0 evaluables", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Inventario", exact: true }).click();
@@ -140,7 +144,9 @@ test("a patient without materialized doses opens Seguimiento without a conflict"
   await page.getByLabel("Correo electrónico").fill(actor + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: "Mi registro" }) }).click();
+  await page.getByLabel("Nombre visible").fill(actor);
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: actor }) }).click();
   await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await expect(page.getByRole("img", { name: /Dosis evaluables por día/ })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
