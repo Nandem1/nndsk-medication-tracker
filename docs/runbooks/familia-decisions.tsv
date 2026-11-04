@@ -1,0 +1,3 @@
+ts	phase	decision	why	evidence	result
+2026-11-04T01:16:34Z	P0	Mantener las decisiones cerradas y el orden P0 a P7	El plan exige pruebas por fase antes de avanzar	PLAN-FAMILIA.md	open
+2026-11-04T01:17:36Z	P0	Seleccionar sólo filas physical con estado connected o available	El iPhone emparejado aparece available; el simulador connected no es un destino físico	scripts/ios-run-device.sh	Selector sintético de cuatro casos y lista real PASS; tokens-check test lint PASS

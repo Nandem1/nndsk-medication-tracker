@@ -10,7 +10,7 @@ BUNDLE=dev.nndsk.MedicationTracker
 
 test -f apps/ios/Config/Local.xcconfig || { echo 'Create apps/ios/Config/Local.xcconfig first. See the README.' >&2; exit 1; }
 
-DEVICE=${IOS_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '!/simulated/ && /connected/ { for (i = 1; i <= NF; i++) if ($i == "(UDID)") print $(i - 1) }' | head -1)}
+DEVICE=${IOS_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '$NF == "physical" { for (i = 2; i < NF; i++) if ($i == "(UDID)" && ($(i + 1) == "connected" || $(i + 1) == "available")) print $(i - 1) }' | head -1)}
 test -n "$DEVICE" || { echo 'No connected iPhone found. Unlock it and check the cable or Wi-Fi pairing.' >&2; exit 1; }
 
 xcodebuild -project apps/ios/MedicationTracker.xcodeproj -derivedDataPath "$DERIVED" -scheme MedicationTracker \
