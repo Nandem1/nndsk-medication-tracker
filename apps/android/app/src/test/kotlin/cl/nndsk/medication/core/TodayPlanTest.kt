@@ -61,6 +61,17 @@ class TodayPlanTest {
         assertNull(plan.current)
         assertEquals(1, plan.overdue.size)
     }
+    @Test fun historyIncludesTodayPastDosesAndExcludesFutureOnes() {
+        val today = dose("a", "2026-11-02T12:00:00Z", "taken")
+        val future = dose("b", "2026-11-02T23:00:00Z")
+        val yesterday = dose("c", "2026-11-01T12:00:00Z", "skipped", "2026-11-01")
+        val days = historyDays(listOf(yesterday, future, today), now)
+        assertEquals(listOf("2026-11-02", "2026-11-01"), days.map { it.first })
+        assertEquals(listOf(today), days[0].second)
+    }
+    @Test fun longLocalDateIsSpanish() {
+        assertEquals("Domingo, 1 de noviembre", longLocalDate("2026-11-01"))
+    }
     @Test fun longDateUsesSpanishInTheDoseZone() {
         assertEquals("Lunes, 2 de noviembre", longDate(now, ZoneId.of("America/Santiago")))
     }

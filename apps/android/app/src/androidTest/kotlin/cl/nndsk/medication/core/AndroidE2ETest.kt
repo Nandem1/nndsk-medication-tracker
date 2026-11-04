@@ -85,6 +85,7 @@ class AndroidE2ETest {
             compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Autorizar estos permisos").performScrollTo().performClick()
             waitFor { app.repository.state.value.snapshot?.links?.size == 1 }
+            shell("screencap -p /data/local/tmp/e2e-settings.png")
             val now = Instant.now()
             val zone = listOf("America/Santiago", "UTC", "Asia/Tokyo", "Pacific/Auckland").map(ZoneId::of).first {
                 now.minusSeconds(180).atZone(it).toLocalDate() == now.plusSeconds(90).atZone(it).toLocalDate()
@@ -128,9 +129,12 @@ class AndroidE2ETest {
                 shell("wm dismiss-keyguard")
                 delivered.notification.contentIntent.send()
                 compose.waitUntil(20_000) {
-                    compose.onAllNodesWithText("${upcoming.localDate} ${upcoming.localTime} · ${upcoming.timezone}").fetchSemanticsNodes().isNotEmpty()
+                    compose.onAllNodesWithText("Detalle de la toma").fetchSemanticsNodes().isNotEmpty() &&
+                        compose.onAllNodes(hasText(upcoming.localTime, substring = true)).fetchSemanticsNodes().isNotEmpty()
                 }
-                compose.onNodeWithText("Hoy").performClick()
+                shell("screencap -p /data/local/tmp/e2e-detail.png")
+                compose.onNodeWithContentDescription("Volver").performClick()
+                compose.waitUntil(10_000) { compose.onAllNodes(hasText("Ahora toca", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             } finally {
                 shell("dumpsys deviceidle unforce"); shell("dumpsys battery reset"); shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard")
             }
@@ -150,6 +154,10 @@ class AndroidE2ETest {
             waitFor { app.repository.state.value.operations.size == 1 }
             compose.onNodeWithText("Guardada, falta enviar").performScrollTo().assertExists()
             compose.onNodeWithText("Sin conexión").assertExists()
+            // El historial incluye la toma de hoy.
+            compose.onNodeWithText("Historial").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Guardada, falta enviar").fetchSemanticsNodes().isNotEmpty() }
+            shell("screencap -p /data/local/tmp/e2e-history.png")
             val pending = app.repository.state.value.operations.single()
             assertEquals("pending", pending.status)
             assertEquals("10.000", balance(patient.second, patientId))

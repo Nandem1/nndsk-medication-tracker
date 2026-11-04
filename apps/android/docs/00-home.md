@@ -32,6 +32,7 @@ flowchart TB
 - [`notifications/Reminders.kt`](../app/src/main/kotlin/cl/nndsk/medication/notifications/Reminders.kt) reconcilia alarmas y comprueba contexto/instante antes de entregar. El receptor no escribe eventos de dosis. La ventana se repone al sincronizar y se reconstruye desde Room después de reinicio.
 
 - [`core/TodayPlan.kt`](../app/src/main/kotlin/cl/nndsk/medication/core/TodayPlan.kt) reparte Hoy con las mismas reglas que iOS, y `LateTime` en [`core/EffectiveTime.kt`](../app/src/main/kotlin/cl/nndsk/medication/core/EffectiveTime.kt) impide horas futuras. Sólo presentan. Una dosis con más de 4 horas de atraso sale de la tarjeta y pasa a «Pasaron sin registrar», sin cambiar su estado. Declarar desde Hoy registra directamente, como en iOS; las correcciones conservan motivo y revisión. `AppState.offline` y `rejected` sólo eligen el tono del aviso.
+- Detalle y Ajustes se agrupan en tarjetas por sección, bajo una barra superior con título y botón de volver. Corregir un registro se hace en una hoja aparte, con motivo obligatorio. Historial incluye las tomas de hoy cuya hora ya pasó, como iOS.
 - Los iconos de navegación y estado son vectores en `res/drawable`, sin dependencia de `material-icons`.
 
 F5 selecciona el acceso propio devuelto por la API. No existe todavía el selector ni la vista del cuidador de F5b. Los contratos compartidos y la autorización se describen en el [mapa del monorepo](../../../docs/00-home.md).

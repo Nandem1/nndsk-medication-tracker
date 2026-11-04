@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,10 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -69,7 +72,9 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
             stack.clear(); stack.add(Tab("Hoy")); stack.add(Detail(parts[2]))
         }
     }
-    Scaffold(bottomBar = {
+    Scaffold(topBar = {
+        if (state.session == Session.Active) PatientTopBar(stack.lastOrNull(), state.busy, onBack = { if (stack.size > 1) stack.removeLastOrNull() }) { model.run { model.repository.sync() } }
+    }, bottomBar = {
         if (state.session == Session.Active) NavigationBar {
             tabs.forEach { (name, icon) -> NavigationBarItem(selected = stack.lastOrNull { it is Tab } == Tab(name), onClick = { stack.clear(); stack.add(Tab(name)) },
                 icon = { Icon(painterResource(icon), contentDescription = null) }, label = { Text(name) }) }
@@ -77,17 +82,14 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             if (state.session != Session.Active) Text("Mis tomas", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(vertical = 12.dp))
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            // Reserva su alto para que la pantalla no salte al sincronizar.
+            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(GraphiteTokens.Space.sm))
             StatusBanner(state)
             if (state.session != Session.Active) {
                 Login(state.busy, state.session == Session.Expired) { email, password -> model.run { model.repository.login(email, password) } }
                 TextButton(enabled = !state.busy, onClick = { confirmClearLocal = true }) { Text("Cerrar sesión y borrar datos locales") }
             } else {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(state.snapshot?.refreshedAt?.let { "Última actualización: ${formatInstant(it)}" }.orEmpty(),
-                        style = GraphiteTokens.Type.caregiverCaption, color = MedicationTrackerTheme.colors.textMuted, modifier = Modifier.weight(1f))
-                    TextButton(enabled = !state.busy, onClick = { model.run { model.repository.sync() } }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Sincronizar") }
-                }
                 NavDisplay(backStack = stack, onBack = { if (stack.size > 1) stack.removeLastOrNull() }, modifier = Modifier.weight(1f), entryProvider = entryProvider {
                     entry<Tab> { tab -> when (tab.name) {
                         "Hoy" -> Today(model, state, now) { stack.add(Detail(it)) }
@@ -105,13 +107,67 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
         dismissButton = { TextButton(onClick = { confirmClearLocal = false }) { Text("Volver") } })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun PatientTopBar(current: NavKey?, busy: Boolean, onBack: () -> Unit, sync: () -> Unit) {
+    val colors = MedicationTrackerTheme.colors
+    val detail = current is Detail
+    TopAppBar(
+        title = {
+            Text(if (detail) "Detalle de la toma" else (current as? Tab)?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = if (detail) GraphiteTokens.Type.patientLabel else GraphiteTokens.Type.patientTitle)
+        },
+        navigationIcon = {
+            if (detail) IconButton(onClick = onBack) { Icon(painterResource(R.drawable.ic_back), contentDescription = "Volver") }
+        },
+        actions = {
+            if (!detail) TextButton(enabled = !busy, onClick = sync, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Sincronizar") }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bg, scrolledContainerColor = colors.bg, titleContentColor = colors.text, navigationIconContentColor = colors.text),
+    )
+}
+
+/** Agrupa una parte de la pantalla sobre la superficie de tarjeta, como las secciones de iOS. */
+@Composable private fun SectionCard(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    val colors = MedicationTrackerTheme.colors
+    Surface(color = colors.surface, shape = RoundedCornerShape(GraphiteTokens.Radius.lg), border = BorderStroke(1.dp, colors.border), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(GraphiteTokens.Space.lg), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
+            title?.let { SectionTitle(it) }
+            content()
+        }
+    }
+}
+
+@Composable private fun InfoRow(label: String, value: String) {
+    Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xxs)) {
+        Text(label, style = GraphiteTokens.Type.caregiverBody, color = MedicationTrackerTheme.colors.textMuted)
+        Text(value, style = GraphiteTokens.Type.patientLabel)
+    }
+}
+
+@Composable private fun Note(text: String) {
+    Text(text, style = GraphiteTokens.Type.caregiverBody, color = MedicationTrackerTheme.colors.textMuted)
+}
+
+/** Fecha y hora escritas en la zona de la pauta. Una hora repetida por el cambio horario exige elegir cuál. */
+@Composable private fun EffectiveTimeFields(timezone: String, date: String, onDate: (String) -> Unit, time: String, onTime: (String) -> Unit, selectedOffset: String?, onOffset: (String) -> Unit) {
+    val offsets = runCatching { effectiveOffsets(date, time, timezone) }.getOrDefault(emptyList())
+    OutlinedTextField(date, onDate, label = { Text("Fecha (AAAA-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(time, onTime, label = { Text("Hora (HH:mm)") }, modifier = Modifier.fillMaxWidth())
+    if (offsets.size == 2) {
+        Text("Esta hora ocurrió dos veces por el cambio horario. Elige cuándo la tomaste.")
+        offsets.forEachIndexed { index, offset ->
+            DoseAction("${if (selectedOffset == offset.id) "✓ " else ""}${if (index == 0) "Primera" else "Segunda"} vez · UTC${offset.id}") { onOffset(offset.id) }
+        }
+    }
+}
+
 @Composable private fun Login(busy: Boolean, expired: Boolean, submit: (String, String) -> Unit) {
     var email by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (expired) "Renueva tu sesión con la misma cuenta" else "Inicia sesión")
         OutlinedTextField(email, { email = it }, label = { Text("Correo") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(password, { password = it }, label = { Text("Contraseña") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Action("Entrar", enabled = !busy && email.isNotBlank() && password.isNotEmpty()) { submit(email, password); password = "" }
+        DoseAction("Entrar", prominent = true, enabled = !busy && email.isNotBlank() && password.isNotEmpty()) { submit(email, password); password = "" }
         Text("Cada persona usa su propia cuenta. Los registros son declaraciones y no demuestran ingestión.")
     }
 }
@@ -210,7 +266,6 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     var date by remember { mutableStateOf("") }; var time by remember { mutableStateOf("") }
     var selectedOffset by remember(date, time) { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    val offsets = runCatching { effectiveOffsets(date, time, dose.timezone) }.getOrDefault(emptyList())
     val label = LateTime.label(occurred, dose.timezone)
     val colors = MedicationTrackerTheme.colors
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surface) {
@@ -232,14 +287,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
             }
             TextButton(onClick = { manual = !manual }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text(if (manual) "Ocultar otra fecha u hora" else "Otra fecha u hora") }
             if (manual) {
-                OutlinedTextField(date, { date = it; error = null }, label = { Text("Fecha (AAAA-MM-DD)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(time, { time = it; error = null }, label = { Text("Hora (HH:mm)") }, modifier = Modifier.fillMaxWidth())
-                if (offsets.size == 2) {
-                    Text("Esta hora ocurrió dos veces por el cambio horario. Elige cuándo la tomaste.")
-                    offsets.forEachIndexed { index, offset ->
-                        Action("${if (selectedOffset == offset.id) "✓ " else ""}${if (index == 0) "Primera" else "Segunda"} vez · UTC${offset.id}") { selectedOffset = offset.id }
-                    }
-                }
+                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset) { selectedOffset = it }
                 error?.let { Text(it, color = colors.dangerFg) }
                 DoseAction("Usar esta fecha y hora") {
                     try {
@@ -259,17 +307,20 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
 
 @Composable private fun History(state: AppState, now: Instant, open: (String) -> Unit) {
     val snapshot = state.snapshot
-    val doses = snapshot?.doses.orEmpty().filter { !it.today(now) && Instant.parse(it.scheduledAt) < now }.sortedByDescending { it.scheduledAt }
+    val days = historyDays(snapshot?.doses.orEmpty(), now)
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
-        SectionTitle("Historial de los últimos 7 días")
-        if (doses.isEmpty()) Text(if (snapshot?.refreshedAt == null) "Sin agenda guardada. Conéctate y sincroniza para cargar tus tomas." else "No hay dosis en este período.")
-        doses.forEach { DoseRow(it, state, now, showDate = true, open = open) }
+        if (days.isEmpty()) Text(if (snapshot?.refreshedAt == null) "Sin agenda guardada. Conéctate y sincroniza para cargar tus tomas." else "Todavía no hay tomas anteriores.", style = GraphiteTokens.Type.patientBody)
+        days.forEach { (date, doses) ->
+            SectionTitle(longLocalDate(date))
+            doses.forEach { DoseRow(it, state, now, open = open) }
+        }
+        if (days.isNotEmpty()) Note("Muestra hoy y los últimos 7 días. Los registros son declaraciones y no demuestran ingestión.")
         Spacer(Modifier.height(GraphiteTokens.Space.md))
     }
 }
 
 /** Fila de al menos 64 dp que abre el detalle; crece con la escala de fuente. */
-@Composable private fun DoseRow(dose: Dose, state: AppState, now: Instant, showDate: Boolean = false, open: (String) -> Unit) {
+@Composable private fun DoseRow(dose: Dose, state: AppState, now: Instant, open: (String) -> Unit) {
     val colors = MedicationTrackerTheme.colors
     val treatment = state.snapshot?.treatments?.find { it.id == dose.treatmentId }
     Surface(onClick = { open(dose.id) }, shape = RoundedCornerShape(GraphiteTokens.Radius.md), color = colors.surface, border = BorderStroke(1.dp, colors.border), modifier = Modifier.fillMaxWidth().heightIn(min = GraphiteTokens.Size.patientAction)) {
@@ -277,7 +328,6 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
             Text(doseTime(dose), style = GraphiteTokens.Type.patientLabel)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xs)) {
                 Text(treatment?.name ?: "Tratamiento", style = GraphiteTokens.Type.patientLabel)
-                if (showDate) Text("${dose.localDate} · ${quantityText(dose.quantity)} ${unitLabel(treatment?.unit)}", color = colors.textMuted)
                 StatusChip(doseChip(dose, state.operations.find { it.dose == dose.id }, now))
                 if (dose.dstAdjusted) Text("Hora ajustada por el cambio de horario.", color = colors.textMuted)
             }
@@ -289,121 +339,152 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
 @Composable private fun DoseDetail(model: PatientViewModel, state: AppState, id: String) {
     val snapshot = state.snapshot
     val dose = snapshot?.doses?.find { it.id == id }
-    if (dose == null) { Text("Esta dosis ya no está en la agenda actual. Revisa los pendientes en Ajustes."); return }
+    if (dose == null) { Text("Esta dosis ya no está en la agenda actual. Revisa los pendientes en Ajustes.", style = GraphiteTokens.Type.patientBody); return }
     val treatment = snapshot.treatments.find { it.id == dose.treatmentId }
     val pending = state.operations.find { it.dose == id }
     val now = Instant.now()
-    var selected by remember(id) { mutableStateOf<String?>(null) }
-    var date by remember(id) { mutableStateOf("") }; var time by remember(id) { mutableStateOf("") }
-    var selectedOffset by remember(id, date, time) { mutableStateOf<String?>(null) }
-    val offsets = runCatching { effectiveOffsets(date, time, dose.timezone) }.getOrDefault(emptyList())
-    var reason by remember(id) { mutableStateOf("") }; var error by remember(id) { mutableStateOf<String?>(null) }
-    var confirmation by remember(id) { mutableStateOf<Command?>(null) }
+    val colors = MedicationTrackerTheme.colors
+    var correcting by remember(id) { mutableStateOf(false) }
+    var discard by remember(id) { mutableStateOf<PendingOperation?>(null) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
-        Text(treatment?.name ?: "Tratamiento", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-        Text("${quantityText(dose.quantity)} ${unitLabel(treatment?.unit)} · ${treatment?.strength.orEmpty()}")
-        Text("${dose.localDate} ${dose.localTime} · ${dose.timezone}")
-        StatusChip(doseChip(dose, pending, now))
-        if (!treatment?.instructions.isNullOrEmpty()) Text(treatment!!.instructions)
-        snapshot.inventory.find { it.treatmentId == dose.treatmentId }?.let {
-            Text("Stock confirmado en la última actualización: ${quantityText(it.balance)} ${unitLabel(it.unit)}")
-            if (state.operations.isNotEmpty()) {
-                val estimate = estimatedBalance(snapshot, state.operations, dose.treatmentId)
-                Text(if (estimate == null) "Stock estimado no disponible hasta revisar los pendientes." else "Stock estimado con pendientes: ${quantityText(estimate)} ${unitLabel(it.unit)}. Aún no confirmado por el servidor.")
+        SectionCard {
+            Column(verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xs)) {
+                Text(doseTime(dose), style = GraphiteTokens.Type.patientDisplay)
+                Text(longLocalDate(dose.localDate), style = GraphiteTokens.Type.patientLabel, color = colors.textMuted)
+                Text(treatment?.name ?: "Tratamiento", style = GraphiteTokens.Type.patientTitle, modifier = Modifier.semantics { heading() })
+                if (!treatment?.strength.isNullOrEmpty()) Text(treatment!!.strength, style = GraphiteTokens.Type.patientBody, color = colors.textMuted)
+                Text("${quantityText(dose.quantity)} ${unitLabel(treatment?.unit)}", style = GraphiteTokens.Type.patientBody)
+                if (dose.dstAdjusted) Note("Hora ajustada por el cambio de horario. Revisa la pauta con tu profesional.")
             }
+            StatusChip(doseChip(dose, pending, now))
+            if (pending == null && !dose.declared()) DeclarationActions(model, state, dose, now)
+            if (pending?.status == "pending") Note("Tu declaración está guardada. Se enviará cuando haya conexión.")
         }
-        if (pending != null) {
-            Text("Tu declaración está guardada. El stock confirmado no incluye cambios sin sincronizar.")
-        } else if (!dose.declared()) {
-            DeclarationActions(model, state, dose, now)
-        } else {
-            SectionTitle("Corregir registro")
-            listOf("taken" to "Me lo tomé", "taken_late" to "Me lo tomé tarde", "skipped" to "No me lo tomé").forEach { (type, label) ->
-                DoseAction(if (selected == type) "✓ $label" else label) { selected = type; error = null }
-            }
-            if (selected == "taken_late") {
-                Text("Indica cuándo la tomaste, en la zona ${dose.timezone}.")
-                OutlinedTextField(date, { date = it }, label = { Text("Fecha (AAAA-MM-DD)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(time, { time = it }, label = { Text("Hora (HH:mm)") }, modifier = Modifier.fillMaxWidth())
-                if (offsets.size == 2) {
-                    Text("Esta hora ocurrió dos veces por el cambio horario. Elige cuándo la tomaste.")
-                    offsets.forEachIndexed { index, offset ->
-                        Action("${if (selectedOffset == offset.id) "✓ " else ""}${if (index == 0) "Primera" else "Segunda"} vez · UTC${offset.id}") { selectedOffset = offset.id }
-                    }
+        if (pending != null && pending.status != "pending") SectionCard("Revisar registro") {
+            InfoRow("Tu registro", declarationLabel(wireJson.decodeFromString<Command>(pending.body).eventType))
+            StatusChip(doseChip(dose, null, now))
+            Note("Es lo que tiene el servidor. Puedes conservarlo y descartar tu registro local.")
+            DoseAction("Descartar mi registro") { discard = pending }
+        }
+        snapshot.inventory.find { it.treatmentId == dose.treatmentId }?.let { stock ->
+            SectionCard("Inventario") {
+                InfoRow("Saldo confirmado", "${quantityText(stock.balance)} ${unitLabel(stock.unit)}")
+                if (state.operations.isNotEmpty()) {
+                    val estimate = estimatedBalance(snapshot, state.operations, dose.treatmentId)
+                    if (estimate == null) Note("Saldo estimado no disponible hasta revisar los pendientes.")
+                    else InfoRow("Estimado con registros sin enviar", "${quantityText(estimate)} ${unitLabel(stock.unit)}")
                 }
             }
-            OutlinedTextField(reason, { reason = it }, label = { Text("Motivo de la corrección") }, modifier = Modifier.fillMaxWidth())
-            error?.let { Text(it, color = MedicationTrackerTheme.colors.dangerFg) }
-            if (selected != null) Action("Revisar corrección") {
+        }
+        if (!treatment?.instructions.isNullOrEmpty()) SectionCard("Instrucciones registradas") {
+            Text(treatment!!.instructions, style = GraphiteTokens.Type.patientBody)
+        }
+        if (pending == null && dose.declared() && dose.eventId != null) DoseAction("Corregir este registro") { correcting = true }
+        Note(missedGuidance)
+        Spacer(Modifier.height(GraphiteTokens.Space.md))
+    }
+    if (correcting) CorrectionSheet(dose, onDismiss = { correcting = false }) { command ->
+        correcting = false
+        model.run { model.repository.record(snapshot.context, id, command) }
+    }
+    discard?.let { op -> AlertDialog(onDismissRequest = { discard = null }, title = { Text("Descartar declaración local") },
+        text = { Text("El registro del servidor se conserva. Esta declaración local no se volverá a enviar.") },
+        confirmButton = { TextButton(onClick = { discard = null; model.run { model.repository.discard(op.id) } }) { Text("Descartar") } },
+        dismissButton = { TextButton(onClick = { discard = null }) { Text("Volver") } }) }
+}
+
+/** La corrección es una acción aparte: conserva el historial y exige motivo. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun CorrectionSheet(dose: Dose, onDismiss: () -> Unit, save: (Command) -> Unit) {
+    val colors = MedicationTrackerTheme.colors
+    var selected by remember { mutableStateOf("skipped") }
+    var date by remember { mutableStateOf(dose.localDate) }; var time by remember { mutableStateOf("") }
+    var selectedOffset by remember(date, time) { mutableStateOf<String?>(null) }
+    var reason by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surface) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = GraphiteTokens.Space.lg), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
+            Text("Corregir registro", style = GraphiteTokens.Type.patientTitle, modifier = Modifier.semantics { heading() })
+            SectionTitle("El registro correcto es")
+            listOf("taken", "taken_late", "skipped").forEach { type ->
+                Row(Modifier.fillMaxWidth().heightIn(min = GraphiteTokens.Size.minTouchAndroid).selectable(selected == type, role = Role.RadioButton) { selected = type; error = null },
+                    horizontalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected == type, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = colors.action))
+                    Text(declarationLabel(type), style = GraphiteTokens.Type.patientLabel)
+                }
+            }
+            if (selected == "taken_late") {
+                Note("Indica cuándo la tomaste, en la zona ${dose.timezone}.")
+                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset) { selectedOffset = it }
+            }
+            OutlinedTextField(reason, { reason = it; error = null }, label = { Text("Motivo de la corrección") }, modifier = Modifier.fillMaxWidth())
+            error?.let { Text(it, color = colors.dangerFg) }
+            DoseAction("Guardar corrección", prominent = true, enabled = reason.isNotBlank()) {
                 try {
-                    val occurred = if (selected == "taken_late") {
-                        effectiveInstant(date, time, dose.timezone, selectedOffset)
-                    } else null
-                    confirmation = declaration(dose, selected!!, occurred, reason)
+                    val occurred = if (selected == "taken_late") effectiveInstant(date, time, dose.timezone, selectedOffset) else null
+                    save(declaration(dose, selected, occurred, reason))
                 } catch (e: IllegalArgumentException) { error = e.message ?: "Revisa la fecha, hora y motivo." }
                 catch (_: Exception) { error = "Usa una fecha y hora válidas." }
             }
+            Note("El registro anterior se conserva en el historial. Si cambia el consumo, el inventario se ajusta con un movimiento compensatorio.")
+            Spacer(Modifier.height(GraphiteTokens.Space.lg))
         }
-        Text(missedGuidance)
-        Spacer(Modifier.height(GraphiteTokens.Space.md))
-    }
-    confirmation?.let { command ->
-        AlertDialog(onDismissRequest = { confirmation = null }, title = { Text("Confirmar corrección") },
-            text = { Text("${declarationLabel(command.eventType)}${command.occurredAt?.let { " · ${formatInstant(it)}" }.orEmpty()}. Se guardará para sincronizar. La corrección conserva el historial.") },
-            confirmButton = { TextButton(onClick = {
-                confirmation = null
-                model.run { model.repository.record(snapshot.context, id, command) }
-            }) { Text("Guardar") } }, dismissButton = { TextButton(onClick = { confirmation = null }) { Text("Volver") } })
     }
 }
 
 @Composable private fun PatientSettings(model: PatientViewModel, state: AppState, open: (String) -> Unit) {
     val context = LocalContext.current
+    val colors = MedicationTrackerTheme.colors
     var diagnostic by remember { mutableStateOf(model.app.reminders.diagnostic()) }
+    var permitted by remember { mutableStateOf(model.app.reminders.permitted()) }
+    var exact by remember { mutableStateOf(model.app.reminders.exact()) }
+    val refresh = { diagnostic = model.app.reminders.diagnostic(); permitted = model.app.reminders.permitted(); exact = model.app.reminders.exact() }
     val pushDiagnostic by model.app.remotePush.diagnostic.collectAsStateWithLifecycle()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        model.run { model.app.reminders.reconcile(); model.app.remotePush.reconcile(); diagnostic = model.app.reminders.diagnostic() }
+        model.run { model.app.reminders.reconcile(); model.app.remotePush.reconcile(); refresh() }
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { diagnostic = model.app.reminders.diagnostic() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
     var logout by remember { mutableStateOf(false) }
     var discard by remember { mutableStateOf<PendingOperation?>(null) }
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionTitle("Recordatorios")
-        Text(diagnostic)
-        Text("Los permisos, Doze y el ahorro de batería pueden retrasar o impedir avisos. Abre la app y sincroniza para renovar la agenda guardada.")
-        Action("Permitir notificaciones") {
-            if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+    val notificationSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
+        SectionCard("Recordatorios") {
+            StatusChip(when {
+                !permitted -> Chip(diagnostic, R.drawable.ic_notifications_off, colors.unconfirmedFg, colors.unconfirmedBg)
+                !exact -> Chip(diagnostic, R.drawable.ic_scheduled, colors.unconfirmedFg, colors.unconfirmedBg)
+                else -> Chip(diagnostic, R.drawable.ic_taken, colors.takenFg, colors.takenBg)
+            })
+            Note("Los permisos, Doze y el ahorro de batería pueden retrasar o impedir avisos. Abre la app y sincroniza para renovar la agenda guardada.")
+            if (!permitted) DoseAction("Permitir notificaciones", prominent = true) {
+                if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else notificationSettings()
+            }
+            if (Build.VERSION.SDK_INT >= 31 && !exact) DoseAction("Permitir mayor precisión") {
+                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+            }
+            DoseAction("Ajustes de notificaciones") { notificationSettings() }
         }
-        Action("Ajustes de notificaciones") { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
-        if (Build.VERSION.SDK_INT >= 31 && !model.app.reminders.exact()) Action("Permitir mayor precisión") {
-            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
-        }
-        SectionTitle("Avisos remotos del cuidador")
-        Text(pushDiagnostic)
-        SectionTitle("Registros pendientes")
-        state.operations.forEach { op ->
-            val body = wireJson.decodeFromString<Command>(op.body)
-            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
+        SectionCard("Avisos remotos del cuidador") { Text(pushDiagnostic) }
+        if (state.operations.isNotEmpty()) SectionCard("Registros pendientes") {
+            state.operations.forEach { op ->
+                val body = wireJson.decodeFromString<Command>(op.body)
                 val dose = state.snapshot?.doses?.find { it.id == op.dose }
                 val treatment = state.snapshot?.treatments?.find { it.id == dose?.treatmentId }
-                Text(treatment?.name ?: "Dosis fuera de la agenda guardada · ${op.dose.take(8)}")
-                dose?.let {
-                    Text("${it.localDate} ${it.localTime} · ${it.timezone}")
-                    TextButton(onClick = { open(it.id) }) { Text("Abrir dosis") }
+                Column(verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xs)) {
+                    Text(treatment?.name ?: "Dosis fuera de la agenda guardada · ${op.dose.take(8)}", style = GraphiteTokens.Type.patientLabel)
+                    dose?.let { Note("${longLocalDate(it.localDate)} · ${doseTime(it)}") }
+                    Note(declarationLabel(body.eventType) + body.occurredAt?.let { " · ${formatInstant(it)}" }.orEmpty())
+                    StatusChip(operationChip(op.status))
+                    dose?.let { TextButton(onClick = { open(it.id) }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Abrir dosis") } }
+                    if (op.status != "pending") TextButton(onClick = { discard = op }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Descartar declaración local") }
                 }
-                Text(declarationLabel(body.eventType)); Text(body.occurredAt?.let(::formatInstant).orEmpty())
-                StatusChip(operationChip(op.status))
-                if (op.status != "pending") {
-                    Text("Sincroniza para revisar el estado actual. Puedes conservar el registro del servidor y descartar esta declaración; para corregirlo, abre la dosis en el historial.")
-                    TextButton(onClick = { discard = op }) { Text("Descartar declaración local") }
-                }
-            } }
+            }
         }
         Consent(model, state)
-        Text("Estos registros son autodeclarados y no demuestran ingestión.")
-        Action("Cerrar sesión", enabled = !state.busy) { logout = true }
-        Spacer(Modifier.height(16.dp))
+        SectionCard("Cuenta") {
+            state.snapshot?.refreshedAt?.let { InfoRow("Última actualización", formatInstant(it)) }
+            Note("Estos registros son autodeclarados y no demuestran ingestión.")
+            DoseAction("Cerrar sesión", enabled = !state.busy) { logout = true }
+        }
+        Spacer(Modifier.height(GraphiteTokens.Space.lg))
     }
     if (logout) AlertDialog(onDismissRequest = { logout = false }, title = { Text("Cerrar sesión") },
         text = { Text("Se borrarán la agenda, los recordatorios y ${state.operations.size} declaraciones locales pendientes de este teléfono. Sincroniza primero si deseas conservarlas en el servidor.") },
@@ -419,30 +500,31 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     var token by remember { mutableStateOf("") }; var preview by remember { mutableStateOf<Pair<String, Invitation>?>(null) }
     var previewBusy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }; var revoke by remember { mutableStateOf<Link?>(null) }
-    SectionTitle("Acceso de cuidadores")
-    Text("Tú autorizas el acceso y puedes revocarlo. Un teléfono sin conexión puede conservar su copia hasta volver a conectarse.")
-    OutlinedTextField(token, { token = it; preview = null; error = null }, label = { Text("Código de invitación") }, enabled = !previewBusy, modifier = Modifier.fillMaxWidth())
-    Action("Revisar invitación", enabled = token.isNotBlank() && !state.busy && !previewBusy) {
-        val requestedToken = token.trim()
-        previewBusy = true
-        model.run {
-            try {
-                val result = model.repository.preview(requestedToken)
-                if (token.trim() == requestedToken) { preview = requestedToken to result; error = null }
-            } catch (_: Exception) { error = "No se pudo revisar la invitación. Comprueba el código y la conexión." }
-            finally { previewBusy = false }
+    SectionCard("Acceso de cuidadores") {
+        Note("Tú autorizas el acceso y puedes revocarlo. Un teléfono sin conexión puede conservar su copia hasta volver a conectarse.")
+        state.snapshot?.links.orEmpty().forEach { link ->
+            InfoRow("Cuidador ${link.caregiverId}", link.scopes.joinToString { scopeLabel(it) })
+            DoseAction("Revocar acceso", enabled = !state.busy) { revoke = link }
         }
-    }
-    error?.let { Text(it, color = MedicationTrackerTheme.colors.dangerFg) }
-    preview?.let { (reviewedToken, invitation) ->
-        Text("Cuidador: ${invitation.caregiverId}")
-        Text("Permisos solicitados: ${invitation.scopes.joinToString { scopeLabel(it) }}")
-        Text("Vence: ${formatInstant(invitation.expiresAt)}")
-        Action("Autorizar estos permisos", enabled = !state.busy) { model.run { model.repository.accept(reviewedToken); preview = null } }
-    }
-    state.snapshot?.links.orEmpty().forEach { link ->
-        Text("Cuidador ${link.caregiverId} · ${link.scopes.joinToString { scopeLabel(it) }}")
-        Action("Revocar acceso", enabled = !state.busy) { revoke = link }
+        OutlinedTextField(token, { token = it; preview = null; error = null }, label = { Text("Código de invitación") }, enabled = !previewBusy, modifier = Modifier.fillMaxWidth())
+        DoseAction("Revisar invitación", enabled = token.isNotBlank() && !state.busy && !previewBusy) {
+            val requestedToken = token.trim()
+            previewBusy = true
+            model.run {
+                try {
+                    val result = model.repository.preview(requestedToken)
+                    if (token.trim() == requestedToken) { preview = requestedToken to result; error = null }
+                } catch (_: Exception) { error = "No se pudo revisar la invitación. Comprueba el código y la conexión." }
+                finally { previewBusy = false }
+            }
+        }
+        error?.let { Text(it, color = MedicationTrackerTheme.colors.dangerFg) }
+        preview?.let { (reviewedToken, invitation) ->
+            InfoRow("Cuidador", invitation.caregiverId)
+            InfoRow("Permisos solicitados", invitation.scopes.joinToString { scopeLabel(it) })
+            InfoRow("Vence", formatInstant(invitation.expiresAt))
+            DoseAction("Autorizar estos permisos", prominent = true, enabled = !state.busy) { model.run { model.repository.accept(reviewedToken); preview = null } }
+        }
     }
     revoke?.let { link -> AlertDialog(onDismissRequest = { revoke = null }, title = { Text("Revocar acceso") },
         text = { Text("El cuidador dejará de tener acceso al servidor. Un teléfono offline puede conservar su copia hasta detectar la revocación.") },
@@ -450,9 +532,6 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
         dismissButton = { TextButton(onClick = { revoke = null }) { Text("Volver") } }) }
 }
 
-@Composable private fun Action(label: String, enabled: Boolean = true, action: () -> Unit) {
-    Button(onClick = action, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text(label) }
-}
 @Composable private fun SectionTitle(text: String) {
     Text(text, style = GraphiteTokens.Type.patientLabel, modifier = Modifier.semantics { heading() })
 }
@@ -511,7 +590,8 @@ private data class Chip(val text: String, val icon: Int, val foreground: Color, 
             Column {
                 if (state.offline) {
                     Text("Sin conexión", style = GraphiteTokens.Type.patientLabel)
-                    Text(if (state.session == Session.Active) "Tus registros quedan guardados en este teléfono. Se enviarán cuando vuelva la conexión y sincronices." else "Revisa la conexión e intenta de nuevo.")
+                    Text(style = GraphiteTokens.Type.caregiverBody, text = if (state.session == Session.Active) "Tus registros quedan guardados en este teléfono. Se enviarán cuando vuelva la conexión y sincronices." else "Revisa la conexión e intenta de nuevo.")
+                    state.snapshot?.refreshedAt?.let { Text("Datos guardados de: ${formatInstant(it)}", style = GraphiteTokens.Type.caregiverCaption) }
                 } else Text(text.orEmpty())
             }
         }

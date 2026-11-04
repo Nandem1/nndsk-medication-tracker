@@ -30,7 +30,17 @@ fun todayPlan(doses: List<Dose>, operations: List<PendingOperation>, now: Instan
     return TodayPlan(sorted.filter(needsReview), active.firstOrNull(), active.drop(1), overdue, registered, count, today.size)
 }
 
+/** Dosis cuya hora ya pasó, incluidas las de hoy, agrupadas por fecha local de la más reciente a la más antigua. */
+fun historyDays(doses: List<Dose>, now: Instant): List<Pair<String, List<Dose>>> =
+    doses.filter { Instant.parse(it.scheduledAt) <= now }
+        .sortedByDescending { Instant.parse(it.scheduledAt) }
+        .groupBy { it.localDate }
+        .toList()
+
 private val spanish = Locale.forLanguageTag("es-CL")
 
 fun longDate(now: Instant, zone: ZoneId): String =
     now.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", spanish)).replaceFirstChar { it.titlecase(spanish) }
+
+fun longLocalDate(date: String): String =
+    java.time.LocalDate.parse(date).format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", spanish)).replaceFirstChar { it.titlecase(spanish) }

@@ -40,6 +40,7 @@ Rama `design/graphite-tokens`. Nada de esto está desplegado ni acredita el lanz
 
 - **Tokens:** Graphite en `packages/design-tokens`, con generador y comprobación de contraste. `chartTakenLate` claro y `chartSkipped` oscuro cambiaron para separar las series, y `chartSkipped` entró en `contrast.nonText`.
 - **Paciente iOS y Android:** Hoy con fecha larga, «X de N registradas», tarjeta «Ahora toca», «Más tarde», «Ya registradas» y «Por revisar» primero. Hoja «Me lo tomé tarde» con −/+ 5 min, atajos, «Otra fecha u hora» y «Guardar con las HH:MM». Chips sobre pares Fg/Bg, banner sin conexión, aviso de recordatorios desactivados e iconos reales en la barra de Android.
+- **Android, además:** barra superior con botón de volver, Detalle y Ajustes agrupados en secciones, corrección en una hoja aparte, e Historial con las tomas de hoy.
 - **Cuidador web:** pestañas de paciente en el encabezado, secciones como navegación con `?section=`, alertas, panel Hoy, 4 KPI con denominador, barras apiladas con trama, leyenda, resumen y tabla. Inventario con lista, detalle, saldo confirmado y estimado, fecha de revisión, ventana de 30 días y tabla de movimientos.
 
 ### Decisiones
