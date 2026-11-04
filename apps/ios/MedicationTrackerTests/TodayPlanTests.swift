@@ -12,7 +12,7 @@ import Testing
     }
 
     private func operation(for dose: Dose, status: OperationStatus = .pending) throws -> PendingOperation {
-        var value = try OperationFactory.declaration(.skipped, dose: dose, occurredAt: nil, now: now)
+        var value = try OperationFactory.declaration(.skipped, dose: dose, occurredAt: nil, now: now, patient: Fixture.patient)
         value.status = status
         return value
     }

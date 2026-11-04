@@ -52,7 +52,8 @@ struct HistoryView: View {
     }
 
     private func loadMore() async {
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: model.snapshot.access?.timezone ?? "America/Santiago") ?? .current
         let today = calendar.startOfDay(for: .now)
         guard let to = calendar.date(byAdding: .day, value: -loadedDaysBack, to: today),
               let from = calendar.date(byAdding: .day, value: -(loadedDaysBack + Self.pageDays), to: today) else { return }

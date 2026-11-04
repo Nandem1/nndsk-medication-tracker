@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct ConsentView: View {
     @Environment(AppModel.self) private var model
     @State private var token = ""
     @State private var preview: InvitationPreview?
+    @State private var reviewedToken: String?
     /// Se conserva si se pierde la respuesta para que el reintento sea la misma operación.
     @State private var acceptOperationID = UUID().uuidString.lowercased()
     @State private var error: String?
@@ -14,6 +16,7 @@ struct ConsentView: View {
     private var cleanToken: String { token.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
+        ScrollViewReader { proxy in
         List {
             Section {
                 Text("Tus datos de salud son tuyos. Un cuidador sólo puede verlos o editarlos si aceptas su invitación, y puedes revocar ese acceso cuando quieras.")
@@ -24,11 +27,11 @@ struct ConsentView: View {
                 }
                 ForEach(model.snapshot.links) { link in
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Cuidador \(link.caregiverID.prefix(8))")
+                        Text(link.caregiverDisplayName ?? "Cuidador sin nombre")
                             .font(.headline)
                             .accessibilityIdentifier("link-row")
                         ForEach(link.scopes, id: \.self) { Text(DoseText.scope($0)) }
-                        Button("Revocar acceso", role: .destructive) { revoking = link }
+                        Button("Quitar acceso", role: .destructive) { revoking = link }
                             .buttonStyle(.bordered)
                             .frame(minHeight: 44)
                             .accessibilityIdentifier("revoke-link")
@@ -40,11 +43,14 @@ struct ConsentView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($tokenFocused)
+                    .disabled(working)
                     .accessibilityIdentifier("invitation-token")
                     .onChange(of: token) {
                         preview = nil
+                        reviewedToken = nil
                         acceptOperationID = UUID().uuidString.lowercased()
                     }
+                Button("Pegar código") { token = UIPasteboard.general.string ?? "" }.disabled(working).frame(minHeight: 44).accessibilityIdentifier("invitation-paste")
                 if let error {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(Semantic.danger)
@@ -52,7 +58,8 @@ struct ConsentView: View {
                 }
                 if let preview {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Este cuidador podrá:").font(.headline)
+                        Text("\(preview.caregiverDisplayName ?? "Cuidador sin nombre") podrá:").font(.headline)
+                        if let hint = preview.patientNameHint { Text("Nombre sugerido: \(hint)") }
                         ForEach(preview.scopes, id: \.self) { Text(DoseText.scope($0)) }
                         Text("La invitación vence: \(Instant.parse(preview.expiresAt).map(DoseText.instant) ?? preview.expiresAt)")
                             .font(.footnote)
@@ -66,6 +73,7 @@ struct ConsentView: View {
                     .largeAction(prominent: true)
                     .disabled(working)
                     .accessibilityIdentifier("invitation-accept")
+                    .id("invitation-accept")
                 } else {
                     Button {
                         Task { await review() }
@@ -78,16 +86,22 @@ struct ConsentView: View {
                 }
             }
         }
+        // La revisión deja «Autorizar» bajo la barra de pestañas, donde un toque no llega al botón.
+        .onChange(of: preview != nil) { _, reviewed in
+            guard reviewed else { return }
+            Task { @MainActor in withAnimation { proxy.scrollTo("invitation-accept", anchor: .center) } }
+        }
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("Cuidadores")
+        .navigationTitle("Acceso de cuidadores")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.syncNow() }
         .confirmationDialog("¿Revocar el acceso de este cuidador?", isPresented: Binding(get: { revoking != nil }, set: { if !$0 { revoking = nil } }), titleVisibility: .visible, presenting: revoking) { link in
-            Button("Revocar acceso", role: .destructive) {
+            Button("Quitar acceso", role: .destructive) {
                 Task { await revoke(link) }
             }
         } message: { _ in
             Text("Dejará de ver y editar tu información. Para volver a darle acceso necesitarás una invitación nueva.")
+        }
         }
     }
 
@@ -97,7 +111,11 @@ struct ConsentView: View {
         defer { working = false }
         error = nil
         do {
-            preview = try await model.preview(invitation: cleanToken)
+            let candidate = cleanToken
+            let result = try await model.preview(invitation: candidate)
+            guard candidate == cleanToken else { return }
+            reviewedToken = candidate
+            preview = result
         } catch {
             self.error = message(error, invalid: "El código no es válido, ya se usó o venció.")
         }
@@ -108,7 +126,8 @@ struct ConsentView: View {
         defer { working = false }
         error = nil
         do {
-            try await model.accept(invitation: cleanToken, operationID: acceptOperationID)
+            guard let reviewedToken else { return }
+            try await model.accept(invitation: reviewedToken, operationID: acceptOperationID)
             token = ""
             preview = nil
         } catch {

@@ -52,7 +52,7 @@ struct RootView: View {
             case .expired:
                 LoginView(notice: "La sesión venció. Tus registros pendientes siguen guardados en este dispositivo.")
             case .signedIn:
-                MainTabs()
+                if model.needsOnboarding { OnboardingView() } else { MainTabs() }
             }
         }
         .confirmationDialog("Se borrarán los datos de este dispositivo y los registros pendientes de sincronizar.", isPresented: $confirmClear, titleVisibility: .visible) {
@@ -72,12 +72,17 @@ struct MainTabs: View {
     var body: some View {
         @Bindable var model = model
         TabView(selection: $model.selectedTab) {
-            TodayView()
-                .tabItem { Label("Hoy", systemImage: "sun.max") }
-                .tag(AppTab.today)
-            HistoryView()
-                .tabItem { Label("Historial", systemImage: "calendar") }
-                .tag(AppTab.history)
+            if model.tabs.contains(.today) {
+                TodayView()
+                    .tabItem { Label("Hoy", systemImage: "sun.max") }
+                    .tag(AppTab.today)
+                HistoryView()
+                    .tabItem { Label("Historial", systemImage: "calendar") }
+                    .tag(AppTab.history)
+            }
+            if model.tabs.contains(.patients) {
+                PatientsView().tabItem { Label("Pacientes", systemImage: "person.2") }.tag(AppTab.patients)
+            }
             SettingsView()
                 .tabItem { Label("Ajustes", systemImage: "gearshape") }
                 .tag(AppTab.settings)

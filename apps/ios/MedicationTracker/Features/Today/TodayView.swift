@@ -320,6 +320,7 @@ struct DoseActions: View {
 /// Pide la hora efectiva. El botón muestra la hora que se guardará y nunca admite una futura.
 struct LateDoseForm: View {
     let dose: Dose
+    var patient: String? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var occurredAt = LateTime.floorToMinute(.now)
@@ -332,7 +333,7 @@ struct LateDoseForm: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Tokens.Space.lg) {
-                    Text("¿A qué hora lo tomaste?")
+                    Text(patient == nil ? "¿A qué hora lo tomaste?" : "¿A qué hora se lo tomó?")
                         .font(Tokens.Typography.patientBody)
                     VStack(spacing: Tokens.Space.xs) {
                         Text(time)
@@ -388,7 +389,7 @@ struct LateDoseForm: View {
                     Button {
                         let chosen = occurredAt
                         Task {
-                            await model.declare(.takenLate, dose: dose, occurredAt: chosen)
+                            await model.declare(.takenLate, dose: dose, occurredAt: chosen, patient: patient)
                             dismiss()
                         }
                     } label: {
@@ -396,14 +397,14 @@ struct LateDoseForm: View {
                     }
                     .largeAction(prominent: true)
                     .accessibilityIdentifier("late-save")
-                    Text(DoseText.missedGuidance)
+                    Text(patient == nil ? DoseText.missedGuidance : FamilyText.missedGuidance)
                         .font(Tokens.Typography.patientLabel.weight(.regular))
                         .foregroundStyle(Semantic.muted)
                 }
                 .padding(Tokens.Space.lg)
             }
             .background(Tokens.Colors.bg)
-            .navigationTitle(DoseText.declaration(.takenLate))
+            .navigationTitle(patient == nil ? DoseText.declaration(.takenLate) : FamilyText.declaration(.takenLate))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

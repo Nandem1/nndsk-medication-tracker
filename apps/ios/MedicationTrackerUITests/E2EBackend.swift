@@ -164,3 +164,35 @@ struct E2EBackend {
         XCTAssertEqual(status, 200)
     }
 }
+
+extension E2EBackend {
+    static func profile(_ account: Account, name: String) async throws {
+        let (_, status) = try await call(account.token, "PUT", "/v1/me/profile", body: [
+            "client_operation_id": UUID().uuidString.lowercased(), "expected_version": 1, "display_name": name,
+        ])
+        XCTAssertEqual(status, 200)
+    }
+    static func invitation(_ caregiver: Account, scopes: [String], hint: String) async throws -> String {
+        let (data, status) = try await call(caregiver.token, "POST", "/v1/invitations", body: [
+            "client_operation_id": UUID().uuidString.lowercased(), "scopes": scopes, "patient_name_hint": hint,
+        ])
+        XCTAssertEqual(status, 201)
+        return try XCTUnwrap((JSONSerialization.jsonObject(with: data) as? [String: Any])?["token"] as? String)
+    }
+    static func accept(_ patient: Account, token: String) async throws {
+        let (_, status) = try await call(patient.token, "POST", "/v1/invitations/accept", body: [
+            "client_operation_id": UUID().uuidString.lowercased(), "token": token,
+        ])
+        XCTAssertEqual(status, 200)
+    }
+    static func revoke(_ patient: Account, caregiver: Account) async throws {
+        let caregiverID = try await userID(caregiver)
+        let (data, status) = try await call(patient.token, "GET", "/v1/caregiver-links")
+        XCTAssertEqual(status, 200)
+        let body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let rows = body?["items"] as? [[String: Any]] ?? []
+        let link = try XCTUnwrap(rows.first { $0["caregiver_id"] as? String == caregiverID }?["link_id"] as? String)
+        let (_, revoked) = try await call(patient.token, "DELETE", "/v1/caregiver-links/\(link)")
+        XCTAssertEqual(revoked, 204)
+    }
+}

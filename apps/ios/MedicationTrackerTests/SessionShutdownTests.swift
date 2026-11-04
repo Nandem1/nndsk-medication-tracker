@@ -58,6 +58,50 @@ import Testing
         #expect(secrets.read() == nil)
     }
 
+    @Test func refreshPreservesPreferenceChangedWhileRequestIsInFlight() async throws {
+        let transport = HeldHistoryTransport(body: #"{"id_token":"new-token","refresh_token":"new-refresh","expires_in":"3600"}"#)
+        let secrets = MemorySecrets()
+        try secrets.write(JSONEncoder().encode(Credentials(uid: "owner", idToken: "expired", refreshToken: "refresh", expiresAt: .distantPast, email: "synthetic@example.invalid", caregiverPreference: false)))
+        let config = AppConfig(apiBaseURL: URL(string: "https://synthetic.invalid")!, firebaseAPIKey: "synthetic", firebaseEmulatorOrigin: nil)
+        let identity = IdentityStore(client: FirebaseIdentityClient(config: config, transport: transport), secrets: secrets)
+        let renewal = Task { try await identity.token(forceRefresh: true) }
+        await transport.waitForRequest()
+        try await identity.setUse(caregiver: true)
+        await transport.release()
+        #expect(try await renewal.value == "new-token")
+        let restored = IdentityStore(client: FirebaseIdentityClient(config: config, transport: transport), secrets: secrets)
+        #expect(await restored.caregiverPreference == true)
+        #expect(await restored.email == "synthetic@example.invalid")
+    }
+
+    @Test func oldCredentialsDecodeWithoutNewProfileFields() throws {
+        let data = Data(#"{"uid":"owner","idToken":"token","refreshToken":"refresh","expiresAt":0}"#.utf8)
+        let credentials = try JSONDecoder().decode(Credentials.self, from: data)
+        #expect(credentials.email == nil)
+        #expect(credentials.caregiverPreference == nil)
+    }
+
+    @Test func patientInvalidationWaitsForEarlierHistoryAndDoesNotDeleteAnotherPatient() async throws {
+        let (store, _) = try Fixture.temporaryStore()
+        let other = Fixture.dose(id: "other-dose")
+        try await store.replaceAgenda([other], from: "2026-11-01", to: "2026-11-03", at: .now, patient: "other")
+        let encoded = String(decoding: try JSONEncoder().encode(Fixture.dose()), as: UTF8.self)
+        let transport = HeldHistoryTransport(body: "{\"items\":[" + encoded + "],\"next_cursor\":\"\"}")
+        let engine = SyncEngine(api: APIClient(baseURL: URL(string: "https://synthetic.invalid")!, transport: transport, tokens: FixedTokens()), store: store)
+        let history = Task { await engine.loadHistory(patient: Fixture.patient, from: "2026-11-01", to: "2026-11-03") }
+        await transport.waitForRequest()
+        let denial = Task { await engine.deny(patient: Fixture.patient) }
+        let operation = try OperationFactory.declaration(.taken, dose: other, occurredAt: nil, now: .now, patient: "other")
+        try await store.enqueue(operation)
+        #expect(try await store.operations().count == 1)
+        await transport.release()
+        #expect(await history.value == .synced)
+        #expect(await denial.value == .unavailable(.denied))
+        #expect(try await store.snapshot(patient: Fixture.patient).doses.isEmpty)
+        #expect(try await store.snapshot(patient: "other").doses == [other])
+        #expect(try await store.operations().first?.body == operation.body)
+    }
+
     @Test func shutdownWaitsForHistoryAndRejectsFurtherWork() async throws {
         let (store, directory) = try Fixture.temporaryStore()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -66,7 +110,7 @@ import Testing
         let transport = HeldHistoryTransport(body: "{\"items\":[" + String(decoding: try JSONEncoder().encode(Fixture.dose()), as: UTF8.self) + "],\"next_cursor\":\"\"}")
         let api = APIClient(baseURL: URL(string: "https://synthetic.invalid")!, transport: transport, tokens: FixedTokens())
         let engine = SyncEngine(api: api, store: store)
-        let history = Task { await engine.loadHistory(from: "2026-11-01", to: "2026-11-03") }
+        let history = Task { await engine.loadHistory(patient: Fixture.patient, from: "2026-11-01", to: "2026-11-03") }
         await transport.waitForRequest()
         let closing = Task {
             await engine.stop()
@@ -75,13 +119,13 @@ import Testing
         await transport.release()
         #expect(await history.value == .synced)
         try await closing.value
-        #expect(try await store.snapshot().doses.isEmpty)
-        #expect(await engine.loadHistory(from: "2026-11-01", to: "2026-11-03") == .sessionExpired)
+        #expect(try await store.snapshot(patient: Fixture.patient).doses.isEmpty)
+        #expect(await engine.loadHistory(patient: Fixture.patient, from: "2026-11-01", to: "2026-11-03") == .sessionExpired)
         #expect(await engine.sync() == .sessionExpired)
         #expect(await engine.drain() == .sessionExpired)
         #expect(await transport.requestCount == 1)
         _ = try await store.claim(ownerUID: "new-owner")
-        #expect(try await store.snapshot().doses.isEmpty)
+        #expect(try await store.snapshot(patient: Fixture.patient).doses.isEmpty)
         await engine.resume()
         #expect(await engine.drain() == .synced)
     }

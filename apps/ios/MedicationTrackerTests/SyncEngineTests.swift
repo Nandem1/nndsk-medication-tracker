@@ -15,8 +15,8 @@ import Testing
 
     private func enqueueDose(_ store: LocalStore) async throws -> PendingOperation {
         let dose = Fixture.dose()
-        try await store.replaceAgenda([dose], from: "2026-11-01", to: "2026-11-03", at: now)
-        return try await store.enqueue(try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: now))
+        try await store.replaceAgenda([dose], from: "2026-11-01", to: "2026-11-03", at: now, patient: Fixture.patient)
+        return try await store.enqueue(try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: now, patient: Fixture.patient))
     }
 
     @Test func retryAfterLostResponseSendsIdenticalBytes() async throws {
@@ -37,7 +37,7 @@ import Testing
         let (engine, store, transport) = try engine([.failure(.notConnectedToInternet)])
         _ = try await enqueueDose(store)
         let second = Fixture.dose(id: "00000000-0000-4000-8000-0000000000d2")
-        try await store.enqueue(try OperationFactory.declaration(.skipped, dose: second, occurredAt: nil, now: now))
+        try await store.enqueue(try OperationFactory.declaration(.skipped, dose: second, occurredAt: nil, now: now, patient: Fixture.patient))
 
         #expect(await engine.drain() == .unavailable(.transport))
         #expect(transport.requests.count == 1)
@@ -49,7 +49,7 @@ import Testing
         let (engine, store, _) = try engine([.status(code)])
         _ = try await enqueueDose(store)
 
-        #expect(await engine.drain() == .synced)
+        #expect(await engine.drain() == (status == .denied ? .unavailable(.denied) : .synced))
         let stored = try await store.operations()
         #expect(stored.count == 1)
         #expect(stored.first?.status == status)
@@ -68,7 +68,7 @@ import Testing
         let (engine, store, transport) = try engine([.status(code), .status(200, doseResult.replacingOccurrences(of: "d1", with: "d2"))])
         _ = try await enqueueDose(store)
         let second = Fixture.dose(id: "00000000-0000-4000-8000-0000000000d2")
-        try await store.enqueue(try OperationFactory.declaration(.taken, dose: second, occurredAt: nil, now: now))
+        try await store.enqueue(try OperationFactory.declaration(.taken, dose: second, occurredAt: nil, now: now, patient: Fixture.patient))
 
         #expect(await engine.drain() != .synced)
         #expect(transport.requests.count == 2)
@@ -103,7 +103,7 @@ import Testing
         let engine = SyncEngine(api: APIClient(baseURL: URL(string: "http://127.0.0.1:1")!, transport: transport, tokens: FixedTokens()), store: store, now: { [now] in now })
 
         #expect(await engine.sync() == .synced)
-        #expect(try await store.snapshot().links.map(\.id) == ["00000000-0000-4000-8000-0000000000f1"])
+        #expect(try await store.snapshot(patient: Fixture.patient).links.map(\.id) == ["00000000-0000-4000-8000-0000000000f1"])
     }
 
     @Test func windowStaysWithinTheContractLimit() {
@@ -119,7 +119,13 @@ private struct RoutedTransport: HTTPTransport {
     let linksBody: String
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let body = request.url!.path().hasSuffix("caregiver-links") ? linksBody : #"{"items":[],"next_cursor":""}"#
+        let path = request.url!.path()
+        let body: String
+        if path.hasSuffix("caregiver-links") { body = linksBody }
+        else if path.hasSuffix("/me") { body = #"{"user_id":"\#(Fixture.patient)","timezone":"America/Santiago"}"# }
+        else if path.hasSuffix("/patients") { body = #"{"items":[{"patient_id":"\#(Fixture.patient)","scopes":["read"],"profile_version":1,"timezone":"America/Santiago"}],"next_cursor":""}"# }
+        else if path.contains("adherence") { body = #"{"from":"2026-11-01","to":"2026-11-02","summary":{"confirmed":0,"evaluable":0,"unconfirmed":0}}"# }
+        else { body = #"{"items":[],"next_cursor":""}"# }
         return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     }
 }

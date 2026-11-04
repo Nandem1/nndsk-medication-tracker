@@ -49,6 +49,7 @@ enum APIError: Error, Equatable {
 }
 
 protocol TokenProviding: Sendable {
+    var sessionGeneration: Int { get async }
     func token(forceRefresh: Bool) async throws -> String
 }
 
@@ -67,6 +68,26 @@ struct APIClient: Sendable {
 
     func me() async throws -> Me {
         try await request("/v1/me")
+    }
+
+    func patients() async throws -> [PatientAccess] { try await all("/v1/patients") }
+    func report(patient: String, from: String, to: String) async throws -> DailyReport {
+        try await request("/v1/patients/\(patient)/adherence", query: [.init(name: "from", value: from), .init(name: "to", value: to)])
+    }
+    func updateProfile(patient: String?, name: String, version: Int, operation: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["display_name": name, "expected_version": version, "client_operation_id": operation])
+        _ = try await send(patient.map { "/v1/patients/\($0)/profile" } ?? "/v1/me/profile", query: [], method: "PUT", body: body)
+    }
+    func createInvitation(preset: InvitationPreset, hint: String) async throws -> CreatedInvitation {
+        var body: [String: Any] = ["client_operation_id": UUID().uuidString.lowercased(), "scopes": preset.scopes]
+        if !hint.isEmpty { body["patient_name_hint"] = hint }
+        return try await request("/v1/invitations", method: "POST", body: JSONSerialization.data(withJSONObject: body))
+    }
+    func movements(account: String) async throws -> [InventoryMovement] { try await all("/v1/inventory/\(account)/movements") }
+    func inventoryMutation(account: String, quantity: String, count: Bool, reason: String, expected: String, operation: String) async throws {
+        var body = ["client_operation_id": operation, count ? "counted_quantity" : "quantity": quantity]
+        if count { body["reason"] = reason; body["expected_balance"] = expected }
+        _ = try await send("/v1/inventory/\(account)/" + (count ? "counts" : "movements"), query: [], method: "POST", body: JSONEncoder().encode(body))
     }
 
     func treatments(patient: String) async throws -> [Treatment] {
@@ -135,9 +156,10 @@ struct APIClient: Sendable {
         request.httpBody = body
         if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
 
-        var (data, status) = try await perform(request, forceRefresh: false)
+        let session = await tokens.sessionGeneration
+        var (data, status) = try await perform(request, forceRefresh: false, session: session)
         if status == 401 {
-            (data, status) = try await perform(request, forceRefresh: true)
+            (data, status) = try await perform(request, forceRefresh: true, session: session)
         }
         switch status {
         case 200 ..< 300: return data
@@ -150,12 +172,18 @@ struct APIClient: Sendable {
         }
     }
 
-    private func perform(_ original: URLRequest, forceRefresh: Bool) async throws -> (Data, Int) {
+    private func perform(_ original: URLRequest, forceRefresh: Bool, session: Int) async throws -> (Data, Int) {
+        guard await tokens.sessionGeneration == session else { throw APIError.unauthenticated }
+        let token = try await tokens.token(forceRefresh: forceRefresh)
+        guard await tokens.sessionGeneration == session else { throw APIError.unauthenticated }
         var request = original
-        request.setValue("Bearer " + (try await tokens.token(forceRefresh: forceRefresh)), forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         do {
             let (data, response) = try await transport.send(request)
+            guard await tokens.sessionGeneration == session else { throw APIError.unauthenticated }
             return (data, response.statusCode)
+        } catch let error as APIError {
+            throw error
         } catch is CancellationError {
             throw CancellationError()
         } catch {

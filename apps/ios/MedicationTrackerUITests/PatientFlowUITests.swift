@@ -142,6 +142,7 @@ final class PatientFlowUITests: XCTestCase {
         openTab("Historial")
         let row = app.buttons["history-\(name)"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: timeout))
+        attachScreenshot("historial")
         row.tap()
         let correct = app.buttons["action-correct"]
         XCTAssertTrue(scrollTo(correct))
@@ -171,7 +172,7 @@ final class PatientFlowUITests: XCTestCase {
         openTab("Ajustes")
         tapScrolling("open-consent")
         tapScrolling("revoke-link")
-        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Revocar acceso", "revoke-link")).firstMatch
+        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Quitar acceso", "revoke-link")).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: timeout))
         confirm.tap()
         XCTAssertTrue(app.staticTexts["links-empty"].waitForExistence(timeout: timeout))
@@ -279,11 +280,46 @@ final class PatientFlowUITests: XCTestCase {
         password.tap()
         password.typeText(E2EBackend.password)
         app.buttons["login-submit"].tap()
+        let profile = app.textFields["profile-name"]
+        if profile.waitForExistence(timeout: timeout) {
+            dismissPasswordPrompt()
+            focus(profile)
+            profile.typeText("Paciente sintético")
+            app.buttons["profile-save"].tap()
+        }
+        let patientUse = app.buttons["use-patient"]
+        if patientUse.waitForExistence(timeout: timeout) {
+            dismissPasswordPrompt()
+            for _ in 0 ..< 3 {
+                // El aviso de contraseña puede llegar tarde y se lleva el toque.
+                dismissPasswordPrompt()
+                tapAtFrame(patientUse)
+                if app.tabBars.buttons["Hoy"].waitForExistence(timeout: 2) { break }
+            }
+        }
         XCTAssertTrue(app.tabBars.buttons["Hoy"].waitForExistence(timeout: timeout))
         // iOS ofrece guardar la contraseña: una persona también debe responder esa hoja.
         // Llega con retraso variable y bloquea toda la pantalla.
         let notNow = app.buttons["Ahora no"]
         if notNow.waitForExistence(timeout: 60) { notNow.tap() }
+    }
+
+    /// Tras cerrar el aviso de contraseña, XCTest informa un `isHittable` falso aunque UIKit ya entrega el toque.
+    @MainActor
+    private func tapAtFrame(_ element: XCUIElement) {
+        let frame = element.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+    }
+
+    /// El teclado visible comprueba el foco. Sólo se repite el toque que enfoca; nunca una mutación.
+    @MainActor
+    private func focus(_ element: XCUIElement) {
+        for _ in 0 ..< 3 {
+            dismissPasswordPrompt()
+            tapAtFrame(element)
+            if app.keyboards.firstMatch.waitForExistence(timeout: 2) { return }
+        }
+        XCTFail("El campo debe recibir foco antes de escribir")
     }
 
     @MainActor
@@ -316,6 +352,12 @@ final class PatientFlowUITests: XCTestCase {
 
     @MainActor
     private func signOutIfNeeded() {
+        dismissPasswordPrompt()
+        if app.buttons["onboarding-sign-out"].exists {
+            app.buttons["onboarding-sign-out"].tap()
+            app.buttons["Cerrar sesión y borrar datos locales"].tap()
+            XCTAssertTrue(app.textFields["login-email"].waitForExistence(timeout: timeout))
+        }
         guard app.tabBars.buttons["Ajustes"].waitForExistence(timeout: 5) else { return }
         openTab("Ajustes")
         tapScrolling("sign-out")
@@ -335,8 +377,19 @@ final class PatientFlowUITests: XCTestCase {
         field.typeText(token)
         app.buttons["invitation-review"].tap()
         XCTAssertTrue(app.buttons["invitation-accept"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(waitAbove(app.buttons["invitation-accept"], app.tabBars.firstMatch), "«Autorizar» no puede quedar bajo las pestañas")
         app.buttons["invitation-accept"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["link-row"].waitForExistence(timeout: timeout))
+    }
+
+    @MainActor
+    private func waitAbove(_ element: XCUIElement, _ bar: XCUIElement) -> Bool {
+        let deadline = Date.now.addingTimeInterval(5)
+        while Date.now < deadline {
+            if element.frame.maxY <= bar.frame.minY { return true }
+            RunLoop.current.run(until: .now.addingTimeInterval(0.2))
+        }
+        return false
     }
 
     @MainActor

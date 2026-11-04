@@ -49,6 +49,18 @@ actor SyncEngine {
         return await task.value
     }
 
+    func deny(patient: String) async -> SyncOutcome {
+        let previous = current
+        let task = Task {
+            _ = await previous?.value
+            guard !stopped else { return SyncOutcome.sessionExpired }
+            do { try await store.deny(patient: patient); return .unavailable(.denied) }
+            catch { return .unavailable(.server) }
+        }
+        current = task
+        return await task.value
+    }
+
     func resume() { stopped = false }
 
     func stop() async {
@@ -56,16 +68,18 @@ actor SyncEngine {
         _ = await current?.value
     }
 
-    func loadHistory(from: String, to: String) async -> SyncOutcome {
+    func loadHistory(patient: String, from: String, to: String) async -> SyncOutcome {
         let previous = current
         let task = Task {
             _ = await previous?.value
             guard !stopped else { return SyncOutcome.sessionExpired }
             do {
-                guard let patient = try await store.patientID() else { return .unavailable(.transport) }
                 let doses = try await api.doses(patient: patient, from: from, to: to)
-                try await store.mergeDoses(doses)
+                try await store.mergeDoses(doses, patient: patient)
                 return .synced
+            } catch APIError.denied {
+                try? await store.deny(patient: patient)
+                return .unavailable(.denied)
             } catch { return classify(error) }
         }
         current = task
@@ -74,22 +88,38 @@ actor SyncEngine {
 
     private func run() async -> SyncOutcome {
         let drained = await drainQueue()
-        guard drained == .synced else { return drained }
+        guard drained == .synced || drained == .unavailable(.denied) else { return drained }
         do {
-            let patient = try await resolvePatient()
-            let now = calendarNow()
-            let (from, to) = Self.window(now: now)
-            async let treatments = api.treatments(patient: patient)
-            async let doses = api.doses(patient: patient, from: from, to: to)
-            async let inventory = api.inventory(patient: patient)
-            async let links = api.links()
-            let (loadedTreatments, loadedDoses, loadedInventory, loadedLinks) = try await (treatments, doses, inventory, links)
-            try await store.replaceTreatments(loadedTreatments)
-            try await store.replaceAgenda(loadedDoses, from: from, to: to, at: now)
-            try await store.replaceInventory(loadedInventory)
-            // El endpoint también lista vínculos revocados y aquellos donde esta cuenta es cuidadora.
-            try await store.replaceLinks(loadedLinks.filter { $0.patientID == patient && $0.status == "active" })
-            return .synced
+            let me = try await api.me()
+            try await store.saveProfile(me)
+            let accesses = try await api.patients()
+            let allowed = Set(accesses.map(\.patientID))
+            var denied = drained == .unavailable(.denied)
+            for saved in try await store.accesses() where !allowed.contains(saved.patientID) {
+                try await store.deny(patient: saved.patientID)
+                denied = true
+            }
+            let links = try await api.links()
+            for access in accesses {
+                let patient = access.patientID
+                do {
+                    let now = calendarNow()
+                    var calendar = Calendar(identifier: .gregorian)
+                    calendar.timeZone = TimeZone(identifier: access.timezone) ?? .current
+                    let (from, to) = Self.window(now: now, calendar: calendar)
+                    let treatments = try await api.treatments(patient: patient)
+                    let doses = try await api.doses(patient: patient, from: from, to: to)
+                    let inventory = try await api.inventory(patient: patient)
+                    let today = calendar.startOfDay(for: now)
+                    let report = try await api.report(patient: patient, from: LocalDay.string(today, calendar: calendar), to: LocalDay.string(calendar.date(byAdding: .day, value: 1, to: today)!, calendar: calendar))
+                    try await store.replaceTreatments(treatments, patient: patient)
+                    try await store.replaceAgenda(doses, from: from, to: to, at: now, patient: patient)
+                    try await store.replaceInventory(inventory, patient: patient)
+                    try await store.replaceLinks(links.filter { $0.patientID == patient && $0.status == "active" }, patient: patient)
+                    try await store.saveAccess(access, report: report)
+                } catch APIError.denied { try await store.deny(patient: patient); denied = true }
+            }
+            return denied ? .unavailable(.denied) : .synced
         } catch {
             return classify(error)
         }
@@ -103,7 +133,8 @@ actor SyncEngine {
             return .unavailable(.server)
         }
         var outcome = SyncOutcome.synced
-        for operation in operations {
+        var deniedPatients = Set<String>()
+        for operation in operations where !deniedPatients.contains(operation.patientID) {
             do {
                 try await store.markAttempt(operation.id)
                 let result = try await api.submit(operation)
@@ -113,7 +144,9 @@ actor SyncEngine {
             } catch APIError.invalid {
                 try? await store.mark(operation.id, status: .rejected)
             } catch APIError.denied {
-                try? await store.mark(operation.id, status: .denied)
+                try? await store.deny(patient: operation.patientID)
+                deniedPatients.insert(operation.patientID)
+                outcome = .unavailable(.denied)
             } catch APIError.unauthenticated {
                 return .sessionExpired
             } catch APIError.transport {
@@ -126,13 +159,6 @@ actor SyncEngine {
         return outcome
     }
 
-    private func resolvePatient() async throws -> String {
-        if let known = try await store.patientID() { return known }
-        let me = try await api.me()
-        try await store.setPatientID(me.userID)
-        return me.userID
-    }
-
     private func classify(_ error: Error) -> SyncOutcome {
         switch error as? APIError {
         case .unauthenticated: .sessionExpired
@@ -141,7 +167,7 @@ actor SyncEngine {
         }
     }
 
-    /// Fechas locales del dispositivo. Una dosis de otra zona queda cubierta por el margen de la ventana.
+    /// Ventana de días civiles en la zona del paciente.
     static func window(now: Date, calendar: Calendar = .current) -> (from: String, to: String) {
         let today = calendar.startOfDay(for: now)
         let from = calendar.date(byAdding: .day, value: -daysBack, to: today) ?? today

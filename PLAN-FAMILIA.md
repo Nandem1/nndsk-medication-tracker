@@ -1,9 +1,47 @@
 # PLAN-FAMILIA.md — Modo familia de punta a punta
 
-> **Estado:** P0 a P3 implementadas y verificadas localmente. P4 a P7 pendientes. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md). Fecha base: 2026-11-03.
+> **Estado al 2026-11-04:** P0 a P4 implementadas, verificadas y publicadas en `main`. P5 a P7 no iniciadas. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
 > **Punto de partida:** `main` en `6219d33`, más este plan.
 > **Ejecutor previsto:** otro modelo, sin contexto de la conversación que originó este plan. Todo lo necesario está aquí, en `AGENTS.md` y en `PLAN.md`.
 > **Regla de lectura:** lee `AGENTS.md`, `PLAN.md` y este archivo completos antes de cambiar nada. Las decisiones de la sección 2 ya están tomadas por el usuario o delegadas por él: no las reabras. Si el código contradice una suposición de este plan, sigue la intención, resuelve con el cambio más pequeño y registra la diferencia en el informe de cierre.
+
+---
+
+## Traspaso a Claude Opus 5.5
+
+P4 quedó cerrada por Claude Opus 5.5 después de este traspaso. No se desplegaron los cambios de modo familia ni se instalaron en teléfonos físicos.
+
+### Lo terminado
+
+| Fase | Commits publicados en `main` | Evidencia |
+|---|---|---|
+| P0 | `396cb06` | ADR 0009, selector de iPhone físico y checks comunes |
+| P1 | `3f9dfe2` | Migración 6 reversible, perfiles, nombres, autorización y materialización concurrente; integración PASS |
+| P2 | `a3cef74`, `64921c7` | Portal, 24 unitarias y 11 E2E PASS; corrección de capturas para CI Linux |
+| P3.1 y P3 | `4f7882b`, `02ec143` | Refactor separado, modo cuidador; 33 unitarias, 8 instrumentadas y 2 E2E Android PASS |
+| CI Android | `8f47817`, `2a6afe0` | Rutas SDK y plataforma 37.0; CI Linux final PASS |
+
+La rama de trabajo es `feat/modo-familia`. `main` y `origin/main` quedaron en `2a6afe0`. Los resultados completos y límites están en el runbook enlazado; no repetir P0 a P3 desde cero.
+
+### P4 cerrada
+
+El candidato de Codex se conservó. Faltaban ajustes de las pruebas, dos textos y un bug de `ConsentView`. La suite final, los comandos y los límites están en el [runbook](docs/runbooks/familia-verification.md). `.tmp/familia-p4` conserva una copia ya integrada; no volver a aplicarla.
+
+### Pendientes concretos, en orden
+
+1. Ejecutar P5 completo conforme a la sección 9. **No existe aún la migración 7 ni el inventario compartido.** Escribir primero las 14 pruebas de integración requeridas, después dominio, contrato y tres clientes.
+2. Ejecutar P6 conforme a la sección 10. **No se implementaron aún exportación nativa ni borrado de cuenta.** Leer los runbooks de seguridad y release antes de tocar historia o retención.
+3. Ejecutar P7 completo. Faltan verificación final de todas las plataformas, migraciones up/down/up, staging, instalación/copia a teléfonos y escenario de aceptación de doce puntos. No marcar preparación para producción ni cumplimiento legal.
+
+### Entorno local para retomar
+
+- Base iOS desechable `medication_f4_familia_p4`, migrada a versión 6; P5 requiere migrarla a 7. API/proxy/Auth usan puertos 18083/18084/9099. Comprobar que estén libres antes de arrancar; identificar procesos antes de terminarlos.
+- Simulador iPhone 17, iOS 27.2, UUID `63A76226-B64A-4067-9EA5-37C0B7B52600`. Es un simulador, no el iPhone físico del usuario.
+- Definir `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` y `XCODE_DEVELOPER_DIR` con ese valor. El `xcrun` sin esa configuración no encuentra `simctl`. Esta instalación ejecuta el runtime pero no se encontró `Simulator.app`.
+- XcodeGen local `.bin/xcodegen-2.46.0/xcodegen`; pasar su ruta absoluta si se ejecuta desde otro worktree. Generar el proyecto con el comando existente, nunca fabricarlo.
+- El helper ignorado `.tmp/familia-db-run.py` inyecta la conexión local sin imprimirla. Usar `FAMILIA_TEST_DB=medication_f4_familia_p4`; no copiar URLs ni credenciales al plan o a logs. Firebase emulado requiere el JDK local `.tmp/android-tools/jdk-21.0.13+9/Contents/Home`.
+- El runner acepta `IOS_E2E_ONLY=MedicationTrackerUITests/FamilyFlowUITests` para diagnóstico. Quitar ese filtro para la suite completa. Las pruebas usan API/PostgreSQL reales y Firebase Auth emulado; no verifican entrega real de correo.
+- `.tmp/familia-resume.md` y `.tmp/familia-todo.md` conservan detalles locales adicionales. Los worktrees de fases anteriores contienen copias de cambios ya integrados; no mezclarlos con trabajo pendiente ni borrarlos sin comprobar su estado.
 
 ---
 

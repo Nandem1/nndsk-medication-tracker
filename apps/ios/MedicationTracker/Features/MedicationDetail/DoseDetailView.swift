@@ -123,6 +123,7 @@ private struct EarlierDoseForm: View {
 
 struct CorrectionForm: View {
     let dose: Dose
+    var patient: String? = nil
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var declaration: Declaration = .skipped
@@ -136,7 +137,7 @@ struct CorrectionForm: View {
             Form {
                 Section("El registro correcto es") {
                     Picker("Registro", selection: $declaration) {
-                        ForEach(Declaration.allCases) { Text(DoseText.declaration($0)).tag($0) }
+                        ForEach(Declaration.allCases) { Text(patient == nil ? DoseText.declaration($0) : FamilyText.declaration($0)).tag($0) }
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
@@ -155,7 +156,7 @@ struct CorrectionForm: View {
                         let value = declaration
                         let why = trimmedReason
                         Task {
-                            await model.correct(dose: dose, to: value, occurredAt: value.consumes ? chosen : nil, reason: why)
+                            await model.correct(dose: dose, to: value, occurredAt: value.consumes ? chosen : nil, reason: why, patient: patient)
                             dismiss()
                         }
                     } label: {
@@ -182,6 +183,7 @@ struct CorrectionForm: View {
 
 /// Una operación que el servidor no aceptó queda aquí hasta que la persona decida.
 struct ConflictResolution: View {
+    var caregiver = false
     let operation: PendingOperation
     let dose: Dose
     @Environment(AppModel.self) private var model
@@ -193,7 +195,7 @@ struct ConflictResolution: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tu registro: \(DoseText.declaration(operation.declaration))")
+            Text("Tu registro: \(caregiver ? FamilyText.declaration(operation.declaration) : DoseText.declaration(operation.declaration))")
             StatusBadge(text: "En el servidor: \(serverState.text)", systemImage: serverState.icon, tone: serverState.tone)
                 .accessibilityIdentifier("conflict-server-state")
             if dose.state.isDeclared {

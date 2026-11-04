@@ -33,6 +33,7 @@ final class ScriptedTransport: HTTPTransport, @unchecked Sendable {
 }
 
 struct FixedTokens: TokenProviding {
+    var sessionGeneration: Int { 0 }
     func token(forceRefresh _: Bool) async throws -> String { "test-token" }
 }
 

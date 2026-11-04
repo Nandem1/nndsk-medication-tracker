@@ -10,7 +10,7 @@ import Testing
     }
 
     @Test func takenFixesTheTapTimeInsteadOfTheSyncTime() throws {
-        let operation = try OperationFactory.declaration(.taken, dose: Fixture.dose(version: 3), occurredAt: nil, now: tap)
+        let operation = try OperationFactory.declaration(.taken, dose: Fixture.dose(version: 3), occurredAt: nil, now: tap, patient: Fixture.patient)
         let body = try json(operation.body)
         #expect(body["occurred_at"] as? String == Instant.format(tap))
         #expect(body["expected_version"] as? Int == 3)
@@ -20,19 +20,19 @@ import Testing
     }
 
     @Test func skippedNeverSendsATime() throws {
-        let operation = try OperationFactory.declaration(.skipped, dose: Fixture.dose(), occurredAt: tap, now: tap)
+        let operation = try OperationFactory.declaration(.skipped, dose: Fixture.dose(), occurredAt: tap, now: tap, patient: Fixture.patient)
         #expect(try json(operation.body)["occurred_at"] == nil)
     }
 
     @Test func lateKeepsTheChosenTime() throws {
         let chosen = tap.addingTimeInterval(-3600)
-        let operation = try OperationFactory.declaration(.takenLate, dose: Fixture.dose(), occurredAt: chosen, now: tap)
+        let operation = try OperationFactory.declaration(.takenLate, dose: Fixture.dose(), occurredAt: chosen, now: tap, patient: Fixture.patient)
         #expect(try json(operation.body)["occurred_at"] as? String == Instant.format(chosen))
     }
 
     @Test func correctionReferencesEventVersionAndReason() throws {
         let dose = Fixture.dose(state: .taken, version: 2, eventID: "00000000-0000-4000-8000-0000000000e1")
-        let operation = try OperationFactory.correction(.skipped, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: nil, reason: "Error al tocar", now: tap)
+        let operation = try OperationFactory.correction(.skipped, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: nil, reason: "Error al tocar", now: tap, patient: Fixture.patient)
         let body = try json(operation.body)
         #expect(operation.path == "/v1/doses/\(dose.id)/corrections")
         #expect(body["corrects_event_id"] as? String == "00000000-0000-4000-8000-0000000000e1")
@@ -76,31 +76,31 @@ import Testing
 
     @Test func pendingTakenSubtractsTheExactQuantity() throws {
         let dose = Fixture.dose()
-        let operation = try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: tap)
+        let operation = try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: tap, patient: Fixture.patient)
         #expect(StockEstimate.estimated(account: Fixture.account(), doses: [dose], operations: [operation]) == "9.5")
     }
 
     @Test func pendingSkippedDoesNotChangeTheBalance() throws {
         let dose = Fixture.dose()
-        let operation = try OperationFactory.declaration(.skipped, dose: dose, occurredAt: nil, now: tap)
+        let operation = try OperationFactory.declaration(.skipped, dose: dose, occurredAt: nil, now: tap, patient: Fixture.patient)
         #expect(StockEstimate.estimated(account: Fixture.account(), doses: [dose], operations: [operation]) == nil)
     }
 
     @Test func correctingTakenToSkippedRestoresTheQuantity() throws {
         let dose = Fixture.dose(state: .taken, version: 2, eventID: "00000000-0000-4000-8000-0000000000e1")
-        let operation = try OperationFactory.correction(.skipped, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: nil, reason: "x", now: tap)
+        let operation = try OperationFactory.correction(.skipped, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: nil, reason: "x", now: tap, patient: Fixture.patient)
         #expect(StockEstimate.estimated(account: Fixture.account(), doses: [dose], operations: [operation]) == "10.5")
     }
 
     @Test func correctingBetweenConsumingStatesDoesNotChangeTheBalance() throws {
         let dose = Fixture.dose(state: .taken, version: 2, eventID: "00000000-0000-4000-8000-0000000000e1")
-        let operation = try OperationFactory.correction(.takenLate, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: tap, reason: "x", now: tap)
+        let operation = try OperationFactory.correction(.takenLate, dose: dose, eventID: "00000000-0000-4000-8000-0000000000e1", occurredAt: tap, reason: "x", now: tap, patient: Fixture.patient)
         #expect(StockEstimate.estimated(account: Fixture.account(), doses: [dose], operations: [operation]) == nil)
     }
 
     @Test func unresolvedConflictIsNotCounted() throws {
         let dose = Fixture.dose()
-        var operation = try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: tap)
+        var operation = try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: tap, patient: Fixture.patient)
         operation.status = .conflict
         #expect(StockEstimate.estimated(account: Fixture.account(), doses: [dose], operations: [operation]) == nil)
     }
@@ -116,8 +116,9 @@ import Testing
     @Test func onlyFutureUndeclaredDosesAreReminded() throws {
         let queued = dose(4, offset: 400)
         let plan = ReminderPlanner.plan(
+            patient: Fixture.patient, actor: Fixture.patient,
             doses: [dose(1, offset: -60), dose(2, offset: 60), dose(3, offset: 120, state: .taken), queued],
-            operations: [try OperationFactory.declaration(.taken, dose: queued, occurredAt: nil, now: now)],
+            operations: [try OperationFactory.declaration(.taken, dose: queued, occurredAt: nil, now: now, patient: Fixture.patient)],
             now: now
         )
         #expect(plan.map(\.doseID) == ["dose-2"])
@@ -125,7 +126,7 @@ import Testing
 
     @Test func respectsThePendingNotificationLimitKeepingTheEarliest() {
         let doses = (0 ..< 200).map { dose($0, offset: TimeInterval(3600 * (200 - $0))) }
-        let plan = ReminderPlanner.plan(doses: doses, operations: [], now: now)
+        let plan = ReminderPlanner.plan(patient: Fixture.patient, actor: Fixture.patient, doses: doses, operations: [], now: now)
         #expect(plan.count == ReminderPlanner.limit)
         #expect(plan.count <= 64)
         #expect(plan.first?.doseID == "dose-199")

@@ -13,7 +13,8 @@ enum ReminderPlanner {
     /// iOS conserva 64 solicitudes pendientes por app. Se deja margen y se repone en cada sincronización.
     static let limit = 60
 
-    static func plan(doses: [Dose], operations: [PendingOperation], now: Date, limit: Int = limit) -> [PlannedReminder] {
+    static func plan(patient: String?, actor: String?, doses: [Dose], operations: [PendingOperation], now: Date, limit: Int = limit) -> [PlannedReminder] {
+        guard let patient, patient == actor else { return [] }
         let queued = Set(operations.map(\.doseID))
         return doses
             .filter { !$0.state.isDeclared && !queued.contains($0.id) && $0.scheduledInstant > now }

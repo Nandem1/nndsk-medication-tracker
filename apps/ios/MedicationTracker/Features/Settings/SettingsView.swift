@@ -8,8 +8,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section { NavigationLink("Mi perfil") { ProfileView() }.accessibilityIdentifier("open-profile") }
                 remindersSection
-                Section("Avisos remotos del cuidador") { Text(model.pushDiagnostic) }
+                if model.pushConfigured { Section("Avisos remotos del cuidador") { Text(model.pushDiagnostic) } }
                 syncSection
                 Section("Inventario") {
                     if model.snapshot.inventory.isEmpty {
@@ -23,7 +24,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Section("Acceso del cuidador") {
+                Section("Acceso de cuidadores") {
                     NavigationLink("Cuidadores e invitaciones") { ConsentView() }
                         .accessibilityIdentifier("open-consent")
                 }
@@ -47,7 +48,7 @@ struct SettingsView: View {
     }
 
     private var signOutTitle: String {
-        let count = model.snapshot.operations.count
+        let count = model.allOperations.count
         return count == 0 ? "¿Cerrar sesión?" : "Tienes \(count) registro(s) sin sincronizar que se perderán. ¿Cerrar sesión?"
     }
 
@@ -129,7 +130,17 @@ private struct UnresolvedOperationRow: View {
 
     var body: some View {
         let status = DoseText.operation(operation)
-        if model.dose(id: operation.doseID) != nil {
+        if operation.patientID != model.profile?.userID,
+           model.patientSnapshot(operation.patientID)?.doses.contains(where: { $0.id == operation.doseID }) == true {
+            NavigationLink {
+                CaregiverDoseDetail(patient: operation.patientID, doseID: operation.doseID)
+            } label: {
+                VStack(alignment: .leading) {
+                    Text(model.patientSnapshot(operation.patientID)?.access?.name ?? "Paciente sin nombre")
+                    StatusBadge(text: status.text, systemImage: status.icon, tone: status.tone)
+                }
+            }.accessibilityIdentifier("unresolved-operation")
+        } else if model.dose(id: operation.doseID) != nil {
             NavigationLink {
                 DoseDetailView(doseID: operation.doseID)
             } label: {
@@ -138,7 +149,8 @@ private struct UnresolvedOperationRow: View {
             .accessibilityIdentifier("unresolved-operation")
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Tu registro «\(DoseText.declaration(operation.declaration))» corresponde a una dosis que ya no está en tu agenda.")
+                StatusBadge(text: status.text, systemImage: status.icon, tone: status.tone)
+                Text("El registro «\(operation.patientID == model.profile?.userID ? DoseText.declaration(operation.declaration) : FamilyText.declaration(operation.declaration))» corresponde a una dosis a la que ya no tienes acceso o que salió de la agenda.")
                 Button("Descartar registro") {
                     Task { await model.discard(operation) }
                 }

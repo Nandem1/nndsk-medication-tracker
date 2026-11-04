@@ -94,10 +94,59 @@ Comandos y evidencia final:
 - `make test-android-device`: ocho pruebas PASS en emulador, incluidas persistencia tras revocar sólo un paciente y bloqueo de una alarma ajena antigua.
 - `make test-android-e2e`: dos casos PASS sobre la versión final. Usa UI Compose, API, PostgreSQL y Firebase Auth emulado. No acredita entrega real de correo ni ejecución en teléfono físico.
 - El flujo familiar prueba registro, onboarding, invitación con nombre y mensaje completo, dos pacientes, lectura sin acciones, declaración cuidadora, conflicto, escritura durante red retenida, revocación y restauración offline. Reposición y conteo pierden una respuesta real, reintentan los mismos bytes y conservan un único efecto y saldo exacto.
-- CI Android falló antes de compilar porque `sdkmanager` no estaba en PATH. El workflow usa ahora su ruta bajo `ANDROID_HOME`, conforme al [instalador del runner](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/install-android-sdk.sh). La siguiente ejecución encontró la herramienta pero no `platforms;android-37`. Se fijan Command-line Tools 22.0 y `platforms;android-37.0`, publicados en el catálogo oficial. YAML y checks comunes locales pasan; resultado Linux pendiente.
+- CI Android falló antes de compilar porque `sdkmanager` no estaba en PATH. El workflow usa ahora su ruta bajo `ANDROID_HOME`, conforme al [instalador del runner](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/install-android-sdk.sh). La siguiente ejecución encontró la herramienta pero no `platforms;android-37`. Se fijan Command-line Tools 22.0 y `platforms;android-37.0`, publicados en el catálogo oficial. YAML y checks comunes locales pasan. El commit `2a6afe0` pasó [CI Android Linux](https://github.com/Nandem1/nndsk-medication-tracker/actions/runs/41762743367) y el escaneo de secretos. Build, unitarias y lint corrieron en el runner.
 - `go test -tags=e2e ./cmd/e2e`: PASS. El proxy de prueba ahora descarta también respuestas POST de inventario; antes sólo cubría dosis. El fixture espacia bloques para respetar 120 solicitudes por minuto. No se cambió el límite productivo.
 - Capturas reales revisadas por implementador y coordinador en `/private/tmp/familia-p3-captures/`. Se corrigió el aviso rojo de recuperación exitosa y se volvió a capturar con tono informativo. La captura de pendientes es parcial; su conservación y estado se verifican mediante assertions.
 - Los fixtures de recordatorios previos usaban un actor distinto del paciente para representar agenda propia. Se corrigió esa identidad y se añadieron pruebas explícitas de agenda ajena; no cambió la expectativa de entrega propia.
 - Revisión independiente de fixes: PASS por lectura. Living Architecture REVIEW detectó una frase antigua sobre `offline`; se corrigió y el coordinador comprobó su correspondencia con el código. `git diff --check`: PASS.
 
 Architecture Impact: cambian estado local, autenticación y navegación Android. Room conserva su esquema; snapshots añaden perfil, accesos y métricas. Contrato productivo, reglas de consumo e infraestructura sin cambios. Mapas general y Android actualizados. No desplegado ni probado en teléfono físico.
+
+## P4, referencia previa
+
+Antes de implementar se ejecutó `make test-ios-e2e` con base desechable `medication_f4_familia_p4`, simulador iPhone 17 con iOS 27.2 y Firebase Auth emulado. Las siete pruebas pasaron. Incluyen declaración offline, Dynamic Type máximo, tardía y corrección, entrega de recordatorio sin declaración, conflicto, revocación y limpieza de sesión. Log en `/private/tmp/familia-p4-baseline.log`; capturas exportadas en `/private/tmp/familia-p4-baseline-captures/`. No es prueba en iPhone físico. P4 sigue en implementación.
+
+## P4, entrega en curso al 2026-11-04
+
+El usuario pidió finalizar la sesión y documentar los pendientes para Claude Opus 5.5. El candidato iOS queda integrado sin commit en `feat/modo-familia`. Se compararon sus 34 archivos byte a byte con el worktree entregado. `git diff --check` pasó. No se cerró P4 ni se iniciaron P5, P6 o P7.
+
+SQLite separa datos por paciente y conserva la cola global. La revocación retira sólo la caché afectada y mantiene operaciones rechazadas. La revisión encontró carreras entre respuestas antiguas, cambios de cuenta y reintentos 401; se corrigieron con generación de sesión, parada de sincronización y autorización de cada solicitud en su sesión original. Nuevas pruebas reproducen esas carreras con transporte controlado. Esto no sustituye E2E.
+
+Checks comunes, lint iOS y 82 unitarias en 17 suites pasaron antes del diagnóstico final de UI. La revisión independiente estática y Living Architecture REVIEW dieron PASS. Logs en `/private/tmp/familia-p4-final-common.log`, `/private/tmp/familia-p4-final-unit.log` y `/private/tmp/familia-p4-final-lint-ios.log`.
+
+El intento completo de E2E falló al interactuar con onboarding después del aviso de guardar contraseña. Se comprobó una ventana transitoria que capturaba el toque y una discrepancia posterior entre hit-test UIKit y accesibilidad XCTest. Se retiraron los experimentos de navegación, foco e instrumentación. El helper de FamilyFlow usa coordenadas y observa el teclado para comprobar foco. El caso `testAcceptFullMessageAndRevokeNamedCaregiver` pasó sin relanzar, 1 test en 48,883 segundos, log `/private/tmp/familia-p4-physical-focus.log`. La pausa inicial de 61 segundos se restauró después; no se repitió la suite por la orden de finalizar.
+
+## P4, cierre
+
+Resultados sobre la versión final, en simulador iPhone 17 con iOS 27.2, API y PostgreSQL reales y Firebase Auth emulado:
+
+- `make tokens-check`, `make test`, `make lint`: PASS.
+- `make test-ios`: 82 pruebas en 17 suites PASS. `make lint-ios`: PASS.
+- `make test-ios-e2e`: 10 casos PASS, 0 fallos, 0 esperas de inactividad agotadas. Log `/private/tmp/familia-p4-final2-e2e.log`.
+- `git diff --check`: PASS.
+
+**Bug de producto corregido.** Tras revisar una invitación, «Autorizar a este cuidador» podía quedar bajo la barra de pestañas y el toque no llegaba al botón. Falló en 2 de 10 casos en la penúltima corrida, y esas dos invitaciones seguían sin consumirse en la base. `ConsentView` ahora desplaza el botón a la vista, y `PatientFlowUITests` exige que quede sobre la barra.
+
+**Textos corregidos.** Punto doble en la cobertura del inventario y fila «Uso» redundante en Mi perfil.
+
+**Pruebas que cambiaron, sin cambiar el comportamiento esperado de la app:**
+
+- PatientFlow usa el mismo foco por coordenadas que FamilyFlow. Sólo repite toques de foco y de elección local de uso, nunca una mutación de servidor.
+- Se cierra el aviso «¿Guardar contraseña?» antes de cada reintento, porque puede llegar tarde.
+- Al registrar, se cierra la oferta de contraseña segura de iOS, que se llevaba lo escrito. Se exige envío habilitado. AutoFill sigue activo.
+- Tras relanzar, se busca la fila con «Guardada, falta enviar». La dosis pendiente pasa a «Ya registradas», así que la primera fila era otra dosis.
+- El conflicto se busca por prefijo, porque el texto real es «Necesita revisión: cambió en el servidor».
+- La hoja de compartir ahora se exige abierta y con el mensaje completo. Antes la captura no la esperaba.
+- Volver a la raíz de Pacientes tolera que ya no exista botón atrás.
+
+**Comparación visual.** Capturas contra el baseline: Hoy, detalle, hoja tardía, pendiente offline y texto máximo sin cambios de diseño. «(hora de GMT)» sólo aparece en el baseline porque el fixture elige la zona según la hora del día. Historial no tenía captura en el baseline: se añadió una, revisada sin problemas, y su código sólo cambió el cálculo de días. Pantallas nuevas revisadas: Pacientes, detalle cuidador, inventario, conflicto, consentimiento, Mi perfil, invitación, hoja de compartir, recuperación y revocación selectiva. Capturas en `/private/tmp/familia-p4-c-attfull/` y `/private/tmp/familia-p4-final2-att/`.
+
+**Observaciones sin corregir:**
+
+- Una corrida tuvo 15 esperas de inactividad de 60 s tras enfocar `invitation-token`, y su caso tardó 1.017 s. No se repitió en las seis corridas posteriores. La primera de ellas usó el mismo código de app. Causa no determinada.
+- `SettingsView.swift:75` puede mostrar punto doble en «Cubren hasta». Es anterior a P4.
+- Los movimientos de inventario se ordenan por UUID (`portal.go`), así que su orden en pantalla no es cronológico. Es anterior a P4.
+- Tras una revocación, el aviso rojo no dice qué paciente se perdió.
+- No se ejecutó en iPhone físico. No acredita entrega real de correo ni revisión con VoiceOver.
+
+Architecture Impact: cambian persistencia, sincronización, autenticación y navegación iOS. Conserva los contratos y las reglas de consumo. Mapas general e iOS actualizados. Sin despliegue ni instalación física.

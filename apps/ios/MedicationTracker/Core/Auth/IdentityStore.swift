@@ -21,6 +21,8 @@ struct Credentials: Codable, Sendable, Equatable {
     var idToken: String
     var refreshToken: String
     var expiresAt: Date
+    var email: String? = nil
+    var caregiverPreference: Bool? = nil
 }
 
 /// Firebase Authentication sólo como proveedor de identidad, mediante su API REST oficial.
@@ -42,14 +44,14 @@ struct FirebaseIdentityClient: Sendable {
         let expires_in: String
     }
 
-    func signIn(email: String, password: String, now: Date = .now) async throws -> Credentials {
+    func signIn(email: String, password: String, register: Bool = false, now: Date = .now) async throws -> Credentials {
         let body = try JSONSerialization.data(withJSONObject: ["email": email, "password": password, "returnSecureToken": true])
-        let (data, status) = try await post(endpoint("identitytoolkit.googleapis.com", "v1/accounts:signInWithPassword"), body: body, contentType: "application/json")
+        let (data, status) = try await post(endpoint("identitytoolkit.googleapis.com", register ? "v1/accounts:signUp" : "v1/accounts:signInWithPassword"), body: body, contentType: "application/json")
         guard (200 ..< 300).contains(status) else {
             throw status >= 500 || status == 429 ? IdentityError.transport : IdentityError.invalidCredentials
         }
         guard let response = try? JSONDecoder().decode(SignInResponse.self, from: data) else { throw IdentityError.transport }
-        return Credentials(uid: response.localId, idToken: response.idToken, refreshToken: response.refreshToken, expiresAt: now.addingTimeInterval(TimeInterval(response.expiresIn) ?? 0))
+        return Credentials(uid: response.localId, idToken: response.idToken, refreshToken: response.refreshToken, expiresAt: now.addingTimeInterval(TimeInterval(response.expiresIn) ?? 0), email: email)
     }
 
     func refresh(_ credentials: Credentials, now: Date = .now) async throws -> Credentials {
@@ -60,7 +62,13 @@ struct FirebaseIdentityClient: Sendable {
             throw status >= 500 || status == 429 ? IdentityError.transport : IdentityError.sessionExpired
         }
         guard let response = try? JSONDecoder().decode(RefreshResponse.self, from: data) else { throw IdentityError.transport }
-        return Credentials(uid: credentials.uid, idToken: response.id_token, refreshToken: response.refresh_token, expiresAt: now.addingTimeInterval(TimeInterval(response.expires_in) ?? 0))
+        return Credentials(uid: credentials.uid, idToken: response.id_token, refreshToken: response.refresh_token, expiresAt: now.addingTimeInterval(TimeInterval(response.expires_in) ?? 0), email: credentials.email, caregiverPreference: credentials.caregiverPreference)
+    }
+
+    func resetPassword(email: String) async throws {
+        let body = try JSONEncoder().encode(["email": email, "requestType": "PASSWORD_RESET"])
+        let (_, status) = try await post(endpoint("identitytoolkit.googleapis.com", "v1/accounts:sendOobCode"), body: body, contentType: "application/json")
+        if status >= 500 || status == 429 { throw IdentityError.transport }
     }
 
     private func endpoint(_ host: String, _ path: String) -> URL {
@@ -102,13 +110,28 @@ actor IdentityStore: TokenProviding {
         credentials = secrets.read().flatMap { try? JSONDecoder().decode(Credentials.self, from: $0) }
     }
 
+    var sessionGeneration: Int { generation }
+
     var uid: String? { credentials?.uid }
 
-    func signIn(email: String, password: String) async throws -> String {
+    var email: String { credentials?.email ?? "" }
+    var caregiverPreference: Bool? { credentials?.caregiverPreference }
+    func setUse(caregiver: Bool) throws {
+        guard var current = credentials else { throw IdentityError.sessionExpired }
+        current.caregiverPreference = caregiver
+        try save(current)
+    }
+    func resetPassword(email: String) async throws { try await client.resetPassword(email: email) }
+
+    func signIn(email: String, password: String, register: Bool = false) async throws -> String {
         let started = generation
-        let signedIn = try await client.signIn(email: email, password: password)
+        var signedIn = try await client.signIn(email: email, password: password, register: register)
+        if credentials?.uid == signedIn.uid { signedIn.caregiverPreference = credentials?.caregiverPreference }
         guard started == generation else { throw IdentityError.sessionExpired }
         try save(signedIn)
+        generation += 1
+        refreshing?.cancel()
+        refreshing = nil
         return signedIn.uid
     }
 
@@ -148,8 +171,10 @@ actor IdentityStore: TokenProviding {
         defer {
             if ownsRefresh, started == generation { refreshing = nil }
         }
-        let fresh = try await task.value
+        var fresh = try await task.value
         guard started == generation, credentials?.uid == fresh.uid else { throw IdentityError.sessionExpired }
+        fresh.email = credentials?.email
+        fresh.caregiverPreference = credentials?.caregiverPreference
         if ownsRefresh { try save(fresh) }
         return fresh
     }

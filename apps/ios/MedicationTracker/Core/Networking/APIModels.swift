@@ -77,6 +77,12 @@ struct InventoryProjection: Codable, Sendable, Identifiable, Equatable {
     let firstUncoveredAt: String?
     let scheduledQuantity: String
 
+    var from: String? = nil
+    var through: String? = nil
+    var timezone: String? = nil
+    var replenishOn: String? = nil
+    var lowStock: Bool? = nil
+
     var id: String { accountID }
 
     enum CodingKeys: String, CodingKey {
@@ -85,6 +91,9 @@ struct InventoryProjection: Codable, Sendable, Identifiable, Equatable {
         case balance, unit
         case firstUncoveredAt = "first_uncovered_at"
         case scheduledQuantity = "scheduled_quantity"
+        case from, through, timezone
+        case replenishOn = "replenish_on"
+        case lowStock = "low_stock"
     }
 }
 
@@ -102,11 +111,17 @@ struct DoseResult: Codable, Sendable, Equatable {
     }
 }
 
-struct Me: Codable, Sendable {
+struct Me: Codable, Sendable, Equatable {
     let userID: String
+    var displayName: String? = nil
+    var profileVersion: Int? = nil
+    var profileComplete: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
+        case displayName = "display_name"
+        case profileVersion = "profile_version"
+        case profileComplete = "profile_complete"
     }
 }
 
@@ -116,12 +131,16 @@ struct CaregiverLink: Codable, Sendable, Identifiable, Equatable {
     let caregiverID: String
     let scopes: [String]
     let status: String
+    var patientDisplayName: String? = nil
+    var caregiverDisplayName: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id = "link_id"
         case patientID = "patient_id"
         case caregiverID = "caregiver_id"
         case scopes, status
+        case patientDisplayName = "patient_display_name"
+        case caregiverDisplayName = "caregiver_display_name"
     }
 }
 
@@ -129,11 +148,15 @@ struct InvitationPreview: Codable, Sendable, Equatable {
     let caregiverID: String
     let scopes: [String]
     let expiresAt: String
+    var caregiverDisplayName: String? = nil
+    var patientNameHint: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case caregiverID = "caregiver_id"
         case scopes
         case expiresAt = "expires_at"
+        case caregiverDisplayName = "caregiver_display_name"
+        case patientNameHint = "patient_name_hint"
     }
 }
 
