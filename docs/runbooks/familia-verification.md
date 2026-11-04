@@ -67,3 +67,13 @@ Comandos y evidencia final:
 - Revisión independiente final: PASS para zona y limpieza del error de sesión. Revisión de código, sin repetir suites.
 
 Architecture Impact: cambian sesión y navegación web, lectura del perfil y presentación de métricas. El contrato expone la zona existente, sin migración nueva. Mapas general y web actualizados. Sin despliegue ni instalación nativa.
+
+## P3.1, separación Android
+
+`PatientApp.kt` se dividió en diez archivos de navegación, cuenta, Hoy, detalle, Ajustes y componentes. Las 29 funciones conservan firmas y cuerpos; sólo cambian paquetes, imports y visibilidad de funciones compartidas. Una revisión independiente confirmó esa equivalencia. El mapa Android enlaza las nuevas ubicaciones.
+
+`make test-android`, `make lint-android`, `make test-android-device` y `make test-android-e2e`: PASS. Siete tests de dispositivo y un E2E con API, PostgreSQL y Firebase Auth emulado. El E2E pasó antes y después del movimiento. Las capturas `/private/tmp/familia-p3-before.png` y `/private/tmp/familia-p3-after.png`, revisadas por implementador y coordinador, conservan disposición y textos; cambian las horas de los fixtures.
+
+Los checks comunes `tokens-check`, `test` y `lint` pasaron. La repetición en raíz requirió acceso elevado a caché Go tras un error de permisos del sandbox. No se modificaron expectativas de pruebas ni comportamiento. Esta verificación usa emulador, no teléfono físico.
+
+Architecture Impact: separación interna, sin cambios de límites, contratos ni reglas. P3 funcional sigue pendiente. Este refactor tiene su propio commit antes de añadir modo cuidador.
