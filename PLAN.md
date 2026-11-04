@@ -578,6 +578,8 @@ Evidencia y comandos en [verificación F5](docs/runbooks/f5-verification.md). **
 
 ### F5b — Vista de cuidador en iOS y Android
 
+**Plan de ejecución, decisiones y DoD ampliado en [PLAN-FAMILIA.md](PLAN-FAMILIA.md).** Propuesto, sin implementar.
+
 - [ ] Reemplazar en iOS el supuesto de que el paciente es siempre quien inició sesión; Android nace sin ese supuesto.
 - [ ] Selector de paciente y cambio explícito entre «Mis tomas» y «Mis pacientes», con cachés y colas separadas por paciente.
 - [ ] Ver agenda, historial, dosis sin confirmar e inventario de cada paciente vinculado.
@@ -590,6 +592,10 @@ Evidencia y comandos en [verificación F5](docs/runbooks/f5-verification.md). **
 **Fuera de alcance:** crear o editar tratamientos y pautas; siguen en el portal web.
 
 **DoD:** un cuidador en cada plataforma gestiona dos pacientes con permisos distintos, un cuidador `read` no puede modificar y una revocación se refleja en su dispositivo.
+
+### F5c — Inventario compartido
+
+Dos o más tratamientos del mismo medicamento comparten saldo porque usan físicamente la misma caja, con consentimiento de cada paciente. Diseño, reglas y pruebas en [PLAN-FAMILIA.md](PLAN-FAMILIA.md). Propuesto, sin implementar.
 
 ### F6 — Alertas del cuidador y resiliencia
 
@@ -622,7 +628,7 @@ Evidencia local en [verificación F7](docs/runbooks/f7-verification.md). Las mé
 - [ ] CI por stack con runners macOS para iOS cuando se habilite; Android y Go en runners adecuados. Workflows implementados para Go, web, Android e iOS opcional; ejecución remota pendiente.
 - [ ] Política de retención, backups/restores, incident response y checklist de release. Propuesta de retención pendiente de aceptación. Respuesta a incidentes y checklist documentados.
 
-F8 en curso, sin despliegue. Commit de preparación para GitHub autorizado por el usuario. Las pantallas Graphite están implementadas sin desplegar en la rama `design/graphite-tokens`; estado y evidencia en la [guía de rediseño](docs/design/claude-redesign-handoff.md). Ver [resultados y bloqueos F8](docs/runbooks/f8-verification.md). No marcar lanzamiento listo con borrado o pruebas físicas pendientes.
+Exportación desde las apps y borrado de cuenta (F8b): propuestos en [PLAN-FAMILIA.md](PLAN-FAMILIA.md). F8 en curso, sin despliegue. Commit de preparación para GitHub autorizado por el usuario. Las pantallas Graphite están implementadas sin desplegar en la rama `design/graphite-tokens`; estado y evidencia en la [guía de rediseño](docs/design/claude-redesign-handoff.md). Ver [resultados y bloqueos F8](docs/runbooks/f8-verification.md). No marcar lanzamiento listo con borrado o pruebas físicas pendientes.
 
 ---
 
