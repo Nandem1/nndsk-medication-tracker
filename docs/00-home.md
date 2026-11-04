@@ -130,3 +130,32 @@ flowchart TB
 El esquema de datos no cambia. Borrado de cuenta y supresiones de backups siguen pendientes de política e implementación. Los workflows separan Go, web, Android e iOS habilitable. No hay publicación ni despliegue F8. Ver [seguridad](runbooks/f8-security.md), [evidencia](runbooks/f8-verification.md), [release](runbooks/f8-release.md) y [entrega a Claude](design/claude-redesign-handoff.md).
 
 Los valores visuales compartidos viven en [`packages/design-tokens/tokens.json`](../packages/design-tokens/README.md). Un generador sin dependencias produce adaptadores para CSS, SwiftUI y Compose, y `make tokens-check` valida sincronía y contraste. Las apps no comparten componentes de UI. Las tres apps implementan el rediseño Graphite sin cambios de API, dominio ni colas; el estado está en la [guía de rediseño](design/claude-redesign-handoff.md).
+
+
+## Perfiles y nombres P1
+
+La migración `00006_profiles.sql` distingue un perfil sin completar del nombre histórico de bootstrap. Las lecturas de perfil, pacientes, vínculos, invitaciones y exportación devuelven nombre nulo hasta completarlo. Cada persona tiene un único nombre compartido.
+
+```mermaid
+sequenceDiagram
+    participant Cliente
+    participant API
+    participant Perfil
+    participant DB as PostgreSQL
+    Cliente->>API: PUT perfil con versión y operación
+    API->>Perfil: Actor autenticado y paciente objetivo
+    Perfil->>DB: Autorizar antes de consultar replay
+    Perfil->>DB: Bloquear usuario y comparar versión
+    Perfil->>DB: Registrar cambio y actualizar nombre
+    DB-->>Cliente: Perfil y versión confirmados
+```
+
+[UpdateProfile](../services/api/internal/application/profiles.go) permite editar al propio usuario o a un cuidador con vínculo activo y alcance `treatments`. Usa el mismo registro idempotente que las otras mutaciones. Un cuidador que sólo puede leer recibe 403; un extraño recibe 404. La autorización se repite antes de devolver una respuesta guardada.
+
+[AcceptInvitation](../services/api/internal/application/consent.go) aplica el nombre sugerido sólo al perfil incompleto, bajo bloqueo y dentro de la transacción de consentimiento. El cambio queda en `user_profile_changes`. La revocación continúa permitida al paciente y al cuidador del vínculo.
+
+Los vínculos revocados conservan su referencia histórica, pero no revelan el nombre actual de la contraparte. Los nombres rechazan NUL y saltos de línea antes de llegar a PostgreSQL.
+
+Las consultas de agenda e informe mantienen `RepeatableRead` y reintentan la transacción completa hasta tres intentos ante serialización, interbloqueo o unicidad durante materialización. La espera de 50 a 200 ms admite cancelación. La traducción a error HTTP ocurre después de decidir el reintento. [Pruebas HTTP P1](../services/api/internal/http/profiles_integration_test.go) cubren consultas concurrentes contra PostgreSQL.
+
+Estos cambios no implementan aún la navegación multi-paciente ni el inventario compartido. Su despliegue no está verificado.

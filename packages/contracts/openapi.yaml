@@ -1765,6 +1765,139 @@
           }
         }
       }
+    },
+    "/v1/me/profile": {
+      "put": {
+        "operationId": "updateMyProfile",
+        "description": "Updates a visible name with optimistic version and idempotency. A caregiver requires active treatments access. Replays recheck permissions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          }
+        }
+      }
+    },
+    "/v1/patients/{patientId}/profile": {
+      "put": {
+        "operationId": "updatePatientProfile",
+        "description": "Updates a visible name with optimistic version and idempotency. A caregiver requires active treatments access. Replays recheck permissions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error403"
+          }
+        },
+        "parameters": [
+          {
+            "name": "patientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1912,12 +2045,26 @@
                 "inventory"
               ]
             }
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "profile_version": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "patient_id",
           "link_id",
-          "scopes"
+          "scopes",
+          "display_name",
+          "profile_version"
         ]
       },
       "Me": {
@@ -1936,12 +2083,30 @@
           },
           "next_cursor": {
             "type": "string"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "profile_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "profile_complete": {
+            "type": "boolean"
           }
         },
         "required": [
           "user_id",
           "patients",
-          "next_cursor"
+          "next_cursor",
+          "display_name",
+          "profile_version",
+          "profile_complete"
         ]
       },
       "CreateTreatment": {
@@ -2505,6 +2670,14 @@
             "contains": {
               "const": "read"
             }
+          },
+          "patient_name_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
           }
         },
         "required": [
@@ -2585,7 +2758,29 @@
           },
           "status": {
             "type": "string",
-            "const": "active"
+            "enum": [
+              "pending",
+              "active",
+              "revoked"
+            ]
+          },
+          "patient_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Nombre completo sólo con vínculo activo o para el propio actor; null en los demás casos."
+          },
+          "caregiver_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Nombre completo sólo con vínculo activo o para el propio actor; null en los demás casos."
           }
         },
         "required": [
@@ -2593,7 +2788,9 @@
           "patient_id",
           "caregiver_id",
           "scopes",
-          "status"
+          "status",
+          "patient_display_name",
+          "caregiver_display_name"
         ]
       },
       "PatientAccessPage": {
@@ -2802,12 +2999,30 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "caregiver_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "patient_name_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
           }
         },
         "required": [
           "caregiver_id",
           "scopes",
-          "expires_at"
+          "expires_at",
+          "caregiver_display_name",
+          "patient_name_hint"
         ]
       },
       "Movement": {
@@ -3287,7 +3502,12 @@
             "format": "uuid"
           },
           "display_name": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
           },
           "timezone": {
             "type": "string"
@@ -4275,6 +4495,57 @@
           "devices"
         ],
         "description": "Schema version 1. A single repeatable-read snapshot, without generating future occurrences. Health records belong only to the authenticated actor. Includes cancelled doses and all correction history. Related consent records retain participant IDs. Device tokens, identity-provider IDs, invitation secrets and operation replay storage are excluded. Decimal quantities are strings. Maximum 100000 records across all arrays and 20 MiB of JSON; larger exports fail without a partial attachment."
+      },
+      "Profile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name",
+          "profile_version",
+          "profile_complete"
+        ],
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "profile_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "profile_complete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "client_operation_id",
+          "expected_version",
+          "display_name"
+        ],
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Trimmed, without line breaks. Preserves case."
+          }
+        }
       }
     },
     "responses": {
@@ -4370,6 +4641,16 @@
       },
       "Error504": {
         "description": "Request timeout",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Error403": {
+        "description": "Forbidden",
         "content": {
           "application/json": {
             "schema": {

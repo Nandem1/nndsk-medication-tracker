@@ -19,11 +19,13 @@ type Invitation struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Link struct {
-	ID          string  `json:"link_id"`
-	PatientID   string  `json:"patient_id"`
-	CaregiverID string  `json:"caregiver_id"`
-	Scopes      []Scope `json:"scopes"`
-	Status      string  `json:"status"`
+	PatientDisplayName   *string `json:"patient_display_name"`
+	CaregiverDisplayName *string `json:"caregiver_display_name"`
+	ID                   string  `json:"link_id"`
+	PatientID            string  `json:"patient_id"`
+	CaregiverID          string  `json:"caregiver_id"`
+	Scopes               []Scope `json:"scopes"`
+	Status               string  `json:"status"`
 }
 
 func validScopes(scopes []Scope) bool {
@@ -41,8 +43,15 @@ func validScopes(scopes []Scope) bool {
 	}
 	return seen[ScopeRead]
 }
-func (s *Service) CreateInvitation(ctx context.Context, m Mutation, scopes []Scope) (Invitation, error) {
+func (s *Service) CreateInvitation(ctx context.Context, m Mutation, scopes []Scope, hint *string) (Invitation, error) {
 	var out Invitation
+	if hint != nil {
+		name, err := profileName(*hint)
+		if err != nil {
+			return out, err
+		}
+		hint = &name
+	}
 	if !domain.ValidID(m.ActorID) || !domain.ValidID(m.OperationID) || !validScopes(scopes) {
 		return out, ErrInvalid
 	}
@@ -65,7 +74,7 @@ func (s *Service) CreateInvitation(ctx context.Context, m Mutation, scopes []Sco
 	if err != nil {
 		return Invitation{}, translate(err)
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO invitations(id,inviter_user_id,client_operation_id,token_hash,scopes,expires_at,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)`, out.ID, m.ActorID, m.OperationID, hash[:], names, out.ExpiresAt, s.now().UTC())
+	_, err = tx.Exec(ctx, `INSERT INTO invitations(id,inviter_user_id,client_operation_id,token_hash,scopes,expires_at,created_at,patient_name_hint) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, out.ID, m.ActorID, m.OperationID, hash[:], names, out.ExpiresAt, s.now().UTC(), hint)
 	if err != nil {
 		return Invitation{}, translate(err)
 	}
@@ -89,7 +98,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, m Mutation, token string
 	var expires time.Time
 	var consumed *time.Time
 	var scopes []string
-	err = tx.QueryRow(ctx, `SELECT id::text,inviter_user_id::text,scopes,expires_at,consumed_at FROM invitations WHERE token_hash=$1 FOR UPDATE`, hash[:]).Scan(&id, &inviter, &scopes, &expires, &consumed)
+	var hint *string
+	err = tx.QueryRow(ctx, `SELECT id::text,inviter_user_id::text,scopes,expires_at,consumed_at,patient_name_hint FROM invitations WHERE token_hash=$1 FOR UPDATE`, hash[:]).Scan(&id, &inviter, &scopes, &expires, &consumed, &hint)
 	if err != nil {
 		return out, translate(err)
 	}
@@ -117,6 +127,11 @@ func (s *Service) AcceptInvitation(ctx context.Context, m Mutation, token string
 	if _, err = tx.Exec(ctx, `INSERT INTO patients(user_id) VALUES($1) ON CONFLICT DO NOTHING`, m.ActorID); err != nil {
 		return out, err
 	}
+	if hint != nil {
+		if _, err = s.changeProfile(ctx, tx, m, m.ActorID, *hint, 0, true); err != nil {
+			return out, translate(err)
+		}
+	}
 	out = Link{PatientID: m.ActorID, CaregiverID: inviter, Status: "active"}
 	for _, v := range scopes {
 		out.Scopes = append(out.Scopes, Scope(v))
@@ -129,6 +144,9 @@ func (s *Service) AcceptInvitation(ctx context.Context, m Mutation, token string
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO caregiver_link_events(link_id,actor_user_id,action,scopes,created_at) VALUES($1,$2,'accepted',$3,$4)`, out.ID, m.ActorID, scopes, s.now().UTC()); err != nil {
+		return out, err
+	}
+	if err = tx.QueryRow(ctx, `SELECT CASE WHEN p.profile_completed_at IS NOT NULL THEN p.display_name END,CASE WHEN c.profile_completed_at IS NOT NULL THEN c.display_name END FROM users p CROSS JOIN users c WHERE p.id=$1 AND c.id=$2`, m.ActorID, inviter).Scan(&out.PatientDisplayName, &out.CaregiverDisplayName); err != nil {
 		return out, err
 	}
 	response, err := json.Marshal(out)

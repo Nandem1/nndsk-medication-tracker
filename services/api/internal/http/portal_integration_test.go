@@ -12,7 +12,7 @@ import (
 func TestPortalHTTPPermissions(t *testing.T) {
 	f := newAPIFixture(t)
 	var invite application.Invitation
-	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{domain.NewID(), []application.Scope{application.ScopeRead}}, 201, &invite)
+	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{OperationID: domain.NewID(), Scopes: []application.Scope{application.ScopeRead}}, 201, &invite)
 	var preview application.InvitationPreview
 	f.request("patient", "POST", "/v1/invitations/preview", PreviewInvitationRequest{invite.Token}, 200, &preview)
 	if len(preview.Scopes) != 1 {

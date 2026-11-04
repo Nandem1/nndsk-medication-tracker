@@ -162,7 +162,7 @@ func (s *Service) GenerateOccurrences(ctx context.Context, actorID, treatmentID,
 	}
 	count, err := generateOccurrences(ctx, tx, treatmentID, from, domain.HorizonDays)
 	if err != nil {
-		return 0, err
+		return 0, translate(err)
 	}
 	return count, tx.Commit(ctx)
 }
@@ -173,7 +173,7 @@ func generateOccurrences(ctx context.Context, tx pgx.Tx, treatmentID, from strin
 	var starts time.Time
 	var ends *time.Time
 	if err = tx.QueryRow(ctx, "SELECT starts_on,ends_on,archived_at FROM treatments WHERE id=$1 FOR UPDATE", treatmentID).Scan(&starts, &ends, &archived); err != nil {
-		return 0, translate(err)
+		return 0, err
 	}
 	revs, err := revisions(ctx, tx, treatmentID)
 	if err != nil {
@@ -197,7 +197,7 @@ func generateOccurrences(ctx context.Context, tx pgx.Tx, treatmentID, from strin
 			}
 			tag, err := tx.Exec(ctx, "INSERT INTO dose_occurrences(treatment_id,schedule_revision_id,scheduled_at,scheduled_local_date,scheduled_local_time,dst_adjusted,dose_quantity) VALUES($1,$2,$3,$4::date,$5::time,$6,$7::numeric) ON CONFLICT(schedule_revision_id,scheduled_at) DO NOTHING", treatmentID, r.id, o.At, o.Date, o.LocalTime, o.Adjusted, o.Quantity.String())
 			if err != nil {
-				return 0, translate(err)
+				return 0, err
 			}
 			count += int(tag.RowsAffected())
 		}

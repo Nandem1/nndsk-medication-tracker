@@ -19,7 +19,7 @@ func TestConsentReplayGenerationAndRevocationLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invite, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead, ScopeDoses})
+	invite, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead, ScopeDoses}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestConsentReplayGenerationAndRevocationLock(t *testing.T) {
 	if _, err = s.AcceptInvitation(ctx, accept, invite.Token); !errors.Is(err, ErrNotFound) {
 		t.Fatal("revoked replay", err)
 	}
-	newInvite, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead})
+	newInvite, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,12 +81,12 @@ func TestInvitationOperationReuseDoesNotActivateLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead})
+	inv, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	used := mutation(patient)
-	if _, err = s.CreateInvitation(ctx, used, []Scope{ScopeRead}); err != nil {
+	if _, err = s.CreateInvitation(ctx, used, []Scope{ScopeRead}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.AcceptInvitation(ctx, used, inv.Token); !errors.Is(err, ErrConflict) {

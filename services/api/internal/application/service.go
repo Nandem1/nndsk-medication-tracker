@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	ErrInvalid  = domain.ErrInvalid
-	ErrConflict = errors.New("operation conflicts with current state")
-	ErrNotFound = errors.New("record not found")
+	ErrForbidden = errors.New("operation is not permitted")
+	ErrInvalid   = domain.ErrInvalid
+	ErrConflict  = errors.New("operation conflicts with current state")
+	ErrNotFound  = errors.New("record not found")
 )
 
 type Service struct {

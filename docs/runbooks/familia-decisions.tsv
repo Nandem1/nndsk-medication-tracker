@@ -1,3 +1,5 @@
 ts	phase	decision	why	evidence	result
 2026-11-04T01:16:34Z	P0	Mantener las decisiones cerradas y el orden P0 a P7	El plan exige pruebas por fase antes de avanzar	PLAN-FAMILIA.md	open
 2026-11-04T01:17:36Z	P0	Seleccionar sólo filas physical con estado connected o available	El iPhone emparejado aparece available; el simulador connected no es un destino físico	scripts/ios-run-device.sh	Selector sintético de cuatro casos y lista real PASS; tokens-check test lint PASS
+2026-11-04T01:32:02Z	P1	Reutilizar transacción idempotente y reintentar lecturas completas	Conservar autorización antes del replay y evitar GET 409 por materialización concurrente	docs/runbooks/familia-verification.md	tokens-check test lint integration PASS; migración up/down/up PASS
+2026-11-04T01:32:02Z	P1	Ocultar nombres de contraparte revocada y rechazar NUL	La revisión independiente encontró fuga de nombre y respuesta 500	services/api/internal/http/profiles_integration_test.go	Ambos tests fallaron antes del fix; suite final PASS

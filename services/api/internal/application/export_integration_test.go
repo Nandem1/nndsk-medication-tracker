@@ -24,7 +24,7 @@ func TestAccountExportOwnHistoryAndNoSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreign := treatment(t, s, other)
-	inv, err := s.CreateInvitation(ctx, mutation(owner), []Scope{ScopeRead, ScopeDoses})
+	inv, err := s.CreateInvitation(ctx, mutation(owner), []Scope{ScopeRead, ScopeDoses}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

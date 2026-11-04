@@ -26,6 +26,25 @@ Una revisión independiente del mismo modelo no encontró defectos bloqueantes e
 
 Architecture Impact: P0 no cambia límites, contratos ni dominio en ejecución. El ADR describe cambios futuros. No hubo migraciones, despliegues ni instalación de apps. Las pruebas nativas y E2E de producto no se ejecutaron en P0.
 
+## P1
+
+Perfiles con nombre nullable, versión y auditoría implementados. La edición propia y con alcance `treatments` conserva idempotencia y vuelve a autorizar antes del replay. Las invitaciones aceptan un nombre sugerido y lo aplican en la transacción de aceptación sólo si el perfil está incompleto. Los listados y la exportación respetan esa nulabilidad.
+
+Agenda e informe reintentan la transacción completa hasta tres veces, con espera cancelable de 50 a 200 ms. Conservan el SQLSTATE hasta clasificar errores. Unicidad sólo se reintenta en materialización. La prueba de 16 GET concurrentes produjo nueve 409 con un único intento y pasó al restaurar tres.
+
+Validación sobre el código final:
+
+- `make tokens-check`, `make test`, `make lint`: PASS.
+- `make test-integration`, con `TEST_DATABASE_URL` hacia `medication_f1_familia_p1`: PASS. PostgreSQL real, HTTP local e identidad sintética.
+- Migración `00006_profiles.sql` up, down y up en esa base desechable: PASS. Estado final versión 6.
+- Pruebas de permisos, versión vieja, idempotencia concurrente, Unicode, nombres sugeridos, revocación por cuidador y exportación sin placeholder: PASS.
+- Revisión independiente detectó exposición de nombre tras revocar y NUL aceptado que causaba 500. Las pruebas reprodujeron ambos fallos antes de corregirlos. La suite final pasa y la revisión confirmó los fixes por lectura.
+- `git diff --check`: PASS.
+
+Los cambios en pruebas anteriores sólo actualizan la firma de creación de invitación con hint opcional explícito. No cambian sus resultados esperados. Se corrigió además una divergencia previa de OpenAPI: `Link.status` admitía sólo `active`, aunque el endpoint entrega también vínculos revocados. Ahora enumera los tres estados de la base.
+
+Architecture Impact: cambian esquema, contrato, autorización de perfiles y reintentos de lecturas. El mapa general documenta esos cambios. No cambian clientes ni proveedores. No se desplegó P1 ni se migró staging. El trigger append-only de perfiles se tendrá que considerar junto con los existentes al implementar P6.
+
 ## Pendiente
 
-P1 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.
+P2 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.

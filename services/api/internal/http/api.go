@@ -40,6 +40,8 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("GET /v1/caregiver-links/{linkId}/alert-preferences", a.getAlertPreferences)
 	business.HandleFunc("PUT /v1/caregiver-links/{linkId}/alert-preferences", a.setAlertPreferences)
 	business.HandleFunc("GET /v1/me", a.me)
+	business.HandleFunc("PUT /v1/me/profile", a.updateProfile)
+	business.HandleFunc("PUT /v1/patients/{patientId}/profile", a.updateProfile)
 	business.HandleFunc("GET /v1/me/export", a.exportAccount)
 	business.HandleFunc("PATCH /v1/treatments/{treatmentId}", a.updateTreatment)
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/archive", a.archiveTreatment)
@@ -83,6 +85,8 @@ func fail(w http.ResponseWriter, r *http.Request, status int, code, message stri
 }
 func resultError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, application.ErrForbidden):
+		fail(w, r, 403, "forbidden", "Operation is not permitted")
 	case errors.Is(err, application.ErrInvalid):
 		fail(w, r, 422, "invalid_input", "Input does not satisfy the contract")
 	case errors.Is(err, application.ErrNotFound):
@@ -160,7 +164,12 @@ func (a *API) me(w http.ResponseWriter, r *http.Request) {
 		resultError(w, r, err)
 		return
 	}
-	writeJSON(w, 200, MeResponse{UserID: actor(r), Patients: items, NextCursor: next})
+	profile, err := a.service.Profile(r.Context(), actor(r))
+	if err != nil {
+		resultError(w, r, err)
+		return
+	}
+	writeJSON(w, 200, MeResponse{Profile: profile, UserID: actor(r), Patients: items, NextCursor: next})
 }
 func (a *API) patients(w http.ResponseWriter, r *http.Request) {
 	items, next, err := a.service.Patients(r.Context(), actor(r), r.URL.Query().Get("cursor"))
@@ -175,7 +184,7 @@ func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	out, err := a.service.CreateInvitation(r.Context(), mutation(r, req.OperationID), req.Scopes)
+	out, err := a.service.CreateInvitation(r.Context(), mutation(r, req.OperationID), req.Scopes, req.PatientNameHint)
 	if err != nil {
 		resultError(w, r, err)
 		return
@@ -317,4 +326,21 @@ func (a *API) replenish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, InventoryResponse{out.MovementID, out.Balance.String()})
+}
+
+func (a *API) updateProfile(w http.ResponseWriter, r *http.Request) {
+	var req UpdateProfileRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	patient := r.PathValue("patientId")
+	if patient == "" {
+		patient = actor(r)
+	}
+	out, err := a.service.UpdateProfile(r.Context(), application.UpdateProfileCommand{Mutation: mutation(r, req.OperationID), PatientID: patient, ExpectedVersion: req.ExpectedVersion, DisplayName: req.DisplayName})
+	if err != nil {
+		resultError(w, r, err)
+		return
+	}
+	writeJSON(w, 200, out)
 }

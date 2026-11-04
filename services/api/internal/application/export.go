@@ -19,7 +19,7 @@ const (
 
 type ExportProfile struct {
 	UserID      string    `json:"user_id"`
-	DisplayName string    `json:"display_name"`
+	DisplayName *string   `json:"display_name"`
 	Timezone    string    `json:"timezone"`
 	CreatedAt   time.Time `json:"created_at"`
 }
@@ -60,7 +60,7 @@ func (s *Service) exportAccount(ctx context.Context, actor string, maxRows, maxB
 	}
 	defer tx.Rollback(ctx)
 	out.SchemaVersion = 1
-	err = tx.QueryRow(ctx, `SELECT id::text,display_name,timezone,created_at,transaction_timestamp() FROM users WHERE id=$1`, actor).Scan(&out.Profile.UserID, &out.Profile.DisplayName, &out.Profile.Timezone, &out.Profile.CreatedAt, &out.ExportedAt)
+	err = tx.QueryRow(ctx, `SELECT id::text,CASE WHEN profile_completed_at IS NOT NULL THEN display_name END,timezone,created_at,transaction_timestamp() FROM users WHERE id=$1`, actor).Scan(&out.Profile.UserID, &out.Profile.DisplayName, &out.Profile.Timezone, &out.Profile.CreatedAt, &out.ExportedAt)
 	if err != nil {
 		return AccountExport{}, translate(err)
 	}

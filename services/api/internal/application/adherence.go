@@ -67,7 +67,7 @@ func materializeReport(ctx context.Context, tx pgx.Tx, patient, treatment string
 	}
 	rows, err := tx.Query(ctx, `SELECT id::text FROM treatments WHERE patient_user_id=$1 AND ($2::text='' OR id=NULLIF($2,'')::uuid) ORDER BY id FOR UPDATE`, patient, treatment)
 	if err != nil {
-		return translate(err)
+		return materializationError{err}
 	}
 	ids := []string{}
 	for rows.Next() {
@@ -90,13 +90,19 @@ func materializeReport(ctx context.Context, tx pgx.Tx, patient, treatment string
 		for day := start; day.Before(end); day = day.AddDate(0, 0, domain.HorizonDays) {
 			days := min(domain.HorizonDays, int(end.Sub(day)/(24*time.Hour)))
 			if _, err = generateOccurrences(ctx, tx, id, day.Format("2006-01-02"), days); err != nil {
-				return translate(err)
+				return materializationError{err}
 			}
 		}
 	}
 	return nil
 }
 func (s *Service) Adherence(ctx context.Context, actor, patient, from, to, treatment string, windowMinutes int) (AdherenceReport, error) {
+	return retryMaterializedRead(ctx, func() (AdherenceReport, error) {
+		return s.adherence(ctx, actor, patient, from, to, treatment, windowMinutes)
+	})
+}
+
+func (s *Service) adherence(ctx context.Context, actor, patient, from, to, treatment string, windowMinutes int) (AdherenceReport, error) {
 	out := AdherenceReport{From: from, To: to, AsOf: s.now().UTC(), WindowMinutes: windowMinutes, Days: []AdherenceDay{}}
 	start, end, err := reportRange(from, to)
 	if err != nil || windowMinutes < 0 || windowMinutes > 1440 {
@@ -104,14 +110,14 @@ func (s *Service) Adherence(ctx context.Context, actor, patient, from, to, treat
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
-		return out, translate(err)
+		return out, err
 	}
 	defer tx.Rollback(ctx)
-	if err = authorize(ctx, tx, actor, patientTarget(patient), ScopeRead); err != nil {
-		return out, translate(err)
+	if err = authorizeTx(ctx, tx, actor, patientTarget(patient), ScopeRead); err != nil {
+		return out, err
 	}
 	if err = materializeReport(ctx, tx, patient, treatment, start, end); err != nil {
-		return out, translate(err)
+		return out, err
 	}
 	rows, err := tx.Query(ctx, `SELECT d.scheduled_local_date::text,count(*),
  count(*) FILTER(WHERE d.status='taken'),count(*) FILTER(WHERE d.status='taken_late'),
@@ -122,7 +128,7 @@ func (s *Service) Adherence(ctx context.Context, actor, patient, from, to, treat
  AND d.scheduled_at < $4 AND ($5::text='' OR d.treatment_id=NULLIF($5,'')::uuid)
  GROUP BY d.scheduled_local_date ORDER BY d.scheduled_local_date`, patient, from, to, out.AsOf, treatment, windowMinutes)
 	if err != nil {
-		return out, translate(err)
+		return out, err
 	}
 	byDate := map[string]AdherenceCounts{}
 	for rows.Next() {
@@ -130,7 +136,7 @@ func (s *Service) Adherence(ctx context.Context, actor, patient, from, to, treat
 		var c AdherenceCounts
 		if err = rows.Scan(&date, &c.Evaluable, &c.Taken, &c.TakenLate, &c.Skipped, &c.Unconfirmed, &c.Punctual); err != nil {
 			rows.Close()
-			return out, translate(err)
+			return out, err
 		}
 		c.rates()
 		byDate[date] = c
@@ -144,12 +150,12 @@ func (s *Service) Adherence(ctx context.Context, actor, patient, from, to, treat
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return out, translate(err)
+		return out, err
 	}
 	for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
 		date := day.Format("2006-01-02")
 		out.Days = append(out.Days, AdherenceDay{date, byDate[date]})
 	}
 	out.Summary.rates()
-	return out, translate(tx.Commit(ctx))
+	return out, tx.Commit(ctx)
 }

@@ -131,14 +131,16 @@ type Page[T any] struct {
 	NextCursor string `json:"next_cursor"`
 }
 type InvitationRequest struct {
-	OperationID string              `json:"client_operation_id"`
-	Scopes      []application.Scope `json:"scopes"`
+	PatientNameHint *string             `json:"patient_name_hint,omitempty"`
+	OperationID     string              `json:"client_operation_id"`
+	Scopes          []application.Scope `json:"scopes"`
 }
 type AcceptInvitationRequest struct {
 	OperationID string `json:"client_operation_id"`
 	Token       string `json:"token"`
 }
 type MeResponse struct {
+	application.Profile
 	NextCursor string                      `json:"next_cursor"`
 	UserID     string                      `json:"user_id"`
 	Patients   []application.PatientAccess `json:"patients"`
@@ -178,4 +180,10 @@ type PhysicalCountResponse struct {
 	CountID    string  `json:"count_id"`
 	MovementID *string `json:"movement_id"`
 	Balance    string  `json:"balance"`
+}
+
+type UpdateProfileRequest struct {
+	OperationID     string `json:"client_operation_id"`
+	ExpectedVersion int64  `json:"expected_version"`
+	DisplayName     string `json:"display_name"`
 }

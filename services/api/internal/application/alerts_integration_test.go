@@ -33,7 +33,7 @@ func alertsFixture(t *testing.T) *alertFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead})
+	invitation, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +313,7 @@ func TestF6DeviceOwnershipAndConsentGeneration(t *testing.T) {
 	if err := f.s.RevokeLink(ctx, f.patient, f.link); err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := f.s.CreateInvitation(ctx, mutation(f.caregiver), []Scope{ScopeRead})
+	invitation, err := f.s.CreateInvitation(ctx, mutation(f.caregiver), []Scope{ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -93,7 +93,7 @@ func (f *apiFixture) request(actor, method, path string, body any, want int, out
 }
 func (f *apiFixture) invite(scopes []application.Scope) application.Link {
 	var invite application.Invitation
-	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{domain.NewID(), scopes}, 201, &invite)
+	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{OperationID: domain.NewID(), Scopes: scopes}, 201, &invite)
 	var link application.Link
 	request := AcceptInvitationRequest{domain.NewID(), invite.Token}
 	f.request("patient", "POST", "/v1/invitations/accept", request, 200, &link)
@@ -177,14 +177,14 @@ func TestAPIBOLAAndValidation(t *testing.T) {
 	f.request("patient", "GET", "/v1/patients/"+f.patient+"/doses?from=2026-11-01&to=2027-11-03", nil, 422, nil)
 	f.request("patient", "GET", "/v1/patients/"+f.patient+"/treatments?cursor=invalid", nil, 422, nil)
 	f.request("patient", "GET", "/v1/patients/not-a-uuid/inventory", nil, 422, nil)
-	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{domain.NewID(), []application.Scope{application.ScopeDoses}}, 422, nil)
+	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{OperationID: domain.NewID(), Scopes: []application.Scope{application.ScopeDoses}}, 422, nil)
 	f.invite([]application.Scope{application.ScopeRead, application.ScopeTreatments})
 	f.treatment("caregiver")
 }
 func TestAPIConcurrentAcceptanceAndExpiry(t *testing.T) {
 	f := newAPIFixture(t)
 	ctx := context.Background()
-	invite, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead})
+	invite, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestAPIConcurrentAcceptanceAndExpiry(t *testing.T) {
 	if counts[200] != 1 || counts[409] != 1 {
 		t.Fatal(counts)
 	}
-	expired, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead})
+	expired, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestAPIConcurrentAcceptanceAndExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.request("patient", "POST", "/v1/invitations/accept", AcceptInvitationRequest{domain.NewID(), expired.Token}, 409, nil)
-	self, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead})
+	self, err := f.service.CreateInvitation(ctx, application.Mutation{ActorID: f.caregiver, OperationID: domain.NewID()}, []application.Scope{application.ScopeRead}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
