@@ -15,5 +15,5 @@ jobs:
         with:
           distribution: temurin
           java-version: '21.0.13+9'
-      - run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+      - run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;36.0.0"'
       - run: make build-android test-android lint-android
