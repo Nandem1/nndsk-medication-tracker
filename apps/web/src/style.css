@@ -230,6 +230,11 @@ nav,
   font-size: 0.875rem;
   color: var(--mt-color-text-muted);
 }
+.shared-inventory {
+  display: grid;
+  gap: var(--space-sm, 0.5rem);
+  margin-block: 1rem;
+}
 .notice {
   background: var(--mt-color-unconfirmed-bg);
   color: var(--mt-color-unconfirmed-fg);

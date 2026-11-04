@@ -5,12 +5,15 @@ import { useList, useRefresh } from "../lib/queries";
 import {
   projection,
   movement,
+  poolCandidate,
+  poolResult,
   unitLabels,
   type Treatment,
   type Projection,
 } from "../lib/api/contracts";
 import { decimal } from "../lib/forms";
-import { coverageDays, coverageLabel, coveredShare, subtractDecimal } from "../lib/inventory";
+import { coverageDays, coverageLabel, coveredShare, movementDate, poolOthers, subtractDecimal } from "../lib/inventory";
+import { Button } from "../components/ui/button";
 import { Field, MutationForm } from "../components/forms";
 import { QueryState } from "../components/query-state";
 const reasons: Record<string, string> = {
@@ -19,6 +22,8 @@ const reasons: Record<string, string> = {
   replenishment: "Reposición",
   reversal: "Reversa por corrección",
   manual_adjustment: "Ajuste por conteo físico",
+  pool_transfer: "Traspaso por inventario compartido",
+  shared_activity: "Actividad compartida",
 };
 const unitLabel = (unit: string) => unitLabels[unit as keyof typeof unitLabels] ?? unit;
 function zonedDate(value: string, timezone: string) {
@@ -46,6 +51,63 @@ function ProjectionBar({ item }: { item: Projection }) {
         {item.first_uncovered_at && <li><span aria-hidden="true" className="chart-swatch projection-track" />Sin saldo</li>}
       </ul>
       <p>{description}</p>
+    </div>
+  );
+}
+function SharedInventory({ item, canEdit }: { item: Projection; canEdit: boolean }) {
+  const { api } = useSession();
+  const refresh = useRefresh();
+  const [leaving, setLeaving] = useState(false);
+  const candidates = useList("/inventory/" + item.account_id + "/pool-candidates", poolCandidate, canEdit && !item.pool);
+  const leave = (label: string) => item.pool && (
+    <MutationForm
+      label={label}
+      variant="destructive"
+      prepare={() => ({ account_id: item.account_id })}
+      submit={(data) => api.request("/inventory-pools/" + item.pool?.pool_id + "/leave", poolResult, data)}
+      done={refresh}
+    />
+  );
+  if (item.pool?.status === "active") {
+    return (
+      <div className="shared-inventory">
+        <p><span className="badge">Compartido con {poolOthers(item.pool)}</span></p>
+        <p className="hint">El saldo es común: suma lo que registra cada persona. Si recién empezaron a compartir, conviene hacer un conteo físico.</p>
+        {canEdit && !leaving && <Button variant="outline" onClick={() => setLeaving(true)}>Dejar de compartir</Button>}
+        {canEdit && leaving && (
+          <div className="notice">
+            <p>El saldo se queda con {poolOthers(item.pool)}. Esta cuenta quedará en 0: después registra el stock que tengas.</p>
+            {leave("Confirmar")}
+            <Button variant="outline" onClick={() => setLeaving(false)}>Cancelar</Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (item.pool) {
+    return (
+      <div className="shared-inventory">
+        <p><span className="badge">Esperando a {poolOthers(item.pool, "pending") || "otra persona"}</span></p>
+        <p className="hint">Cada paciente decide por sí mismo. Mientras tanto, los saldos siguen separados.</p>
+        {canEdit && leave("Retirar esta cuenta de la propuesta")}
+      </div>
+    );
+  }
+  if (!canEdit || !candidates.data?.length) return null;
+  return (
+    <div className="shared-inventory">
+      <h4>Compartir con…</h4>
+      <p className="hint">Si usan físicamente la misma caja, pueden compartir el saldo. Cada paciente debe aceptar.</p>
+      {candidates.data.map((candidate) => (
+        <MutationForm
+          key={candidate.account_id}
+          label={"Compartir con " + (candidate.patient_display_name ?? "Paciente sin nombre")}
+          variant="outline"
+          prepare={() => ({ account_ids: [item.account_id, candidate.account_id] })}
+          submit={(data) => api.request("/inventory-pools", poolResult, data)}
+          done={refresh}
+        />
+      ))}
     </div>
   );
 }
@@ -95,6 +157,7 @@ function Account({
           El saldo confirmado es negativo. Conviene revisar el conteo físico.
         </p>
       )}
+      <SharedInventory item={item} canEdit={canEdit} />
       <ProjectionBar item={item} />
       <p className="hint">
         Estimación según la agenda, hasta 30 días. El saldo se basa en registros
@@ -188,10 +251,10 @@ function Account({
                   .toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
                   .map((m) => (
                     <tr key={m.movement_id}>
-                      <td>{new Date(m.created_at).toLocaleString("es-CL")}</td>
+                      <td>{movementDate(m)}</td>
                       <td>{reasons[m.reason] ?? m.reason}</td>
                       <td className="numeric">{m.quantity_delta}</td>
-                      <td>{m.note}</td>
+                      <td>{[m.patient_display_name, m.note].filter(Boolean).join(" · ")}</td>
                     </tr>
                   ))}
               </tbody>

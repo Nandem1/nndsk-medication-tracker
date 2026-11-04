@@ -4908,12 +4908,17 @@
               "pending",
               "accepted"
             ]
+          },
+          "current": {
+            "type": "boolean",
+            "description": "True for the member holding the queried account."
           }
         },
         "required": [
           "patient_display_name",
           "you",
-          "status"
+          "status",
+          "current"
         ]
       },
       "PoolView": {

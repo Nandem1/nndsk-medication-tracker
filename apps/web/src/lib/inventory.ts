@@ -1,4 +1,4 @@
-import type { Projection } from "./api/contracts";
+import type { Movement, Pool, Projection } from "./api/contracts";
 
 function parts(value: string) {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
@@ -46,4 +46,19 @@ export function coverageLabel(item: Pick<Projection, "from" | "through" | "first
   const days = coverageDays(item);
   if (days === null) return windowDays(item) + " días o más";
   return days === 1 ? "1 día" : days + " días";
+}
+
+/** Los demás miembros del inventario, sin la persona dueña de esta cuenta. */
+export function poolOthers(pool: Pool, status?: Pool["members"][number]["status"]) {
+  const names = pool.members
+    .filter((member) => !member.current && (!status || member.status === status))
+    .map((member) => member.patient_display_name ?? "Paciente sin nombre");
+  return [...new Set(names)].join(", ");
+}
+
+/** El servidor anula la hora de la actividad ajena: se muestra sólo la fecha, sin convertir de zona. */
+export function movementDate(item: Pick<Movement, "created_at" | "reason">) {
+  if (item.reason !== "shared_activity") return new Date(item.created_at).toLocaleString("es-CL");
+  const [year, month, day] = item.created_at.slice(0, 10).split("-");
+  return `${day}-${month}-${year}`;
 }

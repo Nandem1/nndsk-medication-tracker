@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverageDays, coverageLabel, coveredShare, subtractDecimal } from "./inventory";
+import { coverageDays, coverageLabel, coveredShare, movementDate, poolOthers, subtractDecimal } from "./inventory";
 
 describe("exact decimal subtraction", () => {
   it("keeps thousandths without float error", () => {
@@ -33,5 +33,17 @@ describe("coverage from the server projection", () => {
   it("never goes below zero for an already uncovered dose", () => {
     expect(coverageDays({ ...window, first_uncovered_at: "2026-11-01T08:00:00Z" })).toBe(0);
     expect(coveredShare({ ...window, first_uncovered_at: "2026-11-01T08:00:00Z" })).toBe(0);
+  });
+});
+
+describe("inventario compartido", () => {
+  const member = (name: string | null, current: boolean, status: "pending" | "accepted" = "accepted") => ({ patient_display_name: name, you: false, current, status });
+  it("nombra sólo a los demás miembros", () => {
+    const pool = { pool_id: "p", status: "active" as const, members: [member("Mamá", true), member("Papá", false), member(null, false, "pending")] };
+    expect(poolOthers(pool)).toBe("Papá, Paciente sin nombre");
+    expect(poolOthers(pool, "pending")).toBe("Paciente sin nombre");
+  });
+  it("muestra la actividad ajena sólo con fecha y sin cambiar de día", () => {
+    expect(movementDate({ created_at: "2026-11-02T00:00:00Z", reason: "shared_activity" })).toBe("02-11-2026");
   });
 });

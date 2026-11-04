@@ -38,6 +38,24 @@ export const treatment = z.object({
   unit: z.enum(["tablet", "capsule", "ml", "dose", "other"]),
   schedule,
 });
+export const pool = z.object({
+  pool_id: z.string(),
+  status: z.enum(["pending", "active"]),
+  members: z.array(z.object({
+    patient_display_name: z.string().nullable(),
+    you: z.boolean(),
+    current: z.boolean(),
+    status: z.enum(["pending", "accepted"]),
+  })),
+});
+export const poolCandidate = z.object({
+  account_id: z.string(),
+  treatment_id: z.string(),
+  patient_id: z.string(),
+  patient_display_name: z.string().nullable(),
+  you: z.boolean(),
+});
+export const poolResult = z.object({ pool_id: z.string(), status: z.enum(["pending", "active", "dissolved"]) });
 export const projection = z.object({
   account_id: z.string(),
   treatment_id: z.string(),
@@ -51,6 +69,7 @@ export const projection = z.object({
   timezone: z.string(),
   replenish_on: z.string().nullable(),
   low_stock: z.boolean(),
+  pool: pool.nullable(),
 });
 export const movement = z.object({
   movement_id: z.string(),
@@ -59,6 +78,8 @@ export const movement = z.object({
   note: z.string(),
   actor_id: z.string(),
   created_at: z.string(),
+  shared: z.boolean(),
+  patient_display_name: z.string().nullable().optional(),
 });
 export const dose = z.object({
   dose_id: z.string(),
@@ -95,6 +116,8 @@ export const link = z.object({
 export type Treatment = z.infer<typeof treatment>;
 export type Patient = z.infer<typeof patient>;
 export type Projection = z.infer<typeof projection>;
+export type Movement = z.infer<typeof movement>;
+export type Pool = z.infer<typeof pool>;
 export type Schedule = z.infer<typeof schedule>;
 export type Scope = z.infer<typeof scope>;
 export const scopeLabels: Record<Scope, string> = {

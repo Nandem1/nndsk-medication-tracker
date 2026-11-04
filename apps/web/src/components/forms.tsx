@@ -46,7 +46,7 @@ export function MutationForm<T>({
   prepare: (data: FormData) => T;
   submit: (payload: T & { client_operation_id: string }) => Promise<unknown>;
   done: () => void;
-  children: ReactNode;
+  children?: ReactNode;
   label: string;
   variant?: "default" | "outline" | "destructive";
 }) {

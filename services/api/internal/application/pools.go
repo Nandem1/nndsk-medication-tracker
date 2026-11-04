@@ -40,6 +40,7 @@ type PoolResult struct {
 type PoolMember struct {
 	PatientDisplayName *string `json:"patient_display_name"`
 	You                bool    `json:"you"`
+	Current            bool    `json:"current"`
 	Status             string  `json:"status"`
 }
 type PoolView struct {
@@ -436,7 +437,7 @@ func poolView(ctx context.Context, tx pgx.Tx, actor, account string) (*PoolView,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,m.patient_user_id=$2,m.status,m.patient_user_id=$2 OR EXISTS (SELECT 1 FROM inventory_pool_members o WHERE o.pool_id=m.pool_id AND o.patient_user_id=$2) OR EXISTS (SELECT 1 FROM caregiver_links l WHERE l.patient_user_id=m.patient_user_id AND l.caregiver_user_id=$2 AND l.status='active' AND 'read'=ANY(l.scopes)) FROM inventory_pool_members m JOIN users u ON u.id=m.patient_user_id WHERE m.pool_id=$1 AND m.status IN ('pending','accepted') ORDER BY m.account_id`, view.PoolID, actor)
+	rows, err := tx.Query(ctx, `SELECT CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,m.patient_user_id=$2,m.account_id=$3,m.status,m.patient_user_id=$2 OR EXISTS (SELECT 1 FROM inventory_pool_members o WHERE o.pool_id=m.pool_id AND o.patient_user_id=$2) OR EXISTS (SELECT 1 FROM caregiver_links l WHERE l.patient_user_id=m.patient_user_id AND l.caregiver_user_id=$2 AND l.status='active' AND 'read'=ANY(l.scopes)) FROM inventory_pool_members m JOIN users u ON u.id=m.patient_user_id WHERE m.pool_id=$1 AND m.status IN ('pending','accepted') ORDER BY m.account_id`, view.PoolID, actor, account)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +446,7 @@ func poolView(ctx context.Context, tx pgx.Tx, actor, account string) (*PoolView,
 	for rows.Next() {
 		var member PoolMember
 		var visible bool
-		if err = rows.Scan(&member.PatientDisplayName, &member.You, &member.Status, &visible); err != nil {
+		if err = rows.Scan(&member.PatientDisplayName, &member.You, &member.Current, &member.Status, &visible); err != nil {
 			return nil, err
 		}
 		if !visible {
