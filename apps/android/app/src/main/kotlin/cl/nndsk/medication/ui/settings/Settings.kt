@@ -1,5 +1,8 @@
 package cl.nndsk.medication.ui.settings
 
+import android.content.ClipboardManager
+import cl.nndsk.medication.ui.account.ProfileEditor
+import cl.nndsk.medication.ui.caregiver.InviteSheet
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -24,7 +27,7 @@ import cl.nndsk.medication.ui.theme.GraphiteTokens
 import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import cl.nndsk.medication.ui.components.*
 
-@Composable internal fun PatientSettings(model: PatientViewModel, state: AppState, open: (String) -> Unit) {
+@Composable internal fun PatientSettings(model: PatientViewModel, state: AppState, open: (String, String) -> Unit) {
     val context = LocalContext.current
     val colors = MedicationTrackerTheme.colors
     var diagnostic by remember { mutableStateOf(model.app.reminders.diagnostic()) }
@@ -36,10 +39,17 @@ import cl.nndsk.medication.ui.components.*
         model.run { model.app.reminders.reconcile(); model.app.remotePush.reconcile(); refresh() }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
+    var invite by remember { mutableStateOf(false) }
     var logout by remember { mutableStateOf(false) }
     var discard by remember { mutableStateOf<PendingOperation?>(null) }
     val notificationSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
+        state.own?.let { ProfileEditor(model, it, state.busy) }
+        SectionCard("Uso de la app") {
+            DoseAction("Tomo mis medicamentos") { model.run { model.repository.setUse(false) } }
+            DoseAction("Cuido a alguien") { model.run { model.repository.setUse(true) } }
+            DoseAction("Invitar paciente") { invite = true }
+        }
         SectionCard("Recordatorios") {
             StatusChip(when {
                 !permitted -> Chip(diagnostic, R.drawable.ic_notifications_off, colors.unconfirmedFg, colors.unconfirmedBg)
@@ -55,30 +65,31 @@ import cl.nndsk.medication.ui.components.*
             }
             DoseAction("Ajustes de notificaciones") { notificationSettings() }
         }
-        SectionCard("Avisos remotos del cuidador") { Text(pushDiagnostic) }
+        if (model.app.remotePush.configured) SectionCard("Avisos remotos del cuidador") { Text(pushDiagnostic) }
         if (state.operations.isNotEmpty()) SectionCard("Registros pendientes") {
             state.operations.forEach { op ->
                 val body = wireJson.decodeFromString<Command>(op.body)
-                val dose = state.snapshot?.doses?.find { it.id == op.dose }
-                val treatment = state.snapshot?.treatments?.find { it.id == dose?.treatmentId }
+                val dose = state.patient(op.patient)?.doses?.find { it.id == op.dose }
+                val treatment = state.patient(op.patient)?.treatments?.find { it.id == dose?.treatmentId }
                 Column(verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xs)) {
-                    Text(treatment?.name ?: "Dosis fuera de la agenda guardada · ${op.dose.take(8)}", style = GraphiteTokens.Type.patientLabel)
+                    Text(treatment?.name ?: "Registro de paciente sin agenda disponible", style = GraphiteTokens.Type.patientLabel)
                     dose?.let { Note("${longLocalDate(it.localDate)} · ${doseTime(it)}") }
-                    Note(declarationLabel(body.eventType) + body.occurredAt?.let { " · ${formatInstant(it)}" }.orEmpty())
+                    Note(declarationLabel(body.eventType, op.patient != state.own?.context?.patientId) + body.occurredAt?.let { " · ${formatInstant(it)}" }.orEmpty())
                     StatusChip(operationChip(op.status))
-                    dose?.let { TextButton(onClick = { open(it.id) }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Abrir dosis") } }
+                    dose?.let { TextButton(onClick = { open(it.id, op.patient) }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Abrir dosis") } }
                     if (op.status != "pending") TextButton(onClick = { discard = op }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text("Descartar declaración local") }
                 }
             }
         }
         Consent(model, state)
         SectionCard("Cuenta") {
-            state.snapshot?.refreshedAt?.let { InfoRow("Última actualización", formatInstant(it)) }
+            state.own?.refreshedAt?.let { InfoRow("Última actualización", formatInstant(it)) }
             Note("Estos registros son autodeclarados y no demuestran ingestión.")
             DoseAction("Cerrar sesión", enabled = !state.busy) { logout = true }
         }
         Spacer(Modifier.height(GraphiteTokens.Space.lg))
     }
+    if (invite) InviteSheet(model) { invite = false }
     if (logout) AlertDialog(onDismissRequest = { logout = false }, title = { Text("Cerrar sesión") },
         text = { Text("Se borrarán la agenda, los recordatorios y ${state.operations.size} declaraciones locales pendientes de este teléfono. Sincroniza primero si deseas conservarlas en el servidor.") },
         confirmButton = { TextButton(onClick = { logout = false; model.run { model.repository.logout() } }) { Text("Cerrar y borrar datos locales") } },
@@ -90,16 +101,18 @@ import cl.nndsk.medication.ui.components.*
 }
 
 @Composable private fun Consent(model: PatientViewModel, state: AppState) {
+    val context = LocalContext.current
     var token by remember { mutableStateOf("") }; var preview by remember { mutableStateOf<Pair<String, Invitation>?>(null) }
     var previewBusy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }; var revoke by remember { mutableStateOf<Link?>(null) }
     SectionCard("Acceso de cuidadores") {
         Note("Tú autorizas el acceso y puedes revocarlo. Un teléfono sin conexión puede conservar su copia hasta volver a conectarse.")
-        state.snapshot?.links.orEmpty().forEach { link ->
-            InfoRow("Cuidador ${link.caregiverId}", link.scopes.joinToString { scopeLabel(it) })
+        state.own?.links.orEmpty().forEach { link ->
+            InfoRow(link.caregiverName ?: "Cuidador sin nombre", link.scopes.joinToString { scopeLabel(it) })
             DoseAction("Revocar acceso", enabled = !state.busy) { revoke = link }
         }
         OutlinedTextField(token, { token = it; preview = null; error = null }, label = { Text("Código de invitación") }, enabled = !previewBusy, modifier = Modifier.fillMaxWidth())
+        DoseAction("Pegar código") { token = context.getSystemService(ClipboardManager::class.java).primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty(); preview = null }
         DoseAction("Revisar invitación", enabled = token.isNotBlank() && !state.busy && !previewBusy) {
             val requestedToken = token.trim()
             previewBusy = true
@@ -113,7 +126,8 @@ import cl.nndsk.medication.ui.components.*
         }
         error?.let { Text(it, color = MedicationTrackerTheme.colors.dangerFg) }
         preview?.let { (reviewedToken, invitation) ->
-            InfoRow("Cuidador", invitation.caregiverId)
+            InfoRow("Cuidador", invitation.caregiverName ?: "Cuidador sin nombre")
+            invitation.patientNameHint?.let { InfoRow("Nombre sugerido", it) }
             InfoRow("Permisos solicitados", invitation.scopes.joinToString { scopeLabel(it) })
             InfoRow("Vence", formatInstant(invitation.expiresAt))
             DoseAction("Autorizar estos permisos", prominent = true, enabled = !state.busy) { model.run { model.repository.accept(reviewedToken); preview = null } }

@@ -42,7 +42,7 @@ class LocalDatabaseTest {
             repository.logout()
             assertNull(identity.uid)
             assertEquals(Session.SignedOut, repository.state.value.session)
-            assertNull(repository.state.value.snapshot)
+            assertNull(repository.state.value.own)
             assertTrue(repository.state.value.operations.isEmpty())
             assertTrue(repository.state.value.message.orEmpty().contains("no se pudieron borrar"))
         } finally { secret.clear() }
@@ -72,11 +72,32 @@ class LocalDatabaseTest {
     @Test fun sessionIsEncryptedAndSurvivesReopen() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val store = SecretStore(context, "test-identity.enc")
-        val credentials = Credentials("synthetic-uid", "synthetic-token", "synthetic-refresh", 123)
+        val credentials = Credentials("synthetic-uid", "synthetic-token", "synthetic-refresh", 123, email = "synthetic@example.test", caregiverPreference = true)
         try {
             store.save(credentials)
             assertEquals(credentials, SecretStore(context, "test-identity.enc").read())
             assertFalse(java.io.File(context.noBackupFilesDir, "test-identity.enc").readText().contains("synthetic-token"))
         } finally { store.clear() }
     }
+    @Test fun revocationPreservesRejectedOperationsAndOtherPatientsAcrossReopen() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "family-${UUID.randomUUID()}.db"
+        fun open() = Room.databaseBuilder(context, LocalDatabase::class.java, name).build()
+        var db = open()
+        try {
+            listOf("one", "two").forEach { patient ->
+                db.local().save(StoredSnapshot("owner", patient, wireJson.encodeToString(Snapshot(PatientContext("owner", "actor", patient)))))
+                db.local().enqueue(PendingOperation(patient, "owner", patient, patient, "path", "immutable", 1, if (patient == "one") "conflict" else "pending"))
+            }
+            db.local().denyPatient("owner", "one"); db.local().clearPatient("owner", "one")
+            db.close(); db = open()
+            assertEquals(listOf("two"), db.local().snapshots("owner").map { it.patient })
+            val operations = db.local().allOperations("owner")
+            assertEquals(2, operations.size)
+            assertEquals("denied", operations.single { it.patient == "one" }.status)
+            assertEquals("pending", operations.single { it.patient == "two" }.status)
+            assertTrue(operations.all { it.body == "immutable" })
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
+
 }

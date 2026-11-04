@@ -27,7 +27,7 @@ import cl.nndsk.medication.ui.components.*
 import cl.nndsk.medication.ui.detail.DeclarationActions
 
 /** Cuenta registros, no tomas: una omisión también suma. Sin rachas ni metas. */
-@Composable internal fun Today(model: PatientViewModel, state: AppState, now: Instant, open: (String) -> Unit) {
+@Composable internal fun Today(model: PatientViewModel, state: PatientScreen, now: Instant, open: (String) -> Unit) {
     val snapshot = state.snapshot
     val context = LocalContext.current
     val plan = todayPlan(snapshot?.doses.orEmpty(), state.operations, now)
@@ -37,7 +37,7 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
         val zone = snapshot?.doses?.firstOrNull()?.let { ZoneId.of(it.timezone) } ?: ZoneId.systemDefault()
         Text(longDate(now, zone), style = GraphiteTokens.Type.patientBody, color = colors.textMuted, modifier = Modifier.semantics { heading() })
-        if (plan.total > 0) Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm)) {
+        if (!state.caregiver && plan.total > 0) Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm)) {
             Text("${plan.registeredCount} de ${plan.total} registradas", style = GraphiteTokens.Type.patientLabel)
             LinearProgressIndicator({ plan.registeredCount.toFloat() / plan.total }, Modifier.fillMaxWidth(), color = colors.action, trackColor = colors.border, drawStopIndicator = {})
         }
@@ -66,7 +66,7 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
             SectionTitle("Ya registradas")
             plan.registered.forEach { DoseRow(it, state, now, open = open) }
         }
-        if (!permitted) {
+        if (!state.caregiver && !permitted) {
             StatusChip(Chip("Recordatorios desactivados", R.drawable.ic_notifications_off, colors.unconfirmedFg, colors.unconfirmedBg))
             Text("Este teléfono no te avisará de tus tomas. Puedes activarlos en los ajustes de notificaciones.")
             DoseAction("Abrir ajustes de notificaciones") { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
@@ -76,12 +76,12 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
 }
 
 /** La toma que falta registrar, con las tres declaraciones a la vista. */
-@Composable private fun NowCard(model: PatientViewModel, state: AppState, dose: Dose, now: Instant, open: (String) -> Unit) {
+@Composable private fun NowCard(model: PatientViewModel, state: PatientScreen, dose: Dose, now: Instant, open: (String) -> Unit) {
     val treatment = state.snapshot?.treatments?.find { it.id == dose.treatmentId }
     val due = Instant.parse(dose.scheduledAt) <= now
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(GraphiteTokens.Radius.lg), colors = CardDefaults.cardColors(containerColor = MedicationTrackerTheme.colors.surface), border = BorderStroke(1.dp, MedicationTrackerTheme.colors.border)) {
         Column(Modifier.padding(GraphiteTokens.Space.lg), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
-            Text(if (due) "Ahora toca" else "Próxima toma", style = GraphiteTokens.Type.patientLabel, color = MedicationTrackerTheme.colors.textMuted, modifier = Modifier.semantics { heading() })
+            Text(if (due && state.caregiver) "Falta registrar" else if (due) "Ahora toca" else "Próxima toma", style = GraphiteTokens.Type.patientLabel, color = MedicationTrackerTheme.colors.textMuted, modifier = Modifier.semantics { heading() })
             Column(Modifier.fillMaxWidth().clickable(onClickLabel = "Abrir detalle") { open(dose.id) }, verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xs)) {
                 Text(doseTime(dose), style = GraphiteTokens.Type.patientDisplay)
                 Text(treatment?.name ?: "Tratamiento", style = GraphiteTokens.Type.patientTitle)

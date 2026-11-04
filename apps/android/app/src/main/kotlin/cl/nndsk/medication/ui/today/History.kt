@@ -11,7 +11,7 @@ import cl.nndsk.medication.ui.theme.GraphiteTokens
 import java.time.*
 import cl.nndsk.medication.ui.components.*
 
-@Composable internal fun History(state: AppState, now: Instant, open: (String) -> Unit) {
+@Composable internal fun History(state: PatientScreen, now: Instant, open: (String) -> Unit) {
     val snapshot = state.snapshot
     val days = historyDays(snapshot?.doses.orEmpty(), now)
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {

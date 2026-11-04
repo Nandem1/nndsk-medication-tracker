@@ -19,6 +19,7 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 
 fun reminderDoses(snapshot: Snapshot, pending: List<PendingOperation>, now: Instant): List<Dose> {
+    if (snapshot.context.patientId != snapshot.context.actorId) return emptyList()
     val blocked = pending.map { it.dose }.toSet()
     return snapshot.doses.filter { !it.declared() && it.id !in blocked && Instant.parse(it.scheduledAt) > now }
         .sortedBy { it.scheduledAt }.take(128)
@@ -73,6 +74,7 @@ class Reminders(private val context: Context, private val db: LocalDatabase, pri
         if (parts.size != 3 || parts[0] != identity.uid || !permitted()) return@withLock
         val stored = db.local().snapshot(parts[0], parts[1]) ?: return@withLock
         val snapshot = wireJson.decodeFromString<Snapshot>(stored.json)
+        if (snapshot.context.patientId != snapshot.context.actorId) return@withLock
         val dose = snapshot.doses.find { it.id == parts[2] } ?: return@withLock
         if (uri.getQueryParameter("at") != dose.scheduledAt || Instant.parse(dose.scheduledAt) > Instant.now()) return@withLock
         if (dose.declared() || db.local().operations(parts[0], parts[1]).any { it.dose == dose.id }) return@withLock

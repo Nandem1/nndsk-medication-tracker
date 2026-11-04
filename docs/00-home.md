@@ -1,6 +1,6 @@
 # Mapa del monorepo
 
-El portal web del cuidador y las apps iOS y Android del paciente consumen la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. El worker Go comparte módulo con la API y procesa una outbox de alertas. APNs y FCM tienen adaptadores y registro nativo, con entrega remota aún pendiente de verificar. Android tiene proyecto compilable y pruebas en emulador. F5 está aceptada por el usuario tras revisión en teléfono físico, con cobertura pendiente documentada.
+El portal web del cuidador, la app Android de pacientes y cuidadores y la app iOS del paciente consumen la API Go. Firebase verifica identidad y PostgreSQL conserva permisos, consentimiento e historial. El worker Go comparte módulo con la API y procesa una outbox de alertas. APNs y FCM tienen adaptadores y registro nativo, con entrega remota aún pendiente de verificar. Android tiene proyecto compilable y pruebas en emulador. F5 está aceptada por el usuario tras revisión en teléfono físico, con cobertura pendiente documentada.
 
 ```mermaid
 flowchart TB
@@ -48,7 +48,7 @@ flowchart TB
 | App | Mapa local | Estado |
 | --- | --- | --- |
 | iOS | [Mapa iOS](../apps/ios/docs/00-home.md) | App SwiftUI del paciente. Flujo completo verificado en simulador; en iPhone físico, instalación y login |
-| Android | [Mapa Android](../apps/android/docs/00-home.md) | Compose, Room, consentimiento y recordatorios. Verificación en emulador y aceptación del usuario en teléfono físico; cobertura pendiente en el runbook |
+| Android | [Mapa Android](../apps/android/docs/00-home.md) | Compose, Room por cuenta y paciente, modo cuidador, consentimiento e inventario. Recordatorios sólo propios. F5 tiene aceptación física; modo familia se verifica en emulador |
 | Web | [Mapa web](../apps/web/docs/00-home.md) | Portal React con login, consentimiento, tratamientos, inventario y agenda |
 
 Los detalles internos de cada app se documentan en su mapa local cuando se implementan. Los límites compartidos permanecen aquí. La UI no se comparte entre plataformas.

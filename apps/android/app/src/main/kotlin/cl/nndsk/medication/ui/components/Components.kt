@@ -22,6 +22,7 @@ import java.time.*
 
 internal const val overdueHint = "Abre una toma para registrar lo que ocurrió. Esta app no indica tomarla ahora."
 internal const val missedGuidance = "Si olvidaste una dosis o la tomaste tarde, sigue lo que te indicó tu profesional de salud o pregunta a un farmacéutico. Esta app no te indica cambiar ni reponer dosis."
+internal const val caregiverGuidance = "Si una dosis se olvidó o se tomó tarde, sigue las instrucciones del profesional de salud o consulta a un farmacéutico. Esta app no indica cambiar ni reponer dosis."
 /** Agrupa una parte de la pantalla sobre la superficie de tarjeta, como las secciones de iOS. */
 @Composable internal fun SectionCard(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val colors = MedicationTrackerTheme.colors
@@ -93,16 +94,16 @@ internal data class Chip(val text: String, val icon: Int, val foreground: Color,
     val colors = MedicationTrackerTheme.colors
     val text = state.message
     if (!state.offline && text == null) return
-    val danger = text != null && (state.rejected || state.session != Session.Active)
+    val danger = text != null && !state.informational && (state.rejected || state.session != Session.Active)
     val foreground = if (danger) colors.dangerFg else colors.syncFg
     Surface(color = if (danger) colors.dangerBg else colors.syncBg, contentColor = foreground, shape = RoundedCornerShape(GraphiteTokens.Radius.md), modifier = Modifier.fillMaxWidth().padding(vertical = GraphiteTokens.Space.sm)) {
         Row(Modifier.padding(GraphiteTokens.Space.md).semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm)) {
-            Icon(painterResource(if (state.offline) R.drawable.ic_offline else R.drawable.ic_warning), contentDescription = null)
+            Icon(painterResource(if (state.offline) R.drawable.ic_offline else if (state.informational) R.drawable.ic_taken else R.drawable.ic_warning), contentDescription = null)
             Column {
                 if (state.offline) {
                     Text("Sin conexión", style = GraphiteTokens.Type.patientLabel)
                     Text(style = GraphiteTokens.Type.caregiverBody, text = if (state.session == Session.Active) "Tus registros quedan guardados en este teléfono. Se enviarán cuando vuelva la conexión y sincronices." else "Revisa la conexión e intenta de nuevo.")
-                    state.snapshot?.refreshedAt?.let { Text("Datos guardados de: ${formatInstant(it)}", style = GraphiteTokens.Type.caregiverCaption) }
+                    state.own?.refreshedAt?.let { Text("Datos guardados de: ${formatInstant(it)}", style = GraphiteTokens.Type.caregiverCaption) }
                 } else Text(text.orEmpty())
             }
         }
@@ -110,7 +111,7 @@ internal data class Chip(val text: String, val icon: Int, val foreground: Color,
 }
 
 internal fun formatInstant(value: String): String = runCatching { Instant.parse(value).atZone(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")) }.getOrDefault(value)
-internal fun declarationLabel(value: String) = when (value) { "taken" -> "Me lo tomé"; "taken_late" -> "Me lo tomé tarde"; else -> "No me lo tomé" }
+internal fun declarationLabel(value: String, caregiver: Boolean = false) = if (caregiver) when (value) { "taken" -> "Se lo tomó"; "taken_late" -> "Se lo tomó tarde"; else -> "No se lo tomó" } else when (value) { "taken" -> "Me lo tomé"; "taken_late" -> "Me lo tomé tarde"; else -> "No me lo tomé" }
 internal fun operationLabel(value: String) = when (value) { "conflict" -> "Necesita revisión: cambió en el servidor"; "rejected" -> "Necesita revisión: datos rechazados"; "denied" -> "Necesita revisión: acceso denegado"; else -> "Guardada, falta enviar" }
 internal fun doseTime(dose: Dose) = if (dose.timezone == ZoneId.systemDefault().id) dose.localTime else "${dose.localTime} (${dose.timezone})"
 internal fun unitLabel(value: String?) = when (value) { "tablet" -> "comprimidos"; "capsule" -> "cápsulas"; "dose" -> "dosis"; "ml" -> "ml"; else -> "unidades" }

@@ -25,7 +25,7 @@ class ReminderTest {
         secret.save(Credentials("reminder-owner", "synthetic", "synthetic", Long.MAX_VALUE))
         val identity = Identity(secret)
         val scheduler = Reminders(context, db, identity)
-        val c = PatientContext("reminder-owner", "actor", "patient")
+        val c = PatientContext("reminder-owner", "patient", "patient")
         val now = Instant.now()
         val dose = Dose("dose", "treatment", now.minusSeconds(1).toString(), "2026-11-03", "12:00", "UTC", false, "0.500", "pending", 1)
         val snapshot = Snapshot(c, listOf(dose))
@@ -44,6 +44,9 @@ class ReminderTest {
                 assertFalse("Revoke exact alarms for this test package first", scheduler.exact())
                 assertTrue(scheduler.diagnostic().contains("Precisión limitada"))
             }
+            db.local().save(StoredSnapshot(c.ownerUid, c.patientId, wireJson.encodeToString(snapshot.copy(context = c.copy(actorId = "caregiver")))))
+            scheduler.deliver(uri)
+            assertTrue("A previously scheduled foreign agenda must never notify", manager.activeNotifications.isEmpty())
             val future = dose.copy(scheduledAt = now.plusSeconds(120).toString())
             db.local().save(StoredSnapshot(c.ownerUid, c.patientId, wireJson.encodeToString(snapshot.copy(doses = listOf(future)))))
             scheduler.reconcile()

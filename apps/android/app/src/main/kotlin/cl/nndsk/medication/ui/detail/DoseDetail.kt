@@ -18,7 +18,7 @@ import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.time.*
 import cl.nndsk.medication.ui.components.*
 
-@Composable internal fun DoseDetail(model: PatientViewModel, state: AppState, id: String) {
+@Composable internal fun DoseDetail(model: PatientViewModel, state: PatientScreen, id: String) {
     val snapshot = state.snapshot
     val dose = snapshot?.doses?.find { it.id == id }
     if (dose == null) { Text("Esta dosis ya no está en la agenda actual. Revisa los pendientes en Ajustes.", style = GraphiteTokens.Type.patientBody); return }
@@ -43,7 +43,7 @@ import cl.nndsk.medication.ui.components.*
             if (pending?.status == "pending") Note("Tu declaración está guardada. Se enviará cuando haya conexión.")
         }
         if (pending != null && pending.status != "pending") SectionCard("Revisar registro") {
-            InfoRow("Tu registro", declarationLabel(wireJson.decodeFromString<Command>(pending.body).eventType))
+            InfoRow("Tu registro", declarationLabel(wireJson.decodeFromString<Command>(pending.body).eventType, state.caregiver))
             StatusChip(doseChip(dose, null, now))
             Note("Es lo que tiene el servidor. Puedes conservarlo y descartar tu registro local.")
             DoseAction("Descartar mi registro") { discard = pending }
@@ -61,11 +61,11 @@ import cl.nndsk.medication.ui.components.*
         if (!treatment?.instructions.isNullOrEmpty()) SectionCard("Instrucciones registradas") {
             Text(treatment!!.instructions, style = GraphiteTokens.Type.patientBody)
         }
-        if (pending == null && dose.declared() && dose.eventId != null) DoseAction("Corregir este registro") { correcting = true }
-        Note(missedGuidance)
+        if (state.permits("doses") && pending == null && dose.declared() && dose.eventId != null) DoseAction("Corregir este registro") { correcting = true }
+        Note(if (state.caregiver) caregiverGuidance else missedGuidance)
         Spacer(Modifier.height(GraphiteTokens.Space.md))
     }
-    if (correcting) CorrectionSheet(dose, onDismiss = { correcting = false }) { command ->
+    if (correcting) CorrectionSheet(dose, state.caregiver, onDismiss = { correcting = false }) { command ->
         correcting = false
         model.run { model.repository.record(snapshot.context, id, command) }
     }
@@ -77,7 +77,7 @@ import cl.nndsk.medication.ui.components.*
 
 /** La corrección es una acción aparte: conserva el historial y exige motivo. */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun CorrectionSheet(dose: Dose, onDismiss: () -> Unit, save: (Command) -> Unit) {
+@Composable private fun CorrectionSheet(dose: Dose, caregiver: Boolean, onDismiss: () -> Unit, save: (Command) -> Unit) {
     val colors = MedicationTrackerTheme.colors
     var selected by remember { mutableStateOf("skipped") }
     var date by remember { mutableStateOf(dose.localDate) }; var time by remember { mutableStateOf("") }
@@ -91,12 +91,12 @@ import cl.nndsk.medication.ui.components.*
                 Row(Modifier.fillMaxWidth().heightIn(min = GraphiteTokens.Size.minTouchAndroid).selectable(selected == type, role = Role.RadioButton) { selected = type; error = null },
                     horizontalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected == type, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = colors.action))
-                    Text(declarationLabel(type), style = GraphiteTokens.Type.patientLabel)
+                    Text(declarationLabel(type, caregiver), style = GraphiteTokens.Type.patientLabel)
                 }
             }
             if (selected == "taken_late") {
-                Note("Indica cuándo la tomaste, en la zona ${dose.timezone}.")
-                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset) { selectedOffset = it }
+                Note(if (caregiver) "Indica cuándo se lo tomó, en la zona ${dose.timezone}." else "Indica cuándo la tomaste, en la zona ${dose.timezone}.")
+                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset, caregiver) { selectedOffset = it }
             }
             OutlinedTextField(reason, { reason = it; error = null }, label = { Text("Motivo de la corrección") }, modifier = Modifier.fillMaxWidth())
             error?.let { Text(it, color = colors.dangerFg) }

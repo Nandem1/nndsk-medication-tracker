@@ -21,7 +21,8 @@ import java.time.*
 import cl.nndsk.medication.ui.components.*
 
 /** Las tres declaraciones, sin penalización visual. Las dosis futuras no admiten registro, igual que en la API. */
-@Composable internal fun DeclarationActions(model: PatientViewModel, state: AppState, dose: Dose, now: Instant) {
+@Composable internal fun DeclarationActions(model: PatientViewModel, state: PatientScreen, dose: Dose, now: Instant) {
+    if (!state.permits("doses")) return
     var late by remember(dose.id) { mutableStateOf(false) }
     if (Instant.parse(dose.scheduledAt) > now) {
         Text("Podrás registrarla desde las ${dose.localTime}.", style = GraphiteTokens.Type.patientLabel, color = MedicationTrackerTheme.colors.textMuted)
@@ -30,16 +31,16 @@ import cl.nndsk.medication.ui.components.*
     val context = state.snapshot?.context ?: return
     val declare = { type: String, occurred: Instant? -> model.run { model.repository.record(context, dose.id, declaration(dose, type, occurred, null)) } }
     Column(verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.sm)) {
-        DoseAction("Me lo tomé", prominent = true) { declare("taken", null) }
-        DoseAction("Me lo tomé tarde") { late = true }
-        DoseAction("No me lo tomé") { declare("skipped", null) }
+        DoseAction(if (state.caregiver) "Se lo tomó" else "Me lo tomé", prominent = true) { declare("taken", null) }
+        DoseAction(if (state.caregiver) "Se lo tomó tarde" else "Me lo tomé tarde") { late = true }
+        DoseAction(if (state.caregiver) "No se lo tomó" else "No me lo tomé") { declare("skipped", null) }
     }
-    if (late) LateSheet(dose, onDismiss = { late = false }) { late = false; declare("taken_late", it) }
+    if (late) LateSheet(dose, state.caregiver, onDismiss = { late = false }) { late = false; declare("taken_late", it) }
 }
 
 /** Pide la hora efectiva. El botón muestra la hora que se guardará y nunca admite una futura. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable private fun LateSheet(dose: Dose, onDismiss: () -> Unit, save: (Instant) -> Unit) {
+@Composable private fun LateSheet(dose: Dose, caregiver: Boolean, onDismiss: () -> Unit, save: (Instant) -> Unit) {
     var occurred by remember { mutableStateOf(LateTime.floorToMinute(Instant.now())) }
     var manual by remember { mutableStateOf(false) }
     var date by remember { mutableStateOf("") }; var time by remember { mutableStateOf("") }
@@ -49,7 +50,7 @@ import cl.nndsk.medication.ui.components.*
     val colors = MedicationTrackerTheme.colors
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = GraphiteTokens.Space.lg), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("¿A qué hora lo tomaste?", style = GraphiteTokens.Type.patientBody, modifier = Modifier.semantics { heading() })
+            Text(if (caregiver) "¿A qué hora se lo tomó?" else "¿A qué hora lo tomaste?", style = GraphiteTokens.Type.patientBody, modifier = Modifier.semantics { heading() })
             Text(label, style = GraphiteTokens.Type.patientDisplay, modifier = Modifier.semantics { contentDescription = "Hora de la toma: $label" })
             Text(longDate(occurred, ZoneId.of(dose.timezone)), style = GraphiteTokens.Type.patientLabel, color = colors.textMuted)
             if (dose.timezone != ZoneId.systemDefault().id) Text("Hora de ${dose.timezone}", color = colors.textMuted)
@@ -66,7 +67,7 @@ import cl.nndsk.medication.ui.components.*
             }
             TextButton(onClick = { manual = !manual }, modifier = Modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) { Text(if (manual) "Ocultar otra fecha u hora" else "Otra fecha u hora") }
             if (manual) {
-                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset) { selectedOffset = it }
+                EffectiveTimeFields(dose.timezone, date, { date = it; error = null }, time, { time = it; error = null }, selectedOffset, caregiver) { selectedOffset = it }
                 error?.let { Text(it, color = colors.dangerFg) }
                 DoseAction("Usar esta fecha y hora") {
                     try {
@@ -78,7 +79,7 @@ import cl.nndsk.medication.ui.components.*
                 }
             }
             DoseAction("Guardar con las $label", prominent = true) { save(occurred) }
-            Text(missedGuidance, color = colors.textMuted)
+            Text(if (caregiver) caregiverGuidance else missedGuidance, color = colors.textMuted)
             Spacer(Modifier.height(GraphiteTokens.Space.lg))
         }
     }

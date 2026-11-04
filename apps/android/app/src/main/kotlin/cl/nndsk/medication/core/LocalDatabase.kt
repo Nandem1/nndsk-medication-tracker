@@ -19,6 +19,12 @@ interface LocalDao {
     suspend fun snapshot(owner: String, patient: String): StoredSnapshot?
     @Query("SELECT * FROM snapshots WHERE owner=:owner")
     suspend fun snapshots(owner: String): List<StoredSnapshot>
+    @Query("SELECT * FROM operations WHERE owner=:owner ORDER BY createdAt,id")
+    suspend fun allOperations(owner: String): List<PendingOperation>
+    @Query("DELETE FROM snapshots WHERE owner=:owner AND patient=:patient")
+    suspend fun clearPatient(owner: String, patient: String)
+    @Query("UPDATE operations SET status='denied' WHERE owner=:owner AND patient=:patient")
+    suspend fun denyPatient(owner: String, patient: String)
     @Upsert suspend fun save(snapshot: StoredSnapshot)
     @Query("SELECT * FROM operations WHERE owner=:owner AND patient=:patient ORDER BY createdAt,id")
     suspend fun operations(owner: String, patient: String): List<PendingOperation>

@@ -58,7 +58,7 @@ class RemotePushRegistration(private val context: Context, private val identity:
     private val status = MutableStateFlow("Avisos remotos sin configurar.")
     val diagnostic = status.asStateFlow()
     private var suspended = false
-    private val configured = BuildConfig.FIREBASE_PROJECT_ID.isNotBlank() && BuildConfig.FIREBASE_APP_ID.isNotBlank() &&
+    val configured = BuildConfig.FIREBASE_PROJECT_ID.isNotBlank() && BuildConfig.FIREBASE_APP_ID.isNotBlank() &&
         BuildConfig.FIREBASE_SENDER_ID.isNotBlank() && BuildConfig.AUTH_EMULATOR.isBlank()
     private val installation by lazy {
         val file = File(context.noBackupFilesDir, "push-installation")

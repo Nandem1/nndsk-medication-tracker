@@ -56,7 +56,7 @@ func serveFaultProxy(address, target string) {
 		case offline:
 			drop(w)
 		case loseResponses:
-			if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/v1/doses/") {
+			if r.Method == http.MethodPost && (strings.HasPrefix(r.URL.Path, "/v1/doses/") || strings.HasPrefix(r.URL.Path, "/v1/inventory/")) {
 				forward.ServeHTTP(httptest.NewRecorder(), r)
 				drop(w)
 				return

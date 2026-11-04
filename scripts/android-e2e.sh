@@ -45,6 +45,6 @@ sh scripts/android-gradle.sh :app:assembleE2e :app:assembleE2eAndroidTest -Ptest
 "$ADB" -s "$ANDROID_SERIAL" shell pm grant cl.nndsk.medication.e2e android.permission.POST_NOTIFICATIONS
 "$ADB" -s "$ANDROID_SERIAL" shell cmd appops set cl.nndsk.medication.e2e SCHEDULE_EXACT_ALARM allow
 "$ADB" -s "$ANDROID_SERIAL" shell am instrument -w -e class cl.nndsk.medication.core.AndroidE2ETest cl.nndsk.medication.e2e.test/androidx.test.runner.AndroidJUnitRunner > "$LOGS/instrumentation.log"
-rg -q 'OK \(1 test\)' "$LOGS/instrumentation.log" || { cat "$LOGS/instrumentation.log"; exit 1; }
+rg -q 'OK \([1-9][0-9]* tests?\)' "$LOGS/instrumentation.log" || { cat "$LOGS/instrumentation.log"; exit 1; }
 "$ADB" -s "$ANDROID_SERIAL" exec-out run-as cl.nndsk.medication.e2e cat files/e2e-agenda.png > "$LOGS/agenda.png"
 printf 'PASS: Android UI, Doze, notification, offline retries and conflict with real API/PostgreSQL.\n'

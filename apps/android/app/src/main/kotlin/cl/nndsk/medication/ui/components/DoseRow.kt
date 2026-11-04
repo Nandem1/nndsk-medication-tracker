@@ -17,7 +17,7 @@ import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.time.*
 
 /** Fila de al menos 64 dp que abre el detalle; crece con la escala de fuente. */
-@Composable internal fun DoseRow(dose: Dose, state: AppState, now: Instant, open: (String) -> Unit) {
+@Composable internal fun DoseRow(dose: Dose, state: PatientScreen, now: Instant, open: (String) -> Unit) {
     val colors = MedicationTrackerTheme.colors
     val treatment = state.snapshot?.treatments?.find { it.id == dose.treatmentId }
     Surface(onClick = { open(dose.id) }, shape = RoundedCornerShape(GraphiteTokens.Radius.md), color = colors.surface, border = BorderStroke(1.dp, colors.border), modifier = Modifier.fillMaxWidth().heightIn(min = GraphiteTokens.Size.patientAction)) {

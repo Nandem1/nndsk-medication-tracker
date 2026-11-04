@@ -41,7 +41,7 @@ fun validateConfiguration() {
 }
 
 @Serializable
-data class Credentials(val uid: String, val token: String, val refresh: String, val expires: Long, val invitationToken: String? = null, val invitationOperation: String? = null)
+data class Credentials(val uid: String, val token: String, val refresh: String, val expires: Long, val invitationToken: String? = null, val invitationOperation: String? = null, val email: String = "", val caregiverPreference: Boolean? = null)
 
 class SecretStore(context: Context, filename: String = "identity.enc") {
     private val file = AtomicFile(File(context.noBackupFilesDir, filename))
@@ -84,6 +84,8 @@ class Identity(private val secrets: SecretStore) {
         private set
     private var credentials = try { secrets.read() } catch (_: Exception) { storageFailure = true; null }
     val uid: String? get() = credentials?.uid
+    val email: String get() = credentials?.email.orEmpty()
+    val caregiverPreference: Boolean? get() = credentials?.caregiverPreference
 
     private fun endpoint(host: String, path: String): String {
         validateConfiguration()
@@ -96,16 +98,26 @@ class Identity(private val secrets: SecretStore) {
             wireJson.parseToJsonElement(it.body!!.string()).jsonObject
         }
     }
-    suspend fun signIn(email: String, password: String) = lock.withLock {
+    suspend fun signIn(email: String, password: String, register: Boolean = false) = lock.withLock {
+        require(!register || password.length >= 8) { "Usa al menos 8 caracteres." }
         validateConfiguration()
         val body = buildJsonObject { put("email", email.trim()); put("password", password); put("returnSecureToken", true) }
-        val data = post(endpoint("identitytoolkit.googleapis.com", "v1/accounts:signInWithPassword"), body.toString().toRequestBody("application/json".toMediaType()))
+        val data = post(endpoint("identitytoolkit.googleapis.com", if (register) "v1/accounts:signUp" else "v1/accounts:signInWithPassword"), body.toString().toRequestBody("application/json".toMediaType()))
         val value = Credentials(data.getValue("localId").jsonPrimitive.content, data.getValue("idToken").jsonPrimitive.content,
             data.getValue("refreshToken").jsonPrimitive.content, System.currentTimeMillis() + data.getValue("expiresIn").jsonPrimitive.long * 1000)
         require(credentials == null || credentials?.uid == value.uid) { "Cierra la sesión actual antes de cambiar de cuenta." }
-        val persisted = value.copy(invitationToken = credentials?.invitationToken, invitationOperation = credentials?.invitationOperation)
+        val persisted = value.copy(invitationToken = credentials?.invitationToken, invitationOperation = credentials?.invitationOperation, email = email.trim(), caregiverPreference = credentials?.caregiverPreference)
         secrets.save(persisted); credentials = persisted; storageFailure = false
         value.uid
+    }
+    suspend fun resetPassword(email: String) {
+        val body = buildJsonObject { put("email", email.trim()); put("requestType", "PASSWORD_RESET") }
+        try { post(endpoint("identitytoolkit.googleapis.com", "v1/accounts:sendOobCode"), body.toString().toRequestBody("application/json".toMediaType())) }
+        catch (e: ApiFailure) { if (e.status != 401) throw e }
+    }
+    suspend fun setCaregiverPreference(value: Boolean) = lock.withLock {
+        val next = (credentials ?: throw ApiFailure(401)).copy(caregiverPreference = value)
+        secrets.save(next); credentials = next
     }
     suspend fun token(force: Boolean = false): String = lock.withLock {
         val current = credentials ?: throw ApiFailure(401)

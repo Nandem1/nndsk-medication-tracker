@@ -22,7 +22,7 @@ class SessionCleanupTest {
         compose.waitUntil(10_000) { !app.repository.state.value.busy }
         compose.onNodeWithText("Cerrar sesión y borrar datos locales").assertExists()
         assertEquals(Session.SignedOut, app.repository.state.value.session)
-        assertNull(app.repository.state.value.snapshot)
+        assertNull(app.repository.state.value.own)
         assertNull(app.identity.uid)
     }
 }

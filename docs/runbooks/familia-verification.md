@@ -47,7 +47,7 @@ Architecture Impact: cambian esquema, contrato, autorización de perfiles y rein
 
 ## Pendiente
 
-P3 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.
+P4 a P7 no están implementadas ni verificadas. La aceptación completa exige los doce escenarios de PLAN-FAMILIA.md. Las pruebas manuales en teléfonos físicos siguen a cargo del usuario.
 
 ## P2
 
@@ -64,7 +64,7 @@ Comandos y evidencia final:
 - La suite inicial agotó el límite de 120 peticiones por minuto, confirmado como 429 en trace. El runner inicia API y Vite por caso, sin modificar el límite productivo.
 - Los tests previos se adaptaron a nombres y onboarding, conservando sus aserciones funcionales. Nuevos casos prueban cuentas, recuperación genérica, consentimiento con nombre, replay y conflicto del editor, salida y recarga del onboarding.
 - Capturas reales revisadas por implementador y coordinador en `/private/tmp/familia-p2-{account,onboarding,invitation,patients,patients-mobile}.png`. Se corrigieron radios afectados por estilos de campos de texto y se repitieron las capturas. No se observó desbordamiento horizontal móvil.
-- CI web Linux detectó rutas de capturas `/private/tmp` no portables. Se sustituyeron por `test.info().outputPath`, que usa el directorio de resultados de Playwright. Checks comunes y los 11 E2E locales volvieron a pasar; no cambiaron aserciones ni comportamiento de producto.
+- CI web Linux detectó rutas de capturas `/private/tmp` no portables. Se sustituyeron por `test.info().outputPath`, que usa el directorio de resultados de Playwright. Checks comunes y los 11 E2E locales volvieron a pasar; no cambiaron aserciones ni comportamiento de producto. El commit `64921c7` pasó [CI web Linux](https://github.com/Nandem1/nndsk-medication-tracker/actions/runs/41758597580) y [escaneo de secretos](https://github.com/Nandem1/nndsk-medication-tracker/actions/runs/41758597994).
 - Revisión independiente final: PASS para zona y limpieza del error de sesión. Revisión de código, sin repetir suites.
 
 Architecture Impact: cambian sesión y navegación web, lectura del perfil y presentación de métricas. El contrato expone la zona existente, sin migración nueva. Mapas general y web actualizados. Sin despliegue ni instalación nativa.
@@ -78,3 +78,25 @@ Architecture Impact: cambian sesión y navegación web, lectura del perfil y pre
 Los checks comunes `tokens-check`, `test` y `lint` pasaron. La repetición en raíz requirió acceso elevado a caché Go tras un error de permisos del sandbox. No se modificaron expectativas de pruebas ni comportamiento. Esta verificación usa emulador, no teléfono físico.
 
 Architecture Impact: separación interna, sin cambios de límites, contratos ni reglas. P3 funcional sigue pendiente. Este refactor tiene su propio commit antes de añadir modo cuidador.
+
+## P3, modo cuidador Android
+
+La app separa agenda propia, pacientes y operaciones globales por propietario. Envía las colas antes de refrescar cada paciente secuencialmente. Un rechazo de acceso retira sólo ese snapshot y conserva los registros locales como `denied`. La planificación y la entrega de alarmas exigen agenda propia.
+
+Se añadieron cuenta y onboarding, preferencia local de uso, invitaciones con nombre y permisos, consentimiento, tarjetas con métricas API, detalle cuidador e inventario. Las declaraciones y correcciones ajenas usan tercera persona. Reposición y conteo requieren conexión y conservan su clave de reintento.
+
+La revisión independiente encontró llamadas nuevas que no expiraban la sesión ante 401 y textos de corrección en primera persona. Una segunda revisión confirmó sus correcciones por lectura, la retirada de pacientes ante 403/404 y el mapa Android actualizado. No sustituyen las pruebas de ejecución.
+
+Comandos y evidencia final:
+
+- `make tokens-check test lint`: PASS en el worktree y después de integrar en raíz. Incluye Go con race y 24 pruebas web.
+- `make test-android`: 33 PASS. `make lint-android`: PASS debug y release.
+- `make test-android-device`: ocho pruebas PASS en emulador, incluidas persistencia tras revocar sólo un paciente y bloqueo de una alarma ajena antigua.
+- `make test-android-e2e`: dos casos PASS sobre la versión final. Usa UI Compose, API, PostgreSQL y Firebase Auth emulado. No acredita entrega real de correo ni ejecución en teléfono físico.
+- El flujo familiar prueba registro, onboarding, invitación con nombre y mensaje completo, dos pacientes, lectura sin acciones, declaración cuidadora, conflicto, escritura durante red retenida, revocación y restauración offline. Reposición y conteo pierden una respuesta real, reintentan los mismos bytes y conservan un único efecto y saldo exacto.
+- `go test -tags=e2e ./cmd/e2e`: PASS. El proxy de prueba ahora descarta también respuestas POST de inventario; antes sólo cubría dosis. El fixture espacia bloques para respetar 120 solicitudes por minuto. No se cambió el límite productivo.
+- Capturas reales revisadas por implementador y coordinador en `/private/tmp/familia-p3-captures/`. Se corrigió el aviso rojo de recuperación exitosa y se volvió a capturar con tono informativo. La captura de pendientes es parcial; su conservación y estado se verifican mediante assertions.
+- Los fixtures de recordatorios previos usaban un actor distinto del paciente para representar agenda propia. Se corrigió esa identidad y se añadieron pruebas explícitas de agenda ajena; no cambió la expectativa de entrega propia.
+- Revisión independiente de fixes: PASS por lectura. Living Architecture REVIEW detectó una frase antigua sobre `offline`; se corrigió y el coordinador comprobó su correspondencia con el código. `git diff --check`: PASS.
+
+Architecture Impact: cambian estado local, autenticación y navegación Android. Room conserva su esquema; snapshots añaden perfil, accesos y métricas. Contrato productivo, reglas de consumo e infraestructura sin cambios. Mapas general y Android actualizados. No desplegado ni probado en teléfono físico.
