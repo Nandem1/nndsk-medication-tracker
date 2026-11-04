@@ -91,7 +91,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
       .evaluate((element) => getComputedStyle(element).opacity),
   ).toBe("1");
   await cp.screenshot({
-    path: "/private/tmp/medication-f3-agenda.png",
+    path: test.info().outputPath("medication-f3-agenda.png"),
     fullPage: true,
   });
   await cp.getByRole("link", { name: "Inventario", exact: true }).click();

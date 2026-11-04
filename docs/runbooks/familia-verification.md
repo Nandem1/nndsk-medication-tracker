@@ -64,6 +64,7 @@ Comandos y evidencia final:
 - La suite inicial agotó el límite de 120 peticiones por minuto, confirmado como 429 en trace. El runner inicia API y Vite por caso, sin modificar el límite productivo.
 - Los tests previos se adaptaron a nombres y onboarding, conservando sus aserciones funcionales. Nuevos casos prueban cuentas, recuperación genérica, consentimiento con nombre, replay y conflicto del editor, salida y recarga del onboarding.
 - Capturas reales revisadas por implementador y coordinador en `/private/tmp/familia-p2-{account,onboarding,invitation,patients,patients-mobile}.png`. Se corrigieron radios afectados por estilos de campos de texto y se repitieron las capturas. No se observó desbordamiento horizontal móvil.
+- CI web Linux detectó rutas de capturas `/private/tmp` no portables. Se sustituyeron por `test.info().outputPath`, que usa el directorio de resultados de Playwright. Checks comunes y los 11 E2E locales volvieron a pasar; no cambiaron aserciones ni comportamiento de producto.
 - Revisión independiente final: PASS para zona y limpieza del error de sesión. Revisión de código, sin repetir suites.
 
 Architecture Impact: cambian sesión y navegación web, lectura del perfil y presentación de métricas. El contrato expone la zona existente, sin migración nueva. Mapas general y web actualizados. Sin despliegue ni instalación nativa.
