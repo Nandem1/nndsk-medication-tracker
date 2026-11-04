@@ -3,10 +3,7 @@ import UIKit
 
 /// Alias semánticos sobre los tokens generados de `packages/design-tokens`.
 /// El contraste de cada par se comprueba al generar los tokens (≥ 4.5:1 en claro y oscuro).
-/// Cada estado se acompaña siempre de texto e icono.
 enum Semantic {
-    static let success = Tokens.Colors.takenFg
-    static let warning = Tokens.Colors.unconfirmedFg
     static let danger = Tokens.Colors.dangerFg
     /// Fondo de la acción principal (tinta). El texto usa `onAction`.
     static let action = Tokens.Colors.action
@@ -14,15 +11,48 @@ enum Semantic {
     static let muted = Tokens.Colors.textMuted
 }
 
+/// Pares Fg/Bg de cada estado. `skipped` es neutro a propósito; `danger` sólo marca lo que exige decidir.
+enum StatusTone {
+    case scheduled, unconfirmed, taken, takenLate, skipped, sync, danger
+
+    var foreground: Color {
+        switch self {
+        case .scheduled: Tokens.Colors.scheduledFg
+        case .unconfirmed: Tokens.Colors.unconfirmedFg
+        case .taken: Tokens.Colors.takenFg
+        case .takenLate: Tokens.Colors.takenLateFg
+        case .skipped: Tokens.Colors.skippedFg
+        case .sync: Tokens.Colors.syncFg
+        case .danger: Tokens.Colors.dangerFg
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .scheduled: Tokens.Colors.scheduledBg
+        case .unconfirmed: Tokens.Colors.unconfirmedBg
+        case .taken: Tokens.Colors.takenBg
+        case .takenLate: Tokens.Colors.takenLateBg
+        case .skipped: Tokens.Colors.skippedBg
+        case .sync: Tokens.Colors.syncBg
+        case .danger: Tokens.Colors.dangerBg
+        }
+    }
+}
+
+/// Chip de estado: icono y texto, nunca sólo color.
 struct StatusBadge: View {
     let text: String
     let systemImage: String
-    let color: Color
+    let tone: StatusTone
 
     var body: some View {
         Label(text, systemImage: systemImage)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(color)
+            .font(Tokens.Typography.patientLabel)
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, Tokens.Space.md)
+            .padding(.vertical, Tokens.Space.xs)
+            .background(tone.background, in: RoundedRectangle(cornerRadius: Tokens.Radius.lg, style: .continuous))
             .accessibilityElement(children: .combine)
     }
 }
@@ -77,23 +107,23 @@ enum DoseText {
         }
     }
 
-    static func state(_ state: DoseState, scheduledAt: Date, now: Date) -> (text: String, icon: String, color: Color) {
+    static func state(_ state: DoseState, scheduledAt: Date, now: Date) -> (text: String, icon: String, tone: StatusTone) {
         switch state {
-        case .taken: ("Tomada", "checkmark.circle.fill", Semantic.success)
-        case .takenLate: ("Tomada tarde", "clock.badge.checkmark", Semantic.success)
-        case .skipped: ("No tomada", "minus.circle", Semantic.muted)
+        case .taken: ("Tomada", "checkmark.circle.fill", .taken)
+        case .takenLate: ("Tomada tarde", "clock.badge.checkmark", .takenLate)
+        case .skipped: ("No tomada", "minus.circle", .skipped)
         case .pending, .unconfirmed:
             // Sin confirmar se deriva del reloj: no es una omisión declarada.
-            scheduledAt <= now ? ("Sin confirmar", "questionmark.circle", Semantic.warning) : ("Programada", "clock", Semantic.muted)
+            scheduledAt <= now ? ("Sin confirmar", "questionmark.circle", .unconfirmed) : ("Programada", "clock", .scheduled)
         }
     }
 
-    static func operation(_ operation: PendingOperation) -> (text: String, icon: String, color: Color) {
+    static func operation(_ operation: PendingOperation) -> (text: String, icon: String, tone: StatusTone) {
         switch operation.status {
-        case .pending: ("Pendiente de sincronizar", "arrow.triangle.2.circlepath", Semantic.warning)
-        case .conflict: ("Necesita revisión: cambió en el servidor", "exclamationmark.triangle.fill", Semantic.danger)
-        case .rejected: ("Necesita revisión: el servidor rechazó el registro", "exclamationmark.triangle.fill", Semantic.danger)
-        case .denied: ("Necesita revisión: la dosis ya no está disponible", "exclamationmark.triangle.fill", Semantic.danger)
+        case .pending: ("Guardada, falta enviar", "arrow.triangle.2.circlepath", .sync)
+        case .conflict: ("Necesita revisión: cambió en el servidor", "exclamationmark.triangle.fill", .danger)
+        case .rejected: ("Necesita revisión: el servidor rechazó el registro", "exclamationmark.triangle.fill", .danger)
+        case .denied: ("Necesita revisión: la dosis ya no está disponible", "exclamationmark.triangle.fill", .danger)
         }
     }
 
@@ -124,7 +154,7 @@ enum DoseText {
     }
 
     static let selfReported = "Los registros son declaraciones tuyas o de tu cuidador. No demuestran que el medicamento se haya tomado."
-    static let missedGuidance = "Si olvidaste una dosis o la tomaste tarde, sigue las instrucciones de tu profesional de salud o consulta a un profesional o farmacéutico. Esta app no indica cambiar ni compensar dosis."
+    static let missedGuidance = "Si olvidaste una dosis o la tomaste tarde, sigue lo que te indicó tu profesional de salud o pregunta a un farmacéutico. Esta app no te indica cambiar ni reponer dosis."
     static let reliability = "Los recordatorios dependen del sistema, los permisos, la batería y el estado del teléfono. Pueden retrasarse o no llegar."
 }
 
@@ -133,16 +163,31 @@ struct SyncBanner: View {
 
     var body: some View {
         if let problem = model.syncProblem, problem != .unauthenticated {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "wifi.exclamationmark").accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(problem.message)
+            let tone: StatusTone = switch problem {
+            case .denied, .conflict, .invalid: .danger
+            default: .sync
+            }
+            HStack(alignment: .top, spacing: Tokens.Space.sm) {
+                Image(systemName: problem == .transport ? "wifi.slash" : "exclamationmark.arrow.triangle.2.circlepath")
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
+                    Text(problem == .transport ? "Sin conexión" : problem.message)
+                        .font(Tokens.Typography.patientLabel)
+                    if problem == .transport {
+                        Text("Tus registros quedan guardados en este teléfono. Se enviarán solos cuando vuelva la conexión.")
+                    }
                     if let last = model.snapshot.lastSyncAt {
-                        Text("Datos guardados de: \(DoseText.instant(last))").font(.footnote).foregroundStyle(Semantic.muted)
+                        Text("Datos guardados de: \(DoseText.instant(last))").font(.footnote)
                     }
                 }
             }
+            .foregroundStyle(tone.foreground)
+            .padding(Tokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(tone.background, in: RoundedRectangle(cornerRadius: Tokens.Radius.md, style: .continuous))
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Tokens.Space.xs, leading: 0, bottom: Tokens.Space.xs, trailing: 0))
+            .listRowSeparator(.hidden)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("sync-banner")
         }

@@ -34,7 +34,40 @@ Entrega dirección visual, tokens y adaptadores, pantallas implementadas, eviden
 
 ## Estado de la entrega
 
-- **Implementado:** tokens Graphite en `packages/design-tokens` con generador y comprobación de contraste. Los adaptadores están conectados a `Semantic` y `LargeActionStyle` en iOS, a `MedicationTrackerTheme` en Android y a `style.css` y `Button` en web.
-- **Propuesto:** las pantallas del canvas de diseño (paciente iOS/Android, seguimiento e inventario del cuidador). Aún no están implementadas.
-- **Validado:** `make tokens-check`, `pnpm --dir apps/web lint`, `test` y `build`.
-- **Sin validar:** compilación iOS y Android. Falta Xcode y Android SDK en el entorno donde se generó.
+Rama `design/graphite-tokens`. Nada de esto está desplegado ni acredita el lanzamiento: los controles de [release F8](../runbooks/f8-release.md) siguen abiertos.
+
+### Implementado
+
+- **Tokens:** Graphite en `packages/design-tokens`, con generador y comprobación de contraste. `chartTakenLate` claro y `chartSkipped` oscuro cambiaron para separar las series, y `chartSkipped` entró en `contrast.nonText`.
+- **Paciente iOS y Android:** Hoy con fecha larga, «X de N registradas», tarjeta «Ahora toca», «Más tarde», «Ya registradas» y «Por revisar» primero. Hoja «Me lo tomé tarde» con −/+ 5 min, atajos, «Otra fecha u hora» y «Guardar con las HH:MM». Chips sobre pares Fg/Bg, banner sin conexión, aviso de recordatorios desactivados e iconos reales en la barra de Android.
+- **Cuidador web:** pestañas de paciente en el encabezado, secciones como navegación con `?section=`, alertas, panel Hoy, 4 KPI con denominador, barras apiladas con trama, leyenda, resumen y tabla. Inventario con lista, detalle, saldo confirmado y estimado, fecha de revisión, ventana de 30 días y tabla de movimientos.
+
+### Decisiones
+
+- Si la toma aún no vence, la tarjeta dice «Próxima toma» y no ofrece acciones: la API rechaza dosis futuras.
+- Las demás dosis vencidas sin registrar quedan en «Más tarde», con su chip «Sin confirmar». Suben a la tarjeta una a una.
+- Por decisión del usuario, una dosis con más de 4 horas de atraso sale de la tarjeta y pasa a «Pasaron sin registrar», sin que la app sugiera tomarla. Sigue siendo «Sin confirmar», cuenta en el total y se puede registrar al abrirla: no se marca como omitida. Las 4 horas son un valor de presentación, no clínico, y están en `currentWindow` de iOS y Android.
+- Por decisión del usuario, Android guarda la declaración en disco de inmediato aunque haya una sincronización en curso, y los botones no se desactivan. Un segundo toque sobre la misma dosis no crea otra declaración.
+- Android declara directamente desde Hoy, como iOS. Antes pedía revisar y confirmar. Las correcciones conservan motivo y revisión.
+- El estado omitido se rotula «No tomada» para el paciente. La web mantiene «Declarada omitida».
+- Se conservan el calendario de constancia, los filtros y el historial aceptados en F7.
+- La API no entrega saldo por día. La proyección muestra la parte cubierta de la ventana, y el saldo estimado es `balance − scheduled_quantity` con resta exacta.
+- El informe web espera a la consulta de hoy: en paralelo, ambas materializan dosis y chocan con 409.
+
+### Validado
+
+Con datos sintéticos y bases desechables.
+
+- `make tokens-check`, `make test`, `make lint` y build web.
+- `make test-web-e2e`: 7 pruebas con API y PostgreSQL reales.
+- iOS en simulador: 71 unitarias y 7 pruebas UI E2E con `make test-ios-e2e`, con emulador de Auth, API y PostgreSQL reales.
+- Android en emulador: 27 unitarias, 7 instrumentadas, lint Debug y Release, y `make test-android-e2e` con API y PostgreSQL reales. El E2E comprueba que una declaración llega a disco mientras la red está retenida.
+
+### Pendiente
+
+- Revisión manual de VoiceOver, TalkBack, modo oscuro nativo, texto máximo en Android y teléfono físico. En iOS sólo corre la auditoría automática con texto máximo.
+- El E2E de Android abre la hoja tardía y comprueba que no admite horas futuras, pero no guarda desde ella. Ese guardado sólo se ejercita de punta a punta en iOS.
+- Las alertas y el panel Hoy de la web usan la fecha del navegador, como la Agenda, no la zona del paciente.
+- La web cae a la fuente del sistema mientras Geist no se aloje localmente.
+- Confirmar con la familia si 4 horas es el plazo adecuado para «Pasaron sin registrar».
+- Borrado de cuenta y descarga de exportación desde las apps. Esta guía los ubicaba antes del rediseño; el usuario decidió terminar primero el rediseño. Siguen bloqueando el lanzamiento.

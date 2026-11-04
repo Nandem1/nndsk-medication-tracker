@@ -82,20 +82,20 @@ struct SettingsView: View {
         switch model.reminders.permission {
         case .enabled:
             if model.waitingOperationsCount > 0 || model.syncProblem != nil {
-                StatusBadge(text: "Sincronización pendiente", systemImage: "arrow.triangle.2.circlepath", color: Semantic.warning)
+                StatusBadge(text: "Sincronización pendiente", systemImage: "arrow.triangle.2.circlepath", tone: .sync)
                     .accessibilityIdentifier("reminder-status")
             } else {
-                StatusBadge(text: "Recordatorios habilitados", systemImage: "bell.fill", color: Semantic.success)
+                StatusBadge(text: "Recordatorios habilitados", systemImage: "bell.fill", tone: .taken)
                     .accessibilityIdentifier("reminder-status")
             }
         case .denied:
-            StatusBadge(text: "Permiso denegado", systemImage: "bell.slash", color: Semantic.danger)
+            StatusBadge(text: "Permiso denegado", systemImage: "bell.slash", tone: .unconfirmed)
                 .accessibilityIdentifier("reminder-status")
         case .limited:
-            StatusBadge(text: "Precisión limitada", systemImage: "bell.badge", color: Semantic.warning)
+            StatusBadge(text: "Precisión limitada", systemImage: "bell.badge", tone: .unconfirmed)
                 .accessibilityIdentifier("reminder-status")
         case .notDetermined:
-            StatusBadge(text: "Recordatorios sin activar", systemImage: "bell", color: Semantic.muted)
+            StatusBadge(text: "Recordatorios sin activar", systemImage: "bell", tone: .scheduled)
                 .accessibilityIdentifier("reminder-status")
         }
     }
@@ -133,7 +133,7 @@ private struct UnresolvedOperationRow: View {
             NavigationLink {
                 DoseDetailView(doseID: operation.doseID)
             } label: {
-                StatusBadge(text: status.text, systemImage: status.icon, color: status.color)
+                StatusBadge(text: status.text, systemImage: status.icon, tone: status.tone)
             }
             .accessibilityIdentifier("unresolved-operation")
         } else {

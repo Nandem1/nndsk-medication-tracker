@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import {
   createContext,
   useContext,
@@ -9,6 +9,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { watch, login, logout, configured, type Identity } from "@identity";
 import { Api } from "../lib/api/client";
+import { patient } from "../lib/api/contracts";
+import { useList } from "../lib/queries";
+import { parseSection, patientLabel } from "../lib/sections";
 import { Button } from "../components/ui/button";
 import { Field } from "../components/forms";
 type Session =
@@ -23,6 +26,27 @@ export function useSession() {
   const value = useContext(Context);
   if (!value) throw new Error("Sesión requerida");
   return value;
+}
+/** Selector de paciente. La carga y los errores se informan en la página, no en el encabezado. */
+function PatientTabs() {
+  const query = useList("/patients", patient);
+  const search = useSearch({ strict: false });
+  if (!query.data?.length) return null;
+  return (
+    <nav className="patient-tabs" aria-label="Pacientes">
+      {query.data.map((item, index) => (
+        <Link
+          key={item.patient_id}
+          to="/patients/$patientId"
+          params={{ patientId: item.patient_id }}
+          search={{ section: parseSection(search.section) }}
+          activeOptions={{ includeSearch: false }}
+        >
+          {patientLabel(item, index)}
+        </Link>
+      ))}
+    </nav>
+  );
 }
 export function SessionBoundary({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session>({ status: "loading" });
@@ -121,6 +145,7 @@ export function SessionBoundary({ children }: { children: ReactNode }) {
         <header>
           <Link to="/">Cuidados</Link>
           <span>Portal del cuidador</span>
+          <PatientTabs />
           <Button
             variant="outline"
             onClick={() => {

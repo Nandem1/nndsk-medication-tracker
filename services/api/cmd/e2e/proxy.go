@@ -23,6 +23,8 @@ const (
 	offline
 	// loseResponses deja que la API aplique la petición y descarta la respuesta de cada POST.
 	loseResponses
+	// stalled retiene las peticiones hasta salir de este modo, como una red muy lenta.
+	stalled
 )
 
 func serveFaultProxy(address, target string) {
@@ -41,6 +43,8 @@ func serveFaultProxy(address, target string) {
 			mode.Store(int32(offline))
 		case "lose-responses":
 			mode.Store(int32(loseResponses))
+		case "stall":
+			mode.Store(int32(stalled))
 		default:
 			http.Error(w, "unknown mode", http.StatusBadRequest)
 			return
@@ -56,6 +60,15 @@ func serveFaultProxy(address, target string) {
 				forward.ServeHTTP(httptest.NewRecorder(), r)
 				drop(w)
 				return
+			}
+			forward.ServeHTTP(w, r)
+		case stalled:
+			for faultMode(mode.Load()) == stalled {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-time.After(50 * time.Millisecond):
+				}
 			}
 			forward.ServeHTTP(w, r)
 		default:

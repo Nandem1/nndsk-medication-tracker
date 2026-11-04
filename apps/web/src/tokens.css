@@ -28,7 +28,7 @@
   --mt-color-danger-fg: #B42318;
   --mt-color-danger-bg: #FDECEA;
   --mt-color-chart-taken: #2E9E5B;
-  --mt-color-chart-taken-late: #1C9AAA;
+  --mt-color-chart-taken-late: #0B6F96;
   --mt-color-chart-skipped: #8E8E98;
   --mt-color-chart-unconfirmed: #B86E00;
   --mt-space-xxs: 0.125rem;
@@ -106,7 +106,7 @@
     --mt-color-danger-bg: #3A1512;
     --mt-color-chart-taken: #4CC37A;
     --mt-color-chart-taken-late: #8FE3EC;
-    --mt-color-chart-skipped: #5E5E66;
+    --mt-color-chart-skipped: #7C7C85;
     --mt-color-chart-unconfirmed: #F0A23A;
   }
 }
@@ -140,7 +140,7 @@
   --mt-color-danger-bg: #3A1512;
   --mt-color-chart-taken: #4CC37A;
   --mt-color-chart-taken-late: #8FE3EC;
-  --mt-color-chart-skipped: #5E5E66;
+  --mt-color-chart-skipped: #7C7C85;
   --mt-color-chart-unconfirmed: #F0A23A;
 }
 :root[data-theme="light"] {

@@ -303,7 +303,7 @@ sequenceDiagram
 
 - **PostgreSQL** es la fuente de verdad de tratamientos, historial, permisos e inventario.
 - Las apps guardan copias locales para visualizar agenda y registrar acciones offline.
-- Acciones offline pendientes aparecen como **«Pendiente de sincronizar»**; su impacto en el stock local es estimado y se distingue del saldo confirmado por servidor.
+- Acciones offline pendientes aparecen como **«Guardada, falta enviar»**; su impacto en el stock local es estimado y se distingue del saldo confirmado por servidor.
 - Reconciliación por `client_operation_id`, `updated_at`/`version`, cursor de sincronización paginado y operaciones idempotentes.
 - Si el servidor rechaza una acción por pauta modificada, revocación o conflicto, conservar la operación para resolverla con el usuario; no hacer drop silencioso.
 - Inicialmente no hace falta WebSocket: refresco por apertura/foreground y después de cada mutación es suficiente.
@@ -622,7 +622,7 @@ Evidencia local en [verificación F7](docs/runbooks/f7-verification.md). Las mé
 - [ ] CI por stack con runners macOS para iOS cuando se habilite; Android y Go en runners adecuados. Workflows implementados para Go, web, Android e iOS opcional; ejecución remota pendiente.
 - [ ] Política de retención, backups/restores, incident response y checklist de release. Propuesta de retención pendiente de aceptación. Respuesta a incidentes y checklist documentados.
 
-F8 en curso, sin despliegue. Commit de preparación para GitHub autorizado por el usuario. El diseño y los tokens quedan para Claude según [guía de rediseño](docs/design/claude-redesign-handoff.md). Ver [resultados y bloqueos F8](docs/runbooks/f8-verification.md). No marcar lanzamiento listo con borrado o pruebas físicas pendientes.
+F8 en curso, sin despliegue. Commit de preparación para GitHub autorizado por el usuario. Las pantallas Graphite están implementadas sin desplegar en la rama `design/graphite-tokens`; estado y evidencia en la [guía de rediseño](docs/design/claude-redesign-handoff.md). Ver [resultados y bloqueos F8](docs/runbooks/f8-verification.md). No marcar lanzamiento listo con borrado o pruebas físicas pendientes.
 
 ---
 

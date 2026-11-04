@@ -6,6 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
@@ -18,10 +19,16 @@ sealed interface Session {
     data object Expired : Session
 }
 data class AppState(val session: Session = Session.SignedOut, val snapshot: Snapshot? = null,
-    val operations: List<PendingOperation> = emptyList(), val busy: Boolean = false, val message: String? = null)
+    val operations: List<PendingOperation> = emptyList(), val busy: Boolean = false, val message: String? = null,
+    /** Sólo presentación: el último intento no llegó al servidor. */
+    val offline: Boolean = false,
+    /** Sólo presentación: el mensaje es un rechazo que exige revisar. */
+    val rejected: Boolean = false)
 
 class Repository(val identity: Identity, private val api: Api, private val db: LocalDatabase) {
     private val mutex = Mutex()
+    /** Sólo protege escribir y limpiar la cola. Nunca se sostiene durante la red. */
+    private val queue = Mutex()
     private val mutable = MutableStateFlow(AppState())
     val state = mutable.asStateFlow()
     private val dao = db.local()
@@ -31,8 +38,8 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
 
     private suspend fun publish(snapshot: Snapshot?) {
         val c = snapshot?.context
-        mutable.value = mutable.value.copy(snapshot = snapshot,
-            operations = if (c == null) emptyList() else dao.operations(c.ownerUid, c.patientId))
+        val operations = if (c == null) emptyList() else dao.operations(c.ownerUid, c.patientId)
+        mutable.update { it.copy(snapshot = snapshot, operations = operations) }
     }
     private suspend fun save(snapshot: Snapshot) {
         dao.save(StoredSnapshot(snapshot.context.ownerUid, snapshot.context.patientId, wireJson.encodeToString(snapshot)))
@@ -95,16 +102,22 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         mutable.value = mutable.value.copy(session = Session.Active)
     }
 
-    suspend fun record(context: PatientContext, doseId: String, command: Command) = action {
-        val snapshot = mutable.value.snapshot ?: return@action
-        val c = snapshot.context
-        check(identity.uid == c.ownerUid && c == context)
-        val path = "v1/doses/$doseId/" + if (command.corrects != null) "corrections" else "events"
-        val op = PendingOperation(command.id, c.ownerUid, c.patientId, doseId, path, wireJson.encodeToString(command), System.currentTimeMillis())
-        if (dao.enqueue(op) == -1L) throw IllegalArgumentException("Esta dosis ya tiene una declaración pendiente de revisión o sincronización.")
-        publish(snapshot)
-        onChanged()
-        syncLocked()
+    /** La declaración queda en disco de inmediato, aunque haya una sincronización en curso. Después se envía. */
+    suspend fun record(context: PatientContext, doseId: String, command: Command) {
+        val saved = queue.withLock {
+            val c = mutable.value.snapshot?.context ?: return
+            if (identity.uid != c.ownerUid || c != context) {
+                mutable.update { it.copy(message = "No se pudo guardar el registro. Vuelve a abrir la dosis.") }
+                return
+            }
+            val path = "v1/doses/$doseId/" + if (command.corrects != null) "corrections" else "events"
+            dao.enqueue(PendingOperation(command.id, c.ownerUid, c.patientId, doseId, path, wireJson.encodeToString(command), System.currentTimeMillis())) != -1L
+        }
+        // Un segundo toque sobre la misma dosis no crea otra declaración.
+        if (!saved) return
+        val operations = dao.operations(context.ownerUid, context.patientId)
+        mutable.update { it.copy(operations = operations) }
+        action { syncLocked() }
     }
     suspend fun discard(id: String) = action {
         val c = mutable.value.snapshot?.context ?: return@action
@@ -135,7 +148,7 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         try { identity.clear() } catch (_: Exception) {
             warning = "No se pudo borrar la sesión guardada. Reinicia la app e intenta cerrar sesión nuevamente."
         }
-        try { db.withTransaction { dao.clearAllOperations(); dao.clearAllSnapshots() } } catch (_: Exception) {
+        try { queue.withLock { db.withTransaction { dao.clearAllOperations(); dao.clearAllSnapshots() } } } catch (_: Exception) {
             warning = "La sesión se cerró, pero no se pudieron borrar los datos locales. Intenta cerrar sesión nuevamente."
         }
         mutable.value = AppState(message = warning)
@@ -144,7 +157,7 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         }
     } }
     private suspend fun action(invalidateOnDenied: Boolean = false, block: suspend () -> Unit) = mutex.withLock {
-        mutable.value = mutable.value.copy(busy = true, message = null)
+        mutable.value = mutable.value.copy(busy = true, message = null, offline = false, rejected = false)
         try { block() }
         catch (e: CancellationException) { throw e }
         catch (e: ApiFailure) {
@@ -162,7 +175,9 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
                     publish(Snapshot(c))
                 }
             }
-            mutable.value = mutable.value.copy(message = message)
+            mutable.value = mutable.value.copy(message = message, rejected = e.status in listOf(400, 403, 404, 409, 422))
+        } catch (_: java.io.IOException) {
+            mutable.value = mutable.value.copy(offline = true)
         } catch (_: Exception) {
             mutable.value = mutable.value.copy(message = "No se pudo completar la operación. Los registros guardados se conservan. Revisa la conexión y los datos.")
         } finally {

@@ -11,7 +11,11 @@ import androidx.test.core.app.ApplicationProvider
 import cl.nndsk.medication.BuildConfig
 import cl.nndsk.medication.MainActivity
 import cl.nndsk.medication.MedicationApplication
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
@@ -130,12 +134,22 @@ class AndroidE2ETest {
             } finally {
                 shell("dumpsys deviceidle unforce"); shell("dumpsys battery reset"); shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard")
             }
-            compose.onAllNodesWithText("Tratamiento sintético F5").onFirst().performScrollTo().performClick()
+            // La hoja tardía no admite horas futuras y sólo declara al guardar.
+            compose.onNodeWithText("Me lo tomé tarde", useUnmergedTree = true).performScrollTo().performClick()
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Guardar con las", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("+5 min").assertIsNotEnabled()
+            compose.onNodeWithText("−5 min").performClick()
+            compose.onNodeWithText("+5 min").assertIsEnabled()
+            shell("screencap -p /data/local/tmp/e2e-late.png")
+            shell("input keyevent KEYCODE_BACK")
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Guardar con las", substring = true)).fetchSemanticsNodes().isEmpty() }
+            assertTrue(app.repository.state.value.operations.isEmpty())
+            waitFor { true }
             fault("offline")
             compose.onNodeWithText("Me lo tomé", useUnmergedTree = true).performScrollTo().performClick()
-            compose.onNodeWithText("Revisar declaración").performScrollTo().performClick()
-            compose.onNodeWithText("Guardar").performClick()
             waitFor { app.repository.state.value.operations.size == 1 }
+            compose.onNodeWithText("Guardada, falta enviar").performScrollTo().assertExists()
+            compose.onNodeWithText("Sin conexión").assertExists()
             val pending = app.repository.state.value.operations.single()
             assertEquals("pending", pending.status)
             assertEquals("10.000", balance(patient.second, patientId))
@@ -167,6 +181,20 @@ class AndroidE2ETest {
             val before = app.repository.state.value.snapshot
             app.repository.accept("invalid-synthetic-invitation")
             assertEquals(before, app.repository.state.value.snapshot)
+            // Una sincronización lenta no retrasa guardar: la declaración llega a disco mientras la red sigue retenida.
+            val remaining = app.repository.state.value.snapshot!!.doses.single { it.id != pending.dose }
+            fault("stall")
+            val syncing = launch(Dispatchers.Default) { app.repository.sync() }
+            withTimeout(10_000) { while (!app.repository.state.value.busy) delay(50) }
+            val held = declaration(remaining, "skipped", null, null)
+            val recording = launch(Dispatchers.Default) { app.repository.record(context, remaining.id, held) }
+            withTimeout(5_000) { while (app.database.local().operations(context.ownerUid, context.patientId).none { it.id == held.id }) delay(50) }
+            assertTrue(app.repository.state.value.busy)
+            assertEquals(held.id, app.repository.state.value.operations.single().id)
+            fault("online")
+            syncing.join(); recording.join()
+            assertTrue(app.repository.state.value.operations.isEmpty())
+            assertEquals("skipped", app.repository.state.value.snapshot!!.doses.single { it.id == remaining.id }.state)
             app.repository.logout()
             assertTrue(app.database.local().snapshots(context.ownerUid).isEmpty())
             assertTrue(app.database.local().operations(context.ownerUid, context.patientId).isEmpty())

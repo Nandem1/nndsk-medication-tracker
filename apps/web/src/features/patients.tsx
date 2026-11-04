@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { patient, scopeLabels } from "../lib/api/contracts";
 import { useList } from "../lib/queries";
+import { patientLabel } from "../lib/sections";
 import { QueryState } from "../components/query-state";
 export function Patients() {
   const query = useList("/patients", patient);
@@ -24,10 +25,9 @@ export function Patients() {
               key={p.patient_id}
               to="/patients/$patientId"
               params={{ patientId: p.patient_id }}
+              search={{ section: "treatments" }}
             >
-              <h2>
-                {p.link_id ? "Paciente vinculado " + (i + 1) : "Mi registro"}
-              </h2>
+              <h2>{patientLabel(p, i)}</h2>
               <p className="reference">Referencia {p.patient_id}</p>
               <p>{p.scopes.map((s) => scopeLabels[s]).join(" · ")}</p>
               <strong>Abrir registro →</strong>

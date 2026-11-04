@@ -69,15 +69,15 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   const agenda = await response.json();
   expect(agenda.items).toHaveLength(1);
   expect(agenda.items[0].quantity).toBe("0.500");
-  await cp.getByRole("button", { name: "Agenda", exact: true }).click();
+  await cp.getByRole("link", { name: "Agenda", exact: true }).click();
   await expect(
     cp.getByRole("heading", { name: "Tratamiento sintético F3", exact: true }),
   ).toBeVisible();
   await expect(
-    cp.getByRole("button", { name: "Agenda", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    cp.getByRole("link", { name: "Agenda", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await cp
-    .getByRole("button", { name: "Agenda", exact: true })
+    .getByRole("link", { name: "Agenda", exact: true })
     .evaluate(async (element) => {
       await Promise.all(
         element.getAnimations().map((animation) => animation.finished),
@@ -85,14 +85,14 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
     });
   expect(
     await cp
-      .getByRole("button", { name: "Agenda", exact: true })
+      .getByRole("link", { name: "Agenda", exact: true })
       .evaluate((element) => getComputedStyle(element).opacity),
   ).toBe("1");
   await cp.screenshot({
     path: "/private/tmp/medication-f3-agenda.png",
     fullPage: true,
   });
-  await cp.getByRole("button", { name: "Inventario", exact: true }).click();
+  await cp.getByRole("link", { name: "Inventario", exact: true }).click();
   await expect(cp.locator(".balance")).toContainText("3.000");
   const operations: string[] = [];
   await cp.route("**/v1/inventory/*/movements", async (route) => {
@@ -118,11 +118,10 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   await cp.getByLabel("Motivo del ajuste").fill("Conteo sintético");
   await cp.getByRole("button", { name: "Guardar conteo" }).click();
   await expect(cp.locator(".balance")).toContainText("4.125");
-  await cp.getByText("Historial de movimientos", { exact: true }).click();
-  await expect(cp.getByText(/Ajuste por conteo físico/)).toContainText(
-    "-1.125",
-  );
-  await cp.getByRole("button", { name: "Tratamientos", exact: true }).click();
+  await expect(
+    cp.getByRole("row", { name: /Ajuste por conteo físico/ }),
+  ).toContainText("-1.125");
+  await cp.getByRole("link", { name: "Tratamientos", exact: true }).click();
   await cp.getByRole("button", { name: "Editar datos" }).click();
   await cp
     .getByLabel("Nombre del medicamento")
@@ -138,7 +137,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   pp.on("dialog", (d) => d.accept());
   await pp.getByRole("button", { name: "Revocar acceso" }).click();
   await expect(pp.getByText("Acceso revocado", { exact: false })).toBeVisible();
-  await cp.getByRole("button", { name: "Inventario", exact: true }).click();
+  await cp.getByRole("link", { name: "Inventario", exact: true }).click();
   await expect(cp.getByRole("alert")).toContainText("No tienes permiso");
   await expect(
     cp.getByRole("heading", { name: "Tratamiento sintético editado" }),

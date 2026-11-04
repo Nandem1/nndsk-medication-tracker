@@ -38,7 +38,7 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
   await page.getByRole("link").filter({ has: page.getByRole("heading", { name: "Mi registro" }) }).click();
-  await page.getByRole("button", { name: "Seguimiento", exact: true }).click();
+  await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await page.getByLabel("Desde", { exact: true }).fill(shiftDate(day, -6));
   await page.getByLabel("Hasta, incluido").fill(day);
   await page.getByLabel("Tratamiento del informe").selectOption(treatment.treatment_id);
@@ -49,6 +49,13 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await expect(page.getByRole("list", { name: "Calendario de respuestas" }).getByText("1 sin confirmar · 1 omitidas declaradas")).toBeVisible();
   await expect(page.locator(".report-history li")).toHaveCount(4);
   await expect(page.locator(".report-history").getByText("Declarada omitida", { exact: true })).toBeVisible();
+  const chart = page.getByRole("img", { name: /Dosis evaluables por día/ });
+  await expect(chart).toHaveAttribute("aria-label", /1 declaradas tomadas, 1 declaradas tomadas tarde, 1 declaradas omitidas y 1 sin confirmar, de 4 evaluables/);
+  await expect(page.locator(".chart-stack .series-unconfirmed")).toHaveCount(1);
+  expect(await page.locator(".chart-stack .series-unconfirmed").evaluate((e) => getComputedStyle(e).backgroundImage)).toContain("repeating-linear-gradient");
+  await expect(page.getByRole("list", { name: "Leyenda" }).getByRole("listitem")).toHaveText(["Tomada", "Tomada tarde", "Omitida", "Sin confirmar"]);
+  await page.getByText("Ver como tabla", { exact: true }).click();
+  await expect(page.getByRole("row", { name: day }).getByRole("cell")).toHaveText(["1", "1", "1", "1", "4"]);
   await page.screenshot({ path: "/private/tmp/medication-f7-dashboard.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -57,7 +64,10 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await expect(page.locator(".report-history li")).toHaveCount(6);
   await page.getByRole("button", { name: "Este mes", exact: true }).click();
   await expect(page.getByLabel("Desde", { exact: true })).toHaveValue(localDate().slice(0, 8) + "01");
-  await page.getByRole("button", { name: "Inventario", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Alertas" })).toBeVisible();
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
+  const selectAccount = () => page.getByRole("list", { name: "Cuentas de inventario" }).getByRole("button", { name: /Reposición sintética F7/ }).click();
+  await selectAccount();
   const account = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Reposición sintética F7", exact: true }) });
   await account.getByLabel("Días de antelación").fill("10");
   await account.getByRole("button", { name: "Guardar antelación" }).click();
@@ -68,8 +78,12 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await page.getByLabel("Correo electrónico").fill(actor + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
-  await page.getByRole("button", { name: "Inventario", exact: true }).click();
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
+  await selectAccount();
   await expect(account.getByLabel("Días de antelación")).toHaveValue("10");
+  await expect(account.locator(".balance")).toContainText("3.000");
+  await expect(account.locator(".is-estimate")).toHaveCSS("border-top-style", "dashed");
+  await expect(account.getByRole("img", { name: /Según la agenda/ })).toBeVisible();
 });
 
 test("F7 read-only caregiver can view dashboard but cannot configure stock", async ({ page, request }) => {
@@ -99,15 +113,35 @@ test("F7 read-only caregiver can view dashboard but cannot configure stock", asy
   await page.getByLabel("Contraseña").fill("test-only");
   await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
   await page.getByRole("link").filter({ has: page.getByRole("heading", { name: /Paciente vinculado/ }) }).click();
-  await page.getByRole("button", { name: "Seguimiento", exact: true }).click();
+  await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await expect(page.getByText("0 tomadas / 0 evaluables", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Inventario", exact: true }).click();
+  await page.getByRole("link", { name: "Inventario", exact: true }).click();
   await expect(page.getByText("Tu acceso no permite cambiar el inventario.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inventario sólo lectura F7", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Guardar antelación" })).toHaveCount(0);
   const revoke = await request.delete(base + "/caregiver-links/" + link.link_id, { headers: p });
   expect(revoke.status()).toBe(204);
-  await page.getByRole("button", { name: "Seguimiento", exact: true }).click();
+  await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await expect(page.getByLabel("Correo electrónico")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Seguimiento declarado" })).toHaveCount(0);
+});
+
+test("a patient without materialized doses opens Seguimiento without a conflict", async ({ page, request }) => {
+  const actor = "fresh-report-" + Date.now();
+  const headers = { Authorization: "Bearer synthetic-" + actor };
+  const base = e2eApiURL + "/v1";
+  const patientId = (await (await request.get(base + "/me", { headers })).json()).user_id;
+  const created = await request.post(base + "/patients/" + patientId + "/treatments", { headers, data: {
+    client_operation_id: crypto.randomUUID(), name: "Sin materializar", strength_label: "", form: "", package_label: "", instructions: "", unit: "tablet", initial_stock: "3.000", starts_on: shiftDate(localDate(), -5), ends_on: "",
+    schedule: { timezone: "UTC", dst_policy: "reject", weekdays: [0, 1, 2, 3, 4, 5, 6], slots: [{ time: "00:00", quantity: "0.500" }] },
+  } });
+  expect(created.status()).toBe(201);
+  await page.goto("/");
+  await page.getByLabel("Correo electrónico").fill(actor + "@example.test");
+  await page.getByLabel("Contraseña").fill("test-only");
+  await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
+  await page.getByRole("link").filter({ has: page.getByRole("heading", { name: "Mi registro" }) }).click();
+  await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
+  await expect(page.getByRole("img", { name: /Dosis evaluables por día/ })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });

@@ -1,0 +1,49 @@
+import type { Projection } from "./api/contracts";
+
+function parts(value: string) {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) throw new Error("Cantidad decimal inválida");
+  return { negative: match[1] === "-", whole: match[2], fraction: match[3] ?? "" };
+}
+
+/** Resta exacta de cantidades en texto: nunca pasa por float. */
+export function subtractDecimal(a: string, b: string) {
+  const x = parts(a);
+  const y = parts(b);
+  const scale = Math.max(x.fraction.length, y.fraction.length);
+  const scaled = (p: typeof x) => {
+    const value = BigInt(p.whole + p.fraction.padEnd(scale, "0"));
+    return p.negative ? -value : value;
+  };
+  const result = scaled(x) - scaled(y);
+  const digits = (result < 0n ? -result : result).toString().padStart(scale + 1, "0");
+  const whole = digits.slice(0, digits.length - scale);
+  const fraction = scale ? "." + digits.slice(-scale) : "";
+  return (result < 0n ? "-" : "") + whole + fraction;
+}
+
+const dayMs = 86400000;
+
+/** Días completos cubiertos según la proyección del servidor; null si cubre toda la ventana. */
+export function coverageDays(item: Pick<Projection, "from" | "first_uncovered_at">) {
+  if (!item.first_uncovered_at) return null;
+  return Math.max(0, Math.floor((Date.parse(item.first_uncovered_at) - Date.parse(item.from)) / dayMs));
+}
+
+export function windowDays(item: Pick<Projection, "from" | "through">) {
+  return Math.round((Date.parse(item.through) - Date.parse(item.from)) / dayMs);
+}
+
+/** Parte cubierta de la ventana de proyección, entre 0 y 1. */
+export function coveredShare(item: Pick<Projection, "from" | "through" | "first_uncovered_at">) {
+  if (!item.first_uncovered_at) return 1;
+  const start = Date.parse(item.from);
+  const share = (Date.parse(item.first_uncovered_at) - start) / (Date.parse(item.through) - start);
+  return Math.min(1, Math.max(0, share));
+}
+
+export function coverageLabel(item: Pick<Projection, "from" | "through" | "first_uncovered_at">) {
+  const days = coverageDays(item);
+  if (days === null) return windowDays(item) + " días o más";
+  return days === 1 ? "1 día" : days + " días";
+}

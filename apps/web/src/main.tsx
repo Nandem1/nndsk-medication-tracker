@@ -13,6 +13,7 @@ import { SessionBoundary } from "./app/session";
 import { Patients } from "./features/patients";
 import { PatientDetail } from "./features/patient";
 import { Consent } from "./features/consent";
+import { parseSection } from "./lib/sections";
 import "./style.css";
 const rootRoute = createRootRoute({
   component: () => (
@@ -41,9 +42,11 @@ const consentRoute = createRoute({
 const patientRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/patients/$patientId",
+  validateSearch: (search: Record<string, unknown>) => ({ section: parseSection(search.section) }),
   component: () => {
     const { patientId } = patientRoute.useParams();
-    return <PatientDetail key={patientId} patientId={patientId} />;
+    const { section } = patientRoute.useSearch();
+    return <PatientDetail key={patientId} patientId={patientId} section={section} />;
   },
 });
 const router = createRouter({

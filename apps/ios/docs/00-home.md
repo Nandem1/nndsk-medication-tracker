@@ -30,7 +30,7 @@ sequenceDiagram
     participant E as SyncEngine
     participant A as API
     P->>S: Toque: guarda operación en disco
-    S-->>P: Pendiente de sincronizar y saldo estimado
+    S-->>P: Guardada, falta enviar y saldo estimado
     E->>A: POST con los mismos bytes
     Note over E,A: Si se pierde la respuesta, la operación sigue en la cola
     E->>A: POST repetido con el mismo client_operation_id
@@ -53,7 +53,8 @@ sequenceDiagram
 - [SyncEngine](../MedicationTracker/Core/Sync/SyncEngine.swift) clasifica las respuestas. [LocalStore](../MedicationTracker/Core/Persistence/LocalStore.swift) es dueño de la caché, la cola y el propietario de los datos.
 - [IdentityStore](../MedicationTracker/Core/Auth/IdentityStore.swift) es el único dueño de las credenciales.
 - [ReminderPlanner](../MedicationTracker/Core/Notifications/ReminderPlanner.swift) decide qué recordar. [ReminderScheduler](../MedicationTracker/Core/Notifications/ReminderScheduler.swift) reconcilia con el sistema y diagnostica permisos.
-- [DesignSystem](../MedicationTracker/DesignSystem/DesignSystem.swift) define colores semánticos con contraste verificado y los textos de estado.
+- [DesignSystem](../MedicationTracker/DesignSystem/DesignSystem.swift) define los chips de estado sobre los pares Fg/Bg de tokens y los textos de estado. `Tokens.generated.swift` no se edita.
+- [TodayPlan](../MedicationTracker/Features/Today/TodayPlan.swift) reparte Hoy en Por revisar, tarjeta actual, Más tarde, Pasaron sin registrar y Ya registradas. Una dosis con más de 4 horas de atraso sale de la tarjeta sin cambiar su estado. Cuenta como registrada toda declaración, incluida la omisión y la guardada sin enviar; un conflicto sólo si el servidor ya tiene una. `LateTime` impide horas futuras en la hoja «Me lo tomé tarde». Ambos sólo presentan: no tocan cola ni estados.
 
 ## Proyecto y pruebas
 

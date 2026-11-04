@@ -124,6 +124,16 @@ final class PatientFlowUITests: XCTestCase {
         tapFirst("action-taken-late")
         let save = app.buttons["late-save"]
         XCTAssertTrue(save.waitForExistence(timeout: timeout))
+        // Hora futura imposible: +5 sigue desactivado hasta retroceder.
+        XCTAssertFalse(app.buttons["late-plus"].isEnabled)
+        XCTAssertTrue(save.label.hasPrefix("Guardar con las "))
+        let initialLabel = save.label
+        app.buttons["late-minus"].tap()
+        XCTAssertNotEqual(save.label, initialLabel)
+        XCTAssertTrue(app.buttons["late-plus"].isEnabled)
+        app.buttons["late-60"].tap()
+        attachScreenshot("hoja-tarde")
+        app.buttons["late-now"].tap()
         save.tap()
         XCTAssertTrue(text("Tomada tarde").waitForExistence(timeout: timeout))
         let account = try await firstAccount(caregiver, patientID)
@@ -231,7 +241,7 @@ final class PatientFlowUITests: XCTestCase {
     // MARK: Ayudas
 
     private var pendingBadge: XCUIElement {
-        text("Pendiente de sincronizar")
+        text("Guardada, falta enviar")
     }
 
     /// Los resúmenes combinan sus textos en un solo elemento accesible.

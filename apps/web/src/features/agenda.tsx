@@ -1,13 +1,13 @@
 import { useState } from "react";
 import {
   dose,
-  stateLabels,
   unitLabels,
   type Treatment,
 } from "../lib/api/contracts";
 import { useList } from "../lib/queries";
 import { localDate, nextDate } from "../lib/forms";
 import { QueryState } from "../components/query-state";
+import { StateChip } from "../components/state-chip";
 export function Agenda({
   patientId,
   treatments,
@@ -68,9 +68,7 @@ export function Agenda({
                     }{" "}
                     · {item.timezone}
                   </p>
-                  <span className={"badge state-" + item.state}>
-                    {stateLabels[item.state]}
-                  </span>
+                  <StateChip state={item.state} />
                   {item.dst_adjusted && (
                     <p>
                       Horario ajustado por cambio de hora según la política

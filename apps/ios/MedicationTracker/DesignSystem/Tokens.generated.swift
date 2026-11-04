@@ -59,9 +59,9 @@ enum Tokens {
         /// Serie tomada
         static let chartTaken = adaptive(light: 0x2E9E5B, dark: 0x4CC37A)
         /// Serie tomada tarde
-        static let chartTakenLate = adaptive(light: 0x1C9AAA, dark: 0x8FE3EC)
+        static let chartTakenLate = adaptive(light: 0x0B6F96, dark: 0x8FE3EC)
         /// Serie omitida
-        static let chartSkipped = adaptive(light: 0x8E8E98, dark: 0x5E5E66)
+        static let chartSkipped = adaptive(light: 0x8E8E98, dark: 0x7C7C85)
         /// Serie sin confirmar; dibujar además con trama
         static let chartUnconfirmed = adaptive(light: 0xB86E00, dark: 0xF0A23A)
 

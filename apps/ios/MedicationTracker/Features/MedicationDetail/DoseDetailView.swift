@@ -57,6 +57,8 @@ struct DoseDetailView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Tokens.Colors.bg)
         .scrollDismissesKeyboard(.interactively)
         .sheet(isPresented: $correcting) { CorrectionForm(dose: dose) }
         .sheet(isPresented: $earlierForm) { EarlierDoseForm(dose: dose) }
@@ -185,14 +187,14 @@ struct ConflictResolution: View {
     @Environment(AppModel.self) private var model
     @State private var reason = ""
 
-    private var serverState: (text: String, icon: String, color: Color) {
+    private var serverState: (text: String, icon: String, tone: StatusTone) {
         DoseText.state(dose.state, scheduledAt: dose.scheduledInstant, now: .now)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Tu registro: \(DoseText.declaration(operation.declaration))")
-            StatusBadge(text: "En el servidor: \(serverState.text)", systemImage: serverState.icon, color: serverState.color)
+            StatusBadge(text: "En el servidor: \(serverState.text)", systemImage: serverState.icon, tone: serverState.tone)
                 .accessibilityIdentifier("conflict-server-state")
             if dose.state.isDeclared {
                 if dose.state != operation.declaration.asState {

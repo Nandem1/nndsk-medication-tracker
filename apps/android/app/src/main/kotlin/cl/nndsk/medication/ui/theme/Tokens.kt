@@ -72,7 +72,7 @@ object GraphiteTokens {
         dangerFg = Color(0xFFB42318),
         dangerBg = Color(0xFFFDECEA),
         chartTaken = Color(0xFF2E9E5B),
-        chartTakenLate = Color(0xFF1C9AAA),
+        chartTakenLate = Color(0xFF0B6F96),
         chartSkipped = Color(0xFF8E8E98),
         chartUnconfirmed = Color(0xFFB86E00),
     )
@@ -106,7 +106,7 @@ object GraphiteTokens {
         dangerBg = Color(0xFF3A1512),
         chartTaken = Color(0xFF4CC37A),
         chartTakenLate = Color(0xFF8FE3EC),
-        chartSkipped = Color(0xFF5E5E66),
+        chartSkipped = Color(0xFF7C7C85),
         chartUnconfirmed = Color(0xFFF0A23A),
     )
 

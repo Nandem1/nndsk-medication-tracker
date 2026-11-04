@@ -4,9 +4,11 @@ import XCTest
 /// Actúa como cuidador contra la API real y controla el proxy de fallos.
 /// La app bajo prueba no conoce este código ni tiene rutas especiales para pruebas.
 struct E2EBackend {
-    static let proxy = URL(string: "http://127.0.0.1:18084")!
-    static let api = URL(string: "http://127.0.0.1:18083")!
-    static let emulator = URL(string: "http://127.0.0.1:9099")!
+    // TEST_RUNNER_E2E_PORT_OFFSET permite correr junto a otros servidores locales, como en la web.
+    private static let offset = Int(ProcessInfo.processInfo.environment["E2E_PORT_OFFSET"] ?? "") ?? 0
+    static let proxy = URL(string: "http://127.0.0.1:\(18084 + offset)")!
+    static let api = URL(string: "http://127.0.0.1:\(18083 + offset)")!
+    static let emulator = URL(string: "http://127.0.0.1:\(9099 + offset)")!
     static let password = "synthetic-password-1"
 
     struct Account {

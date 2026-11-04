@@ -18,7 +18,7 @@ flowchart TB
 
 ## Responsabilidades
 
-- [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta.
+- [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta y la sección a su parámetro `section`. Las pestañas de paciente viven en el encabezado de [sesión](../src/app/session.tsx). La API no entrega nombres: las etiquetas salen de [`sections.ts`](../src/lib/sections.ts).
 - [Sesión](../src/app/session.tsx) controla carga, acceso anónimo y acceso autenticado. El [adaptador Firebase](../src/app/firebase.ts) obtiene tokens y usa persistencia en memoria.
 - [Pantallas](../src/features/) contienen pacientes, consentimiento y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
 - [Cliente HTTP](../src/lib/api/client.ts) transmite tokens, recorre páginas y valida respuestas con los [esquemas](../src/lib/api/contracts.ts). Los datos clínicos no se guardan en almacenamiento persistente del navegador.
@@ -38,6 +38,10 @@ La agenda diferencia pendiente, sin confirmar, tomada, tomada tarde y omitida me
 ## Seguimiento F7
 
 La sección Seguimiento permite elegir semana, mes o rango y filtrar un tratamiento del paciente seleccionado. El backend entrega los conteos y proporciones; la UI no agrega una página parcial de agenda. Cada porcentaje muestra su numerador y denominador, y la puntualidad indica su ventana organizativa. El calendario presenta respuestas explícitas, incluidas omisiones, sin rachas ni recompensas por consumo.
+
+[Seguimiento](../src/features/dashboard.tsx) abre con alertas y agenda de hoy de todo el paciente, que el filtro del informe no oculta. La consulta del informe espera a la de hoy: ambas materializan dosis bajo `RepeatableRead` y en paralelo chocan con 409 en un paciente sin materializar. Las [barras apiladas](../src/features/adherence-chart.tsx) usan sólo `report.days`, con leyenda, trama para «sin confirmar», `aria-label` resumen y tabla alternativa.
+
+[Inventario](../src/features/inventory.tsx) es una lista de cuentas con días de cobertura y un detalle. El saldo estimado es `balance − scheduled_quantity`, ambos del servidor, con resta exacta en [`inventory.ts`](../src/lib/inventory.ts); no pasa por float. La API no entrega saldo por día, así que la proyección muestra la parte cubierta de la ventana y no una curva. La tabla de movimientos muestra las cantidades como texto.
 
 El historial usa el mismo filtro y ordena las dosis por instante programado. Los días del calendario conservan la fecha local original de la pauta. Los rangos admiten hasta 366 días, mientras que inventario conserva su proyección de 30 días.
 

@@ -43,6 +43,8 @@ struct HistoryView: View {
                     Text(DoseText.selfReported)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Tokens.Colors.bg)
             .navigationTitle("Historial")
             .navigationDestination(for: String.self) { DoseDetailView(doseID: $0) }
             .refreshable { await model.syncNow() }

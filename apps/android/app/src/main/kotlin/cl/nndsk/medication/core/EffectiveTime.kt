@@ -12,3 +12,18 @@ fun effectiveInstant(date: String, time: String, timezone: String, selectedOffse
     requireNotNull(offset) { "Elige la primera o segunda vez que ocurrió esta hora." }
     return LocalDateTime.of(LocalDate.parse(date), LocalTime.parse(time)).toInstant(offset)
 }
+
+/** Reglas de la hoja «Me lo tomé tarde». La hora nunca queda en el futuro. */
+object LateTime {
+    private val hourMinute = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+    fun floorToMinute(value: Instant): Instant = value.truncatedTo(java.time.temporal.ChronoUnit.MINUTES)
+    fun stepped(value: Instant, minutes: Long, now: Instant): Instant = minOf(value.plusSeconds(minutes * 60), floorToMinute(now))
+    fun canAdvance(value: Instant, now: Instant): Boolean = value < floorToMinute(now)
+    fun ago(minutes: Long, now: Instant): Instant = floorToMinute(now).minusSeconds(minutes * 60)
+    fun label(value: Instant, timezone: String): String = value.atZone(ZoneId.of(timezone)).format(hourMinute)
+    /** La misma hora local ocurre dos veces cuando se atrasa el reloj. */
+    fun isRepeated(value: Instant, timezone: String): Boolean {
+        val zone = ZoneId.of(timezone)
+        return zone.rules.getValidOffsets(value.atZone(zone).toLocalDateTime()).size == 2
+    }
+}

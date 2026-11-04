@@ -23,5 +23,6 @@ No se editan a mano.
 
 - Los colores se declaran en pares claro/oscuro. `contrast.text` exige 4.5:1 y `contrast.nonText` 3:1 en ambos modos. Un par nuevo de texto sobre fondo se añade a la lista.
 - Los estados de dosis tienen su par `Fg`/`Bg`. «Omitida» es neutra a propósito, y el rojo (`danger`) se reserva para conflictos que exigen decidir.
+- Las series de gráfico se validaron contra separación por daltonismo con el orden tomada, tarde, omitida, sin confirmar. `chartSkipped` es gris a propósito, por eso no alcanza el croma de una serie categórica.
 - Ningún estado ni serie de gráfico depende sólo del color: los componentes añaden icono, texto o trama.
 - Las apps nativas usan la fuente del sistema para respetar Dynamic Type y la escala de fuente. Cada rol tipográfico declara un `ios` text style que sirve de ancla de escala. La web declara Geist y Geist Mono con alternativas del sistema. Mientras la fuente no se aloje localmente, la web cae a la fuente del sistema.
