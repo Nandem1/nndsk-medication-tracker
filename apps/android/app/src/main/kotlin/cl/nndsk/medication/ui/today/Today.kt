@@ -28,7 +28,7 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
 import cl.nndsk.medication.ui.caregiver.PendingPoolCard
 
 /** Cuenta registros, no tomas: una omisión también suma. Sin rachas ni metas. */
-@Composable internal fun Today(model: PatientViewModel, state: PatientScreen, now: Instant, open: (String) -> Unit) {
+@Composable internal fun Today(model: PatientViewModel, state: PatientScreen, now: Instant, openAccess: (() -> Unit)? = null, open: (String) -> Unit) {
     val snapshot = state.snapshot
     val context = LocalContext.current
     val plan = todayPlan(snapshot?.doses.orEmpty(), state.operations, now)
@@ -54,6 +54,10 @@ import cl.nndsk.medication.ui.caregiver.PendingPoolCard
                 else -> "Sin agenda guardada. Conéctate y sincroniza para cargar tus tomas."
             }, style = GraphiteTokens.Type.patientBody)
             else if (plan.later.isEmpty() && plan.overdue.isEmpty()) Text("No quedan tomas por registrar hoy.", style = GraphiteTokens.Type.patientBody)
+        }
+        if (openAccess != null && plan.total == 0 && snapshot?.refreshedAt != null && snapshot.links.isEmpty()) SectionCard("¿Te invitó un cuidador?") {
+            Note("Pega el código que te enviaron para revisar qué podrá hacer antes de autorizarlo.")
+            SecondaryAction("Ingresar código") { openAccess() }
         }
         if (plan.later.isNotEmpty()) {
             SectionTitle("Más tarde")

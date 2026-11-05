@@ -45,4 +45,15 @@ class FamilyTest {
         val decoded = wireJson.decodeFromString<Inventory>("""{"treatment_id":"t","balance":"20.000","unit":"tablet","pool":{"pool_id":"p","status":"active","members":[{"patient_display_name":"otra persona","you":false,"current":false,"status":"accepted"}]}}""")
         assertEquals("otra persona", poolOthers(decoded.pool!!))
     }
+    @Test fun reportOnlyCallsTodayWhatIsToday() {
+        val today = java.time.LocalDate.parse("2026-11-05")
+        assertEquals("Hoy hasta ahora", reportPeriodLabel("2026-11-05", today))
+        assertEquals("Datos del 04-11-2026", reportPeriodLabel("2026-11-04", today))
+    }
+    @Test fun quantityAcceptsTheChileanComma() {
+        assertEquals("1.25", normalizedQuantity(" 1,25 "))
+        assertEquals("10.500", normalizedQuantity("10.500"))
+        assertEquals(null, normalizedQuantity("1,2345"))
+        assertEquals(null, normalizedQuantity("1.000,5"))
+    }
 }

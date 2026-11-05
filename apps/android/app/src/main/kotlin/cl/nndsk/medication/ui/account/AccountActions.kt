@@ -33,7 +33,7 @@ internal fun writeExport(context: Context, content: String): File {
     LaunchedEffect(Unit) { clearExports(context) }
     SectionCard("Tus datos") {
         Note("El archivo contiene tus datos de salud. Compártelo sólo con quien corresponda.")
-        DoseAction("Descargar mis datos", enabled = !disabled) { model.run {
+        SecondaryAction("Descargar mis datos", enabled = !disabled) { model.run {
             try {
                 val file = writeExport(context, model.repository.exportAccount())
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
@@ -43,7 +43,7 @@ internal fun writeExport(context: Context, content: String): File {
             } catch (_: ApiFailure) { message = "No se pudieron preparar tus datos. Intenta nuevamente." }
             catch (_: java.io.IOException) { message = "No hay conexión. Intenta nuevamente cuando vuelva internet." }
         } }
-        DoseAction("Eliminar mi cuenta", enabled = !disabled) { deleting = true }
+        SecondaryAction("Eliminar mi cuenta", enabled = !disabled) { deleting = true }
         if (disabled) Note("Conéctate para descargar tus datos o eliminar tu cuenta.")
         message?.let { Note(it) }
     }

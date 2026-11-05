@@ -98,6 +98,7 @@ class AndroidE2ETest {
             app.repository.login(patient.first, password)
             assertEquals(consentOperation, app.identity.invitationOperation(invitation))
             compose.onNodeWithText("Ajustes").performClick()
+            compose.onNodeWithText("Pegar código o revisar accesos").performScrollTo().performClick()
             compose.onNodeWithText("Código de invitación").performScrollTo().performTextInput(invitation)
             compose.onNodeWithText("Revisar invitación").performScrollTo().performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
@@ -273,7 +274,7 @@ class AndroidE2ETest {
             waitFor { app.repository.state.value.own?.profile?.profileComplete == true }
             compose.onNodeWithText("Cuido a alguien").performClick()
             waitFor { app.repository.state.value.caregiverPreference == true }
-            compose.onNodeWithText("Invitar paciente").performScrollTo().performClick()
+            compose.onNodeWithText("Invitar a alguien").performScrollTo().performClick()
             compose.onNodeWithText("¿Cómo se llama? (opcional)").performTextInput("Mamá sintética")
             capture("family-invite")
             compose.onNodeWithText("Crear invitación").performScrollTo().performClick()
@@ -295,10 +296,10 @@ class AndroidE2ETest {
             app.repository.login(patient.first, password); app.repository.setUse(false)
             waitFor { app.repository.state.value.own?.profile?.profileComplete == true }
             compose.onNodeWithText("Ajustes").performClick()
+            compose.onNodeWithText("Pegar código o revisar accesos").performScrollTo().performClick()
             compose.onNodeWithText("Pegar código").performScrollTo().performClick()
-            compose.onNodeWithText("Revisar invitación").performScrollTo().performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Cuidador sintético").performScrollTo().assertExists()
+            compose.onNodeWithText("Cuidador sintético podrá:").performScrollTo().assertExists()
             compose.onNodeWithText("Autorizar estos permisos").performScrollTo()
             capture("family-consent")
             compose.onNodeWithText("Autorizar estos permisos").performScrollTo().performClick()
@@ -310,7 +311,7 @@ class AndroidE2ETest {
             app.repository.logout(); app.repository.login(reader.first, password); app.repository.setUse(true)
             waitFor { app.repository.state.value.patients.size == 1 }
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
-            compose.onNodeWithContentDescription("Ver a Paciente uno sintético").performScrollTo().performClick()
+            compose.onNodeWithText("Paciente uno sintético").performScrollTo().performClick()
             compose.onNodeWithText("Tu acceso permite sólo mirar").assertExists()
             compose.onAllNodesWithText("Se lo tomó").assertCountEquals(0)
             capture("family-read-only")
@@ -320,7 +321,7 @@ class AndroidE2ETest {
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
             capture("family-patients")
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
-            compose.onNodeWithContentDescription("Ver a Paciente uno sintético").performScrollTo().performClick()
+            compose.onNodeWithText("Paciente uno sintético").performScrollTo().performClick()
             compose.onNodeWithText("Se lo tomó tarde").performScrollTo().performClick()
             compose.onNodeWithText("¿A qué hora se lo tomó?").assertExists()
             capture("family-late")
@@ -341,6 +342,12 @@ class AndroidE2ETest {
             capture("family-count")
             compose.onNodeWithText("Guardar").performScrollTo().performClick()
             waitFor { app.repository.state.value.patients[patientId]!!.inventory.single().balance == "10.500" }
+            compose.onNodeWithText("Ver movimientos").performScrollTo().performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Ocultar movimientos").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Stock inicial").performScrollTo().assertExists()
+            capture("family-movements")
+            compose.onNodeWithText("Saldo confirmado").performScrollTo().assertExists()
+            capture("family-inventory")
             val account = app.repository.state.value.patients.getValue(patientId).inventory.single().accountId
             val replenishOperation = UUID.randomUUID().toString()
             fault("lose-responses")
@@ -419,7 +426,7 @@ class AndroidE2ETest {
 
             app.repository.login(caregiver.first, password); app.repository.setUse(true)
             waitFor { app.repository.state.value.patients.size == 2 }
-            compose.onNodeWithContentDescription("Ver a Mamá sintética").performScrollTo().performClick()
+            compose.onNodeWithText("Mamá sintética").performScrollTo().performClick()
             compose.onNodeWithText("Inventario").performClick()
             compose.onNodeWithText("Compartir con…").performScrollTo().performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("Papá sintético").fetchSemanticsNodes().isNotEmpty() }

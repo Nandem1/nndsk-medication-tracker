@@ -58,6 +58,26 @@ internal const val caregiverGuidance = "Si una dosis se olvidó o se tomó tarde
     }
 }
 
+/** Acción secundaria de cuidador y ajustes: más liviana que las declaraciones, sin atenuar el texto. */
+@Composable internal fun SecondaryAction(label: String, modifier: Modifier = Modifier.fillMaxWidth(), enabled: Boolean = true, action: () -> Unit) {
+    val colors = MedicationTrackerTheme.colors
+    OutlinedButton(onClick = action, enabled = enabled, shape = RoundedCornerShape(GraphiteTokens.Radius.md), colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.text),
+        border = BorderStroke(1.dp, colors.borderStrong), modifier = modifier.heightIn(min = GraphiteTokens.Size.minTouchAndroid)) {
+        Text(label, style = GraphiteTokens.Type.caregiverBody.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), textAlign = TextAlign.Center)
+    }
+}
+
+/** Lista de permisos en lenguaje simple, uno por línea. */
+@Composable internal fun ScopeList(scopes: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.xxs)) {
+        scopes.forEach { Text("• ${scopeLabel(it)}", style = GraphiteTokens.Type.patientBody) }
+    }
+}
+
+@Composable internal fun ErrorText(text: String) {
+    Text(text, color = MedicationTrackerTheme.colors.dangerFg, style = GraphiteTokens.Type.caregiverBody)
+}
+
 internal data class Chip(val text: String, val icon: Int, val foreground: Color, val background: Color)
 
 /** Chip de estado: icono y texto, nunca sólo color. */

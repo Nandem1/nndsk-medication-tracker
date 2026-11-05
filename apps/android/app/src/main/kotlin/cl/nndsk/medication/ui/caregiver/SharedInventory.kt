@@ -10,10 +10,8 @@ import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.util.UUID
 
 internal fun balanceLabel(stock: Inventory) = if (stock.pool?.status == "active") "Saldo común confirmado" else "Saldo confirmado"
-internal fun movementLine(item: Movement): String {
-    val date = if (item.reason == "shared_activity") sharedActivityDate(item.createdAt) else formatInstant(item.createdAt)
-    return listOfNotNull(quantityText(item.quantity), movementLabel(item.reason), item.patientName, date).joinToString(" · ")
-}
+/** La actividad ajena no trae hora: el servidor sólo entrega su fecha. */
+internal fun movementDate(item: Movement) = if (item.reason == "shared_activity") sharedActivityDate(item.createdAt) else formatInstant(item.createdAt)
 
 /** Sólo el propio paciente decide. Un cuidador nunca ve esta tarjeta por otra persona. */
 @Composable internal fun PendingPoolCard(model: PatientViewModel, pool: PendingPool, disabled: Boolean) {
@@ -21,8 +19,8 @@ internal fun movementLine(item: Movement): String {
     val decline = remember(pool.id) { UUID.randomUUID().toString() }
     SectionCard("Inventario compartido") {
         Text(poolProposal(pool))
-        DoseAction("Aceptar", enabled = !disabled) { model.run { model.repository.decidePool(pool.id, true, accept) } }
-        DoseAction("Ahora no", enabled = !disabled) { model.run { model.repository.decidePool(pool.id, false, decline) } }
+        SecondaryAction("Aceptar", enabled = !disabled) { model.run { model.repository.decidePool(pool.id, true, accept) } }
+        SecondaryAction("Ahora no", enabled = !disabled) { model.run { model.repository.decidePool(pool.id, false, decline) } }
     }
 }
 
@@ -37,20 +35,20 @@ internal fun movementLine(item: Movement): String {
     if (pool?.status == "active") {
         StatusChip(Chip("Inventario compartido con ${poolOthers(pool)}", R.drawable.ic_shared, colors.scheduledFg, colors.scheduledBg))
         Note("El saldo es común: suma lo que registra cada persona. Si recién empezaron a compartir, conviene hacer un conteo físico.")
-        if (canEdit) DoseAction("Dejar de compartir", enabled = !disabled) { leaving = true }
+        if (canEdit) SecondaryAction("Dejar de compartir", enabled = !disabled) { leaving = true }
         if (disabled && canEdit) Note("Conéctate para dejar de compartir.")
     } else if (pool != null) {
         StatusChip(Chip("Esperando a ${poolOthers(pool, "pending")}", R.drawable.ic_shared, colors.scheduledFg, colors.scheduledBg))
         Note("Cada paciente decide por sí mismo. Mientras tanto, los saldos siguen separados.")
-        if (canEdit) DoseAction("Retirar esta cuenta de la propuesta", enabled = !disabled) { model.run { model.repository.leavePool(pool.id, stock.accountId, leave) } }
+        if (canEdit) SecondaryAction("Retirar esta cuenta de la propuesta", enabled = !disabled) { model.run { model.repository.leavePool(pool.id, stock.accountId, leave) } }
     } else if (propose && canEdit) {
-        DoseAction("Compartir con…", enabled = !disabled) {
+        SecondaryAction("Compartir con…", enabled = !disabled) {
             model.run {
                 try { candidates = model.repository.poolCandidates(stock.accountId); error = null }
                 catch (_: Exception) { error = "No se pudieron cargar las personas con este medicamento." }
             }
         }
-        error?.let { Note(it) }
+        error?.let { ErrorText(it) }
     }
     if (leaving && pool != null) AlertDialog(onDismissRequest = { leaving = false }, title = { Text("Dejar de compartir") },
         text = { Text("El saldo se queda con ${poolOthers(pool)}. Esta cuenta quedará en 0: después registra el stock que tengas.") },
@@ -62,7 +60,7 @@ internal fun movementLine(item: Movement): String {
             else androidx.compose.foundation.layout.Column {
                 Note("Si usan físicamente la misma caja, pueden compartir el saldo. Cada paciente debe aceptar.")
                 rows.forEach { candidate ->
-                    DoseAction(candidate.name ?: "Paciente sin nombre") {
+                    SecondaryAction(candidate.name ?: "Paciente sin nombre") {
                         candidates = null
                         model.run { model.repository.proposePool(listOf(stock.accountId, candidate.accountId), proposal) }
                     }

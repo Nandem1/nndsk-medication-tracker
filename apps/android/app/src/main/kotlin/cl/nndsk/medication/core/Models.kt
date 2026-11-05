@@ -106,6 +106,11 @@ data class PatientScreen(val snapshot: Snapshot?, val operations: List<PendingOp
     fun permits(scope: String) = snapshot?.let { !caregiver || scope in it.access?.scopes.orEmpty() } == true
 }
 
+/** El informe guardado puede ser de otro día: sólo se llama «hoy» si lo es, en la zona del paciente. */
+fun reportPeriodLabel(from: String, today: java.time.LocalDate) =
+    if (from == today.toString()) "Hoy hasta ahora" else "Datos del ${sharedActivityDate(from)}"
+/** El teclado chileno escribe coma. La API recibe punto y hasta tres decimales. */
+fun normalizedQuantity(text: String) = text.trim().replace(',', '.').takeIf { Regex("[0-9]{1,9}(\\.[0-9]{1,3})?").matches(it) }
 fun coverageLabel(stock: Inventory): String {
     if (stock.from.isBlank() || stock.through.isBlank()) return "Sin proyección disponible"
     val zone = ZoneId.of(stock.timezone)
