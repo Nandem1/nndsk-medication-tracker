@@ -1,6 +1,6 @@
 # PLAN-FAMILIA.md — Modo familia de punta a punta
 
-> **Estado al 2026-11-04:** P0 a P6 implementadas, verificadas en local y publicadas en `main`. P7 en curso. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
+> **Estado al 2026-11-04:** P0 a P6 implementadas, verificadas en local y publicadas en `main`. P7 parcial: staging desplegado; aceptación en teléfonos pendiente. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
 > **Punto de partida:** `main` en `6219d33`, más este plan.
 > **Ejecutor previsto:** otro modelo, sin contexto de la conversación que originó este plan. Todo lo necesario está aquí, en `AGENTS.md` y en `PLAN.md`.
 > **Regla de lectura:** lee `AGENTS.md`, `PLAN.md` y este archivo completos antes de cambiar nada. Las decisiones de la sección 2 ya están tomadas por el usuario o delegadas por él: no las reabras. Si el código contradice una suposición de este plan, sigue la intención, resuelve con el cambio más pequeño y registra la diferencia en el informe de cierre.
