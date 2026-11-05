@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"medication-tracker/services/api/internal/application"
+	"medication-tracker/services/api/internal/domain"
 )
 
 func (a *API) poolCandidates(w http.ResponseWriter, r *http.Request) {
@@ -19,27 +20,12 @@ func (a *API) createPool(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	out, err := a.service.CreateInventoryPool(r.Context(), application.CreatePoolCommand{Mutation: mutation(r, req.OperationID), AccountIDs: req.AccountIDs})
+	counted, err := domain.ParseQuantity(req.CountedQuantity)
 	if err != nil {
 		resultError(w, r, err)
 		return
 	}
-	writeJSON(w, 200, out)
-}
-func (a *API) pendingPools(w http.ResponseWriter, r *http.Request) {
-	items, err := a.service.PendingInventoryPools(r.Context(), actor(r))
-	if err != nil {
-		resultError(w, r, err)
-		return
-	}
-	writeJSON(w, 200, Page[application.PendingPool]{items, ""})
-}
-func (a *API) decidePool(w http.ResponseWriter, r *http.Request) {
-	var req PoolDecisionRequest
-	if !decode(w, r, &req) {
-		return
-	}
-	out, err := a.service.DecideInventoryPool(r.Context(), application.PoolDecisionCommand{Mutation: mutation(r, req.OperationID), PoolID: r.PathValue("poolId"), Decision: req.Decision})
+	out, err := a.service.CreateInventoryPool(r.Context(), application.CreatePoolCommand{Mutation: mutation(r, req.OperationID), AccountIDs: req.AccountIDs, CountedAccountID: req.CountedAccountID, CountedQuantity: counted})
 	if err != nil {
 		resultError(w, r, err)
 		return

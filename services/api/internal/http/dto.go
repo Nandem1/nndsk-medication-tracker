@@ -128,12 +128,10 @@ type Projection struct {
 	Pool                  *application.PoolView `json:"pool"`
 }
 type CreatePoolRequest struct {
-	OperationID string   `json:"client_operation_id"`
-	AccountIDs  []string `json:"account_ids"`
-}
-type PoolDecisionRequest struct {
-	OperationID string `json:"client_operation_id"`
-	Decision    string `json:"decision"`
+	OperationID      string   `json:"client_operation_id"`
+	AccountIDs       []string `json:"account_ids"`
+	CountedAccountID string   `json:"counted_account_id"`
+	CountedQuantity  string   `json:"counted_quantity"`
 }
 type LeavePoolRequest struct {
 	OperationID string `json:"client_operation_id"`
@@ -143,10 +141,14 @@ type Page[T any] struct {
 	Items      []T    `json:"items"`
 	NextCursor string `json:"next_cursor"`
 }
-type InvitationRequest struct {
-	PatientNameHint *string             `json:"patient_name_hint,omitempty"`
-	OperationID     string              `json:"client_operation_id"`
-	Scopes          []application.Scope `json:"scopes"`
+type CreateFamilyRequest struct {
+	OperationID string `json:"client_operation_id"`
+	Name        string `json:"name"`
+}
+type FamilyInvitationRequest struct {
+	PatientNameHint *string                `json:"patient_name_hint,omitempty"`
+	OperationID     string                 `json:"client_operation_id"`
+	Role            application.FamilyRole `json:"role"`
 }
 type AcceptInvitationRequest struct {
 	OperationID string `json:"client_operation_id"`

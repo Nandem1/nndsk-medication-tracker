@@ -28,10 +28,7 @@ func TestF6DeviceHTTPAuthorization(t *testing.T) {
 
 func TestF6PreferenceHTTPConsent(t *testing.T) {
 	f := newAPIFixture(t)
-	var invitation application.Invitation
-	var link application.Link
-	f.request("caregiver", "POST", "/v1/invitations", map[string]any{"client_operation_id": domain.NewID(), "scopes": []string{"read"}}, 201, &invitation)
-	f.request("patient", "POST", "/v1/invitations/accept", map[string]any{"client_operation_id": domain.NewID(), "token": invitation.Token}, 200, &link)
+	link := f.invite([]application.Scope{application.ScopeRead})
 	path := "/v1/caregiver-links/" + link.ID + "/alert-preferences"
 	var prefs application.AlertPreferences
 	f.request("caregiver", "GET", path, nil, 200, &prefs)
@@ -49,6 +46,6 @@ func TestF6PreferenceHTTPConsent(t *testing.T) {
 	if got.UnconfirmedDelayMinutes == nil || *got.UnconfirmedDelayMinutes != 60 {
 		t.Fatal(got)
 	}
-	f.request("patient", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
+	f.leave(link)
 	f.request("caregiver", "GET", path, nil, 404, nil)
 }

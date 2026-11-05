@@ -158,7 +158,11 @@ func TestDeleteCaregiverKeepsPatientHistoryAndRevokesLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unused, err := f.s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead}, nil)
+	own, err := f.s.CreateFamily(ctx, CreateFamilyCommand{Mutation: mutation(caregiver), Name: "Otra familia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unused, err := f.s.InviteToFamily(ctx, InviteToFamilyCommand{Mutation: mutation(caregiver), FamilyID: own.ID, Role: RolePatient})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,12 +229,16 @@ func TestDeleteAccountRemovesThirdPartyReplayData(t *testing.T) {
 	if _, err := f.s.UpdateProfile(ctx, UpdateProfileCommand{Mutation: mutation(leaving), PatientID: leaving, ExpectedVersion: 1, DisplayName: "Cuidador que se va"}); err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := f.s.CreateInvitation(ctx, mutation(leaving), []Scope{ScopeRead}, nil)
+	family, err := f.s.CreateFamily(ctx, CreateFamilyCommand{Mutation: mutation(leaving), Name: "Familia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invitation, err := f.s.InviteToFamily(ctx, InviteToFamilyCommand{Mutation: mutation(leaving), FamilyID: family.ID, Role: RolePatient})
 	if err != nil {
 		t.Fatal(err)
 	}
 	accept := mutation(f.papa)
-	if _, err = f.s.AcceptInvitation(ctx, accept, invitation.Token); err != nil {
+	if _, err = f.s.AcceptFamilyInvitation(ctx, AcceptFamilyInvitationCommand{Mutation: accept, Token: invitation.Token}); err != nil {
 		t.Fatal(err)
 	}
 	for _, person := range []string{f.mama, leaving} {
@@ -238,7 +246,8 @@ func TestDeleteAccountRemovesThirdPartyReplayData(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for name, m := range map[string]Mutation{"cambio de nombre": rename, "conteo": count, "aceptación": accept} {
+	// La aceptación de Papá no guarda datos de quien se fue: un reintento lee la familia actual.
+	for name, m := range map[string]Mutation{"cambio de nombre": rename, "conteo": count} {
 		if n := countRows(t, f.p, `SELECT count(*) FROM operations WHERE actor_user_id=$1 AND client_operation_id=$2`, m.ActorID, m.OperationID); n != 0 {
 			t.Fatal("queda replay con datos de la cuenta borrada:", name)
 		}
@@ -280,12 +289,12 @@ func TestLeavePoolTreatsAccountIDCaseInsensitively(t *testing.T) {
 	f := newPoolFixture(t)
 	ctx := context.Background()
 	a, b := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.mama, standardMedication())
-	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{strings.ToUpper(a.AccountID), b.AccountID}})
+	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{strings.ToUpper(a.AccountID), b.AccountID}, CountedAccountID: b.AccountID, CountedQuantity: 20000})
 	if err != nil || created.Status != "active" {
 		t.Fatal(created, err)
 	}
 	for _, account := range []string{a.AccountID, b.AccountID} {
-		if _, err = f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{strings.ToUpper(account), account}}); !errors.Is(err, ErrInvalid) {
+		if _, err = f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{strings.ToUpper(account), account}, CountedAccountID: account, CountedQuantity: 0}); !errors.Is(err, ErrInvalid) {
 			t.Fatal("una cuenta repetida en otra capitalización", err)
 		}
 	}
@@ -301,7 +310,7 @@ func TestLeavePoolTreatsAccountIDCaseInsensitively(t *testing.T) {
 	}
 }
 
-// Quien rechazó ya no tiene motivo para ver nombres de un inventario posterior.
+// Quien salió ya no tiene motivo para ver nombres de un inventario posterior.
 func TestPoolViewIgnoresPastMembershipForNames(t *testing.T) {
 	f := newPoolFixture(t)
 	ctx := context.Background()
@@ -315,12 +324,12 @@ func TestPoolViewIgnoresPastMembershipForNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, b, c := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.papa, standardMedication()), f.treatment(t, third, standardMedication())
-	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID, c.AccountID}})
+	created, err := f.share(t, caregiver, a.AccountID, b.AccountID, c.AccountID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Mamá rechaza y Papá sigue en la propuesta: el inventario continúa sin ella.
-	if _, err = f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(f.mama), PoolID: created.PoolID, Decision: "decline"}); err != nil {
+	// Mamá sale y Papá sigue: el inventario continúa sin ella.
+	if _, err = f.s.LeaveInventoryPool(ctx, LeavePoolCommand{Mutation: mutation(f.mama), PoolID: created.PoolID, AccountID: a.AccountID}); err != nil {
 		t.Fatal(err)
 	}
 	f.link(t, third, f.mama, ScopeRead)
@@ -330,7 +339,7 @@ func TestPoolViewIgnoresPastMembershipForNames(t *testing.T) {
 	}
 	for _, member := range views[0].Pool.Members {
 		if member.PatientDisplayName != nil && *member.PatientDisplayName == name {
-			t.Fatal("rechazar no da acceso al nombre", member)
+			t.Fatal("salir no da acceso al nombre", member)
 		}
 	}
 }

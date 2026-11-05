@@ -19,6 +19,7 @@ type alertFixture struct {
 	s                                *Service
 	p                                *pgxpool.Pool
 	patient, caregiver, link, device string
+	family                           string
 	tr                               TreatmentResult
 	now                              *time.Time
 }
@@ -33,14 +34,8 @@ func alertsFixture(t *testing.T) *alertFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := s.CreateInvitation(ctx, mutation(caregiver), []Scope{ScopeRead}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	link, err := s.AcceptInvitation(ctx, mutation(patient), invitation.Token)
-	if err != nil {
-		t.Fatal(err)
-	}
+	family, linkID := grant(t, s, caregiver, patient, RoleObserver)
+	link := struct{ ID string }{linkID}
 	id := domain.NewID()
 	if _, err = s.RegisterDevice(ctx, caregiver, DeviceInput{ID: id, Platform: "fcm", Token: "synthetic-" + id, Permission: "granted"}); err != nil {
 		t.Fatal(err)
@@ -62,7 +57,7 @@ func alertsFixture(t *testing.T) *alertFixture {
 		_, _ = p.Exec(ctx, `DELETE FROM notification_frequency WHERE user_id=$1`, caregiver)
 		_, _ = p.Exec(ctx, `DELETE FROM device_registrations WHERE user_id=$1`, caregiver)
 	})
-	return &alertFixture{s, p, patient, caregiver, link.ID, id, tr, &now}
+	return &alertFixture{s, p, patient, caregiver, link.ID, id, family, tr, &now}
 }
 
 type testPush struct {
@@ -202,7 +197,7 @@ func TestF6SuppressesStaleConditionsAndDevices(t *testing.T) {
 			ctx := context.Background()
 			switch reason {
 			case "revoked":
-				if err := f.s.RevokeLink(ctx, f.patient, f.link); err != nil {
+				if err := f.s.RemoveFamilyMember(ctx, f.patient, f.family, f.patient); err != nil {
 					t.Fatal(err)
 				}
 			case "rotated":
@@ -310,16 +305,12 @@ func TestF6DeviceOwnershipAndConsentGeneration(t *testing.T) {
 	if _, err := f.s.RegisterDevice(ctx, f.caregiver, in); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.s.RevokeLink(ctx, f.patient, f.link); err != nil {
+	if err := f.s.RemoveFamilyMember(ctx, f.patient, f.family, f.patient); err != nil {
 		t.Fatal(err)
 	}
-	invitation, err := f.s.CreateInvitation(ctx, mutation(f.caregiver), []Scope{ScopeRead}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = f.s.AcceptInvitation(ctx, mutation(f.patient), invitation.Token); err != nil {
-		t.Fatal(err)
-	}
+	// Volver a unirse es un consentimiento nuevo: las preferencias anteriores no sobreviven.
+	join(t, f.s, f.caregiver, f.patient, f.family, RolePatient)
+	setRole(t, f.s, f.family, f.caregiver, RoleObserver)
 	prefs, err := f.s.GetAlertPreferences(ctx, f.caregiver, f.link)
 	if err != nil || prefs.UnconfirmedDelayMinutes != nil || prefs.StockEnabled {
 		t.Fatal("old consent preferences survived", prefs, err)

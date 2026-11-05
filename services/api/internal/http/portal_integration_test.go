@@ -11,19 +11,21 @@ import (
 
 func TestPortalHTTPPermissions(t *testing.T) {
 	f := newAPIFixture(t)
+	family := f.family("organizer")
 	var invite application.Invitation
-	f.request("caregiver", "POST", "/v1/invitations", InvitationRequest{OperationID: domain.NewID(), Scopes: []application.Scope{application.ScopeRead}}, 201, &invite)
-	var preview application.InvitationPreview
-	f.request("patient", "POST", "/v1/invitations/preview", PreviewInvitationRequest{invite.Token}, 200, &preview)
-	if len(preview.Scopes) != 1 {
+	f.request("organizer", "POST", "/v1/families/"+family+"/invitations", FamilyInvitationRequest{OperationID: domain.NewID(), Role: application.RolePatient}, 201, &invite)
+	var preview application.FamilyInvitationPreview
+	f.request("patient", "POST", "/v1/family-invitations/preview", PreviewInvitationRequest{invite.Token}, 200, &preview)
+	if preview.Role != application.RolePatient || len(preview.Members) != 1 {
 		t.Fatal(preview)
 	}
-	var link application.Link
-	f.request("patient", "POST", "/v1/invitations/accept", AcceptInvitationRequest{domain.NewID(), invite.Token}, 200, &link)
-	var links Page[application.Link]
-	f.request("patient", "GET", "/v1/caregiver-links", nil, 200, &links)
-	if len(links.Items) != 1 {
-		t.Fatal(links)
+	f.request("patient", "POST", "/v1/family-invitations/accept", AcceptInvitationRequest{domain.NewID(), invite.Token}, 200, nil)
+	f.join("organizer", "caregiver", family, application.RoleObserver)
+	link := familyLink{FamilyID: family}
+	var families Page[application.Family]
+	f.request("patient", "GET", "/v1/families", nil, 200, &families)
+	if len(families.Items) != 1 || len(families.Items[0].Members) != 3 {
+		t.Fatal(families)
 	}
 	var tr TreatmentResponse
 	f.request("patient", "POST", "/v1/patients/"+f.patient+"/treatments", CreateTreatmentRequest{OperationID: domain.NewID(), Name: "Synthetic portal", Unit: "tablet", InitialStock: "5.000", StartsOn: "2026-11-01", Schedule: Schedule{Timezone: "UTC", Policy: domain.RejectDST, Weekdays: []time.Weekday{0, 1, 2, 3, 4, 5, 6}, Slots: []Slot{{Time: "08:00", Quantity: "0.5"}}}}, 201, &tr)
@@ -38,10 +40,10 @@ func TestPortalHTTPPermissions(t *testing.T) {
 	if len(movements.Items) != 2 {
 		t.Fatal(movements)
 	}
-	f.request("patient", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
+	f.leave(link)
 	f.request("caregiver", "GET", "/v1/inventory/"+tr.AccountID+"/movements", nil, 404, nil)
-	f.request("stranger", "GET", "/v1/caregiver-links", nil, 200, &links)
-	if len(links.Items) != 0 {
-		t.Fatal(links)
+	f.request("stranger", "GET", "/v1/families", nil, 200, &families)
+	if len(families.Items) != 0 {
+		t.Fatal(families)
 	}
 }

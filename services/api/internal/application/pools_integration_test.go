@@ -59,37 +59,35 @@ func (f *poolFixture) treatment(t *testing.T, patient string, m medication) Trea
 
 func (f *poolFixture) link(t *testing.T, patient, caregiver string, scopes ...Scope) string {
 	t.Helper()
-	ctx := context.Background()
-	invitation, err := f.s.CreateInvitation(ctx, mutation(caregiver), scopes, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	link, err := f.s.AcceptInvitation(ctx, mutation(patient), invitation.Token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return link.ID
+	_, id := grant(t, f.s, caregiver, patient, roleFor(scopes))
+	return id
 }
 
-// El cuidador propone y cada paciente acepta por sí mismo.
-func (f *poolFixture) active(t *testing.T, a, b TreatmentResult) string {
+// share marca que las cuentas usan la misma caja. Cuenta lo que ya suman, para que las pruebas
+// de saldo partan de la suma y el conteo no cambie nada.
+func (f *poolFixture) share(t *testing.T, actor string, accounts ...string) (PoolResult, error) {
 	t.Helper()
 	ctx := context.Background()
+	var sum string
+	if err := f.p.QueryRow(ctx, `SELECT COALESCE(sum(quantity_delta),0)::text FROM inventory_movements WHERE inventory_account_id=ANY($1::uuid[])`, accounts).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
+	counted, err := domain.ParseQuantity(sum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(actor), AccountIDs: accounts, CountedAccountID: accounts[0], CountedQuantity: counted})
+}
+
+// El cuidador marca la misma caja y queda activa de inmediato.
+func (f *poolFixture) active(t *testing.T, a, b TreatmentResult) string {
+	t.Helper()
 	caregiver := newUser(t, f.s)
 	f.link(t, f.mama, caregiver, ScopeRead, ScopeInventory)
 	f.link(t, f.papa, caregiver, ScopeRead, ScopeInventory)
-	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decided PoolResult
-	for _, patient := range []string{f.mama, f.papa} {
-		if decided, err = f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(patient), PoolID: created.PoolID, Decision: "accept"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if decided.Status != "active" {
-		t.Fatal(decided)
+	created, err := f.share(t, caregiver, a.AccountID, b.AccountID)
+	if err != nil || created.Status != "active" {
+		t.Fatal(created, err)
 	}
 	return created.PoolID
 }
@@ -172,23 +170,17 @@ func TestPoolRetriesAreIdempotent(t *testing.T) {
 	caregiver := newUser(t, f.s)
 	f.link(t, f.mama, caregiver, ScopeRead, ScopeInventory)
 	f.link(t, f.papa, caregiver, ScopeRead, ScopeInventory)
-	create := CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID}}
+	create := CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID}, CountedAccountID: a.AccountID, CountedQuantity: 20000}
 	first, err := f.s.CreateInventoryPool(context.Background(), create)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || first.Status != "active" {
+		t.Fatal(first, err)
 	}
 	again, err := f.s.CreateInventoryPool(context.Background(), create)
 	if err != nil || again.PoolID != first.PoolID {
 		t.Fatal(again, err)
 	}
-	if _, err = f.s.DecideInventoryPool(context.Background(), PoolDecisionCommand{Mutation: mutation(f.mama), PoolID: first.PoolID, Decision: "accept"}); err != nil {
-		t.Fatal(err)
-	}
-	decide := PoolDecisionCommand{Mutation: mutation(f.papa), PoolID: first.PoolID, Decision: "accept"}
-	for range 2 {
-		if decided, e := f.s.DecideInventoryPool(context.Background(), decide); e != nil || decided.Status != "active" {
-			t.Fatal(decided, e)
-		}
+	if n := countRows(t, f.p, `SELECT count(*) FROM inventory_counts WHERE inventory_account_id=$1`, a.AccountID); n != 1 {
+		t.Fatal("count repeated", n)
 	}
 	command := RecordDoseEventCommand{Mutation: mutation(f.mama), DoseID: f.due(t, a), ExpectedVersion: 1, State: domain.Taken}
 	var wg sync.WaitGroup
@@ -327,61 +319,49 @@ func TestPoolProjectionAcrossSantiagoDST(t *testing.T) {
 	}
 }
 
-// 7. Un cuidador no acepta por el paciente; pendiente mantiene saldos separados; rechazar disuelve.
-func TestPoolConsentIsPersonal(t *testing.T) {
+// 7. La misma caja queda activa al marcarla y su saldo común es exactamente lo contado.
+func TestSharedBoxStartsFromTheCount(t *testing.T) {
 	f := newPoolFixture(t)
 	ctx := context.Background()
 	caregiver := newUser(t, f.s)
-	all := []Scope{ScopeRead, ScopeInventory, ScopeDoses}
-	f.link(t, f.mama, caregiver, all...)
-	f.link(t, f.papa, caregiver, all...)
+	f.link(t, f.mama, caregiver, ScopeRead, ScopeInventory)
+	f.link(t, f.papa, caregiver, ScopeRead, ScopeInventory)
 	a, b := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.papa, standardMedication())
-	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID}})
-	if err != nil || created.Status != "pending" {
+	// Dos stocks iniciales de 10 eran la misma caja: hay 7,25 comprimidos, no 20.
+	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{a.AccountID, b.AccountID}, CountedAccountID: b.AccountID, CountedQuantity: 7250})
+	if err != nil || created.Status != "active" {
 		t.Fatal(created, err)
 	}
-	if _, err = f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(caregiver), PoolID: created.PoolID, Decision: "accept"}); !denied(err) {
-		t.Fatal("un cuidador no puede aceptar por el paciente", err)
+	if got := f.balance(t, f.mama, a.AccountID); got != 7250 {
+		t.Fatal("common balance", got)
 	}
-	if got := f.balance(t, f.mama, a.AccountID); got != 10000 {
-		t.Fatal("pendiente mantiene saldos separados", got)
+	if got := f.ledger(t, b.AccountID); got != -2750 {
+		t.Fatal("adjustment on the counted account", got)
 	}
-	pending, err := f.s.PendingInventoryPools(ctx, f.mama)
-	if err != nil || len(pending) != 1 || pending[0].PoolID != created.PoolID || pending[0].MedicationName != "Losartán" {
-		t.Fatal(pending, err)
-	}
-	if none, e := f.s.PendingInventoryPools(ctx, caregiver); e != nil || len(none) != 0 {
-		t.Fatal("el cuidador no recibe decisiones", none, e)
-	}
-	decided, err := f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(f.mama), PoolID: created.PoolID, Decision: "accept"})
-	if err != nil || decided.Status != "pending" {
-		t.Fatal(decided, err)
-	}
-	if got := f.balance(t, f.mama, a.AccountID); got != 10000 {
-		t.Fatal(got)
-	}
-	decided, err = f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(f.papa), PoolID: created.PoolID, Decision: "decline"})
-	if err != nil || decided.Status != "dissolved" {
-		t.Fatal(decided, err)
-	}
-	// Disolver libera las cuentas para una propuesta nueva.
-	if pool := f.active(t, a, b); pool == created.PoolID {
-		t.Fatal(pool)
-	}
-	if got := f.balance(t, f.mama, a.AccountID); got != 20000 {
-		t.Fatal(got)
+	if n := countRows(t, f.p, `SELECT count(*) FROM inventory_counts WHERE inventory_account_id=$1 AND previous_balance=20 AND counted_quantity=7.25`, b.AccountID); n != 1 {
+		t.Fatal("audited count", n)
 	}
 	var threshold int
-	if err = f.p.QueryRow(ctx, `SELECT low_stock_days_threshold FROM inventory_pools p JOIN inventory_pool_members m ON m.pool_id=p.id WHERE m.account_id=$1 AND p.status='active'`, a.AccountID).Scan(&threshold); err != nil || threshold != 5 {
+	if err = f.p.QueryRow(ctx, `SELECT low_stock_days_threshold FROM inventory_pools WHERE id=$1`, created.PoolID).Scan(&threshold); err != nil || threshold != 5 {
 		t.Fatal(threshold, err)
+	}
+	// La cuenta contada debe ser parte de la caja, y no se cuenta en negativo.
+	c, d := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.papa, standardMedication())
+	for _, bad := range []CreatePoolCommand{
+		{Mutation: mutation(caregiver), AccountIDs: []string{c.AccountID, d.AccountID}, CountedAccountID: a.AccountID, CountedQuantity: 1000},
+		{Mutation: mutation(caregiver), AccountIDs: []string{c.AccountID, d.AccountID}, CountedAccountID: c.AccountID, CountedQuantity: -1},
+	} {
+		if _, err = f.s.CreateInventoryPool(ctx, bad); !errors.Is(err, ErrInvalid) {
+			t.Fatal(bad, err)
+		}
 	}
 }
 
-// Dos tratamientos del mismo paciente necesitan un único consentimiento.
-func TestPoolSamePatientUsesSingleConsent(t *testing.T) {
+// Dos tratamientos del mismo paciente pueden compartir caja.
+func TestPoolSamePatientSharesOwnBox(t *testing.T) {
 	f := newPoolFixture(t)
 	a, b := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.mama, standardMedication())
-	created, err := f.s.CreateInventoryPool(context.Background(), CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{a.AccountID, b.AccountID}})
+	created, err := f.share(t, f.mama, a.AccountID, b.AccountID)
 	if err != nil || created.Status != "active" {
 		t.Fatal(created, err)
 	}
@@ -397,16 +377,16 @@ func TestPoolValidatesSameMedication(t *testing.T) {
 	spacing.name, spacing.strength, spacing.form = "  LOSARTÁN ", "50   MG", "Comprimido"
 	for _, m := range []medication{strength, unit, accent} {
 		other := f.treatment(t, f.papa, m)
-		if _, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{base.AccountID, other.AccountID}}); !denied(err) {
+		if _, err := f.share(t, f.mama, base.AccountID, other.AccountID); !denied(err) {
 			// La propuesta de otro paciente sin vínculo se deniega antes de comparar.
 			t.Fatal(err)
 		}
 		own := f.treatment(t, f.mama, m)
-		if _, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{base.AccountID, own.AccountID}}); !errors.Is(err, ErrInvalid) {
+		if _, err := f.share(t, f.mama, base.AccountID, own.AccountID); !errors.Is(err, ErrInvalid) {
 			t.Fatal(m.name, err)
 		}
 	}
-	if _, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{base.AccountID, base.AccountID}}); !errors.Is(err, ErrInvalid) {
+	if _, err := f.share(t, f.mama, base.AccountID, base.AccountID); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}
 	same := f.treatment(t, f.mama, spacing)
@@ -414,11 +394,11 @@ func TestPoolValidatesSameMedication(t *testing.T) {
 	if err != nil || len(candidates) != 1 || candidates[0].AccountID != same.AccountID {
 		t.Fatal(candidates, err)
 	}
-	if _, err = f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{base.AccountID, same.AccountID}}); err != nil {
+	if _, err = f.share(t, f.mama, base.AccountID, same.AccountID); err != nil {
 		t.Fatal(err)
 	}
 	third := f.treatment(t, f.mama, standardMedication())
-	if _, err = f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{base.AccountID, third.AccountID}}); !errors.Is(err, ErrConflict) {
+	if _, err = f.share(t, f.mama, base.AccountID, third.AccountID); !errors.Is(err, ErrConflict) {
 		t.Fatal("una cuenta sólo puede estar en un inventario vivo", err)
 	}
 }
@@ -428,7 +408,7 @@ func TestPoolLeaveTransfersAndDissolves(t *testing.T) {
 	f := newPoolFixture(t)
 	ctx := context.Background()
 	a, b, c := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.mama, standardMedication())
-	created, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{a.AccountID, b.AccountID, c.AccountID}})
+	created, err := f.share(t, f.mama, a.AccountID, b.AccountID, c.AccountID)
 	if err != nil || created.Status != "active" {
 		t.Fatal(created, err)
 	}
@@ -460,7 +440,7 @@ func TestPoolLeaveTransfersAndDissolves(t *testing.T) {
 }
 
 // Salir con saldo cero no crea movimientos; y salir de un pendiente no traspasa.
-func TestPoolLeaveSkipsEmptyAndPendingTransfers(t *testing.T) {
+func TestPoolLeaveSkipsEmptyTransfersAndDissolves(t *testing.T) {
 	f := newPoolFixture(t)
 	ctx := context.Background()
 	empty, full := standardMedication(), standardMedication()
@@ -477,13 +457,14 @@ func TestPoolLeaveSkipsEmptyAndPendingTransfers(t *testing.T) {
 	f.link(t, f.mama, caregiver, ScopeRead, ScopeInventory)
 	f.link(t, f.papa, caregiver, ScopeRead, ScopeInventory)
 	c, d := f.treatment(t, f.mama, full), f.treatment(t, f.papa, full)
-	pending, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(caregiver), AccountIDs: []string{c.AccountID, d.AccountID}})
+	// Con dos cuentas, salir disuelve y la que queda conserva el saldo común.
+	shared, err := f.share(t, caregiver, c.AccountID, d.AccountID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	left, err := f.s.LeaveInventoryPool(ctx, LeavePoolCommand{Mutation: mutation(caregiver), PoolID: pending.PoolID, AccountID: c.AccountID})
-	if err != nil || left.Status != "dissolved" || f.ledger(t, c.AccountID) != 10000 {
-		t.Fatal(left, err)
+	left, err := f.s.LeaveInventoryPool(ctx, LeavePoolCommand{Mutation: mutation(caregiver), PoolID: shared.PoolID, AccountID: c.AccountID})
+	if err != nil || left.Status != "dissolved" || f.ledger(t, c.AccountID) != 0 || f.ledger(t, d.AccountID) != 20000 {
+		t.Fatal(left, err, f.ledger(t, c.AccountID), f.ledger(t, d.AccountID))
 	}
 }
 
@@ -641,7 +622,8 @@ func TestPoolNoDeadlockCreatingLeavingAndDeclaring(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for range 12 {
-			created, e := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{a.AccountID, b.AccountID}})
+			// El conteo no importa aquí: la carrera es entre crear, salir y declarar.
+			created, e := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{a.AccountID, b.AccountID}, CountedAccountID: a.AccountID, CountedQuantity: 1000})
 			if e != nil {
 				t.Error("crear", e)
 				return
@@ -672,7 +654,16 @@ func TestPoolNoDeadlockCreatingLeavingAndDeclaring(t *testing.T) {
 	if ctx.Err() != nil {
 		t.Fatal("la carrera no terminó", ctx.Err())
 	}
-	want := domain.Quantity(20000) + domain.Quantity(len(doses))*250 - domain.Quantity(len(doses))*m.quantity
+	// Cada caja nueva parte de un conteo; sin esos ajustes, el ledger conserva cada movimiento.
+	var adjustments string
+	if err = f.p.QueryRow(ctx, `SELECT COALESCE(sum(quantity_delta),0)::text FROM inventory_movements WHERE inventory_account_id=ANY($1::uuid[]) AND reason='manual_adjustment'`, []string{a.AccountID, b.AccountID}).Scan(&adjustments); err != nil {
+		t.Fatal(err)
+	}
+	adjusted, err := domain.ParseQuantity(adjustments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := domain.Quantity(20000) + domain.Quantity(len(doses))*250 - domain.Quantity(len(doses))*m.quantity + adjusted
 	if got := f.ledger(t, a.AccountID) + f.ledger(t, b.AccountID); got != want {
 		t.Fatal(got, want)
 	}
@@ -686,20 +677,16 @@ func TestPoolDeniesStrangers(t *testing.T) {
 	f.link(t, f.mama, reader, ScopeRead)
 	f.link(t, f.papa, reader, ScopeRead)
 	a, b := f.treatment(t, f.mama, standardMedication()), f.treatment(t, f.papa, standardMedication())
-	if _, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(reader), AccountIDs: []string{a.AccountID, b.AccountID}}); !denied(err) {
+	if _, err := f.share(t, reader, a.AccountID, b.AccountID); !denied(err) {
 		t.Fatal("sin alcance inventory", err)
 	}
-	if _, err := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(f.mama), AccountIDs: []string{a.AccountID, b.AccountID}}); !denied(err) {
+	if _, err := f.share(t, f.mama, a.AccountID, b.AccountID); !denied(err) {
 		t.Fatal("la cuenta del otro paciente exige alcance", err)
 	}
 	pool := f.active(t, a, b)
 	for name, err := range map[string]error{
 		"crear": func() error {
-			_, e := f.s.CreateInventoryPool(ctx, CreatePoolCommand{Mutation: mutation(stranger), AccountIDs: []string{a.AccountID, b.AccountID}})
-			return e
-		}(),
-		"decidir": func() error {
-			_, e := f.s.DecideInventoryPool(ctx, PoolDecisionCommand{Mutation: mutation(stranger), PoolID: pool, Decision: "decline"})
+			_, e := f.share(t, stranger, a.AccountID, b.AccountID)
 			return e
 		}(),
 		"salir": func() error {
@@ -725,9 +712,6 @@ func TestPoolDeniesStrangers(t *testing.T) {
 		if !denied(err) {
 			t.Fatal(name, err)
 		}
-	}
-	if pending, err := f.s.PendingInventoryPools(ctx, stranger); err != nil || len(pending) != 0 {
-		t.Fatal(pending, err)
 	}
 }
 

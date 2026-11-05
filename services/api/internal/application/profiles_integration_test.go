@@ -17,14 +17,7 @@ func TestProfileConcurrentEditsAndReplayAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invite, err := s.CreateInvitation(context.Background(), mutation(caregiver), []Scope{ScopeRead, ScopeTreatments}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	link, err := s.AcceptInvitation(context.Background(), mutation(patient), invite.Token)
-	if err != nil {
-		t.Fatal(err)
-	}
+	family, _ := grant(t, s, caregiver, patient, RoleAdmin)
 	cmd := UpdateProfileCommand{Mutation: mutation(caregiver), PatientID: patient, ExpectedVersion: 1, DisplayName: "Persona"}
 	results := make(chan error, 2)
 	start := make(chan struct{})
@@ -49,17 +42,11 @@ func TestProfileConcurrentEditsAndReplayAuthorization(t *testing.T) {
 	if _, err := s.UpdateProfile(context.Background(), changed); !errors.Is(err, ErrConflict) {
 		t.Fatal("key reuse accepted", err)
 	}
-	readInvite, err := s.CreateInvitation(context.Background(), mutation(caregiver), []Scope{ScopeRead}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.AcceptInvitation(context.Background(), mutation(patient), readInvite.Token); err != nil {
-		t.Fatal(err)
-	}
+	setRole(t, s, family, caregiver, RoleObserver)
 	if _, err = s.UpdateProfile(context.Background(), cmd); !errors.Is(err, ErrForbidden) {
 		t.Fatal("replay bypassed scope downgrade", err)
 	}
-	if err = s.RevokeLink(context.Background(), caregiver, link.ID); err != nil {
+	if err = s.RemoveFamilyMember(context.Background(), caregiver, family, caregiver); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.UpdateProfile(context.Background(), cmd); !errors.Is(err, ErrNotFound) {
@@ -74,7 +61,11 @@ func TestProfileHintRacingExplicitEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	hint := "Sugerido"
-	invitation, err := s.CreateInvitation(context.Background(), mutation(caregiver), []Scope{ScopeRead}, &hint)
+	family, err := s.CreateFamily(context.Background(), CreateFamilyCommand{Mutation: mutation(caregiver), Name: "Familia"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	invitation, err := s.InviteToFamily(context.Background(), InviteToFamilyCommand{Mutation: mutation(caregiver), FamilyID: family.ID, Role: RolePatient, PatientNameHint: &hint})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +79,7 @@ func TestProfileHintRacingExplicitEdit(t *testing.T) {
 	}()
 	go func() {
 		<-start
-		_, err := s.AcceptInvitation(context.Background(), mutation(patient), invitation.Token)
+		_, err := s.AcceptFamilyInvitation(context.Background(), AcceptFamilyInvitationCommand{Mutation: mutation(patient), Token: invitation.Token})
 		accepts <- err
 	}()
 	close(start)

@@ -42,7 +42,7 @@ func TestProfilesAndInvitationNames(t *testing.T) {
 	f.request("stranger", "PUT", "/v1/patients/"+f.patient+"/profile", update, 404, nil)
 	link := f.invite([]application.Scope{application.ScopeRead})
 	f.request("caregiver", "PUT", "/v1/patients/"+f.patient+"/profile", update, 403, nil)
-	f.request("caregiver", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
+	f.request("caregiver", "DELETE", "/v1/families/"+link.FamilyID+"/members/"+f.caregiver, nil, 204, nil)
 	f.invite([]application.Scope{application.ScopeRead, application.ScopeTreatments})
 	update["display_name"] = "Madre"
 	f.request("caregiver", "PUT", "/v1/patients/"+f.patient+"/profile", update, 200, &profile)
@@ -60,10 +60,16 @@ func TestProfilesAndInvitationNames(t *testing.T) {
 	if !found {
 		t.Fatal("patient name missing")
 	}
-	var links Page[application.Link]
-	f.request("patient", "GET", "/v1/caregiver-links", nil, 200, &links)
-	if len(links.Items) != 1 || links.Items[0].PatientDisplayName == nil || *links.Items[0].PatientDisplayName != "Madre" {
-		t.Fatal("link name missing")
+	var families Page[application.Family]
+	f.request("caregiver", "GET", "/v1/families", nil, 200, &families)
+	named := false
+	for _, family := range families.Items {
+		for _, m := range family.Members {
+			named = named || m.UserID == f.patient && m.DisplayName != nil && *m.DisplayName == "Madre"
+		}
+	}
+	if !named {
+		t.Fatal("member name missing")
 	}
 	for _, name := range []string{"", "   ", "a\nb", "a\rb", "a\u2028b", "a\u2029b", strings.Repeat("ñ", 61)} {
 		f.request("patient", "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 3, "display_name": name}, 422, nil)
@@ -79,18 +85,18 @@ func TestInvitationHintOnlyCompletesUnnamedProfile(t *testing.T) {
 	f.request("caregiver", "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 1, "display_name": "Cuidadora"}, 200, nil)
 	for i := 0; i < 2; i++ {
 		var invitation application.Invitation
-		f.request("caregiver", "POST", "/v1/invitations", map[string]any{"client_operation_id": domain.NewID(), "scopes": []string{"read", "treatments"}, "patient_name_hint": "Papá"}, 201, &invitation)
+		f.request("caregiver", "POST", "/v1/families/"+f.family("caregiver")+"/invitations", map[string]any{"client_operation_id": domain.NewID(), "role": "patient", "patient_name_hint": "Papá"}, 201, &invitation)
 		if !regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`).MatchString(invitation.Token) {
 			t.Fatal("unexpected token format")
 		}
-		var preview application.InvitationPreview
-		f.request("patient", "POST", "/v1/invitations/preview", map[string]string{"token": invitation.Token}, 200, &preview)
-		if preview.CaregiverDisplayName == nil || *preview.CaregiverDisplayName != "Cuidadora" || preview.PatientNameHint == nil || *preview.PatientNameHint != "Papá" {
+		var preview application.FamilyInvitationPreview
+		f.request("patient", "POST", "/v1/family-invitations/preview", map[string]string{"token": invitation.Token}, 200, &preview)
+		if preview.InviterDisplayName == nil || *preview.InviterDisplayName != "Cuidadora" || preview.PatientNameHint == nil || *preview.PatientNameHint != "Papá" {
 			t.Fatal("preview names missing")
 		}
 		accept := AcceptInvitationRequest{domain.NewID(), invitation.Token}
-		f.request("patient", "POST", "/v1/invitations/accept", accept, 200, nil)
-		f.request("patient", "POST", "/v1/invitations/accept", accept, 200, nil)
+		f.request("patient", "POST", "/v1/family-invitations/accept", accept, 200, nil)
+		f.request("patient", "POST", "/v1/family-invitations/accept", accept, 200, nil)
 		var me MeResponse
 		f.request("patient", "GET", "/v1/me", nil, 200, &me)
 		want := "Papá"
@@ -155,29 +161,24 @@ func TestConcurrentMaterializingGETs(t *testing.T) {
 	}
 }
 
-func TestRevokedLinkDoesNotRevealCurrentCounterpartyName(t *testing.T) {
+// Quien sale de la familia deja de ver a sus miembros y sus nombres.
+func TestLeavingDoesNotRevealCurrentNames(t *testing.T) {
 	f := newAPIFixture(t)
 	link := f.invite([]application.Scope{application.ScopeRead})
-	f.request("patient", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
-	for _, actor := range []string{"patient", "caregiver"} {
-		f.request(actor, "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 1, "display_name": "Nombre privado"}, 200, nil)
-	}
-	for _, actor := range []string{"patient", "caregiver"} {
-		var links Page[application.Link]
-		f.request(actor, "GET", "/v1/caregiver-links", nil, 200, &links)
-		if len(links.Items) != 1 || links.Items[0].Status != "revoked" {
-			t.Fatal("revoked link missing")
-		}
-		if actor == "patient" && links.Items[0].CaregiverDisplayName != nil || actor == "caregiver" && links.Items[0].PatientDisplayName != nil {
-			t.Fatal("revoked link reveals counterparty name")
-		}
+	f.leave(link)
+	f.request("caregiver", "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 1, "display_name": "Nombre privado"}, 200, nil)
+	var families Page[application.Family]
+	f.request("patient", "GET", "/v1/families", nil, 200, &families)
+	if len(families.Items) != 0 {
+		t.Fatal("left family still visible", families)
 	}
 }
 
 func TestProfileAndInvitationRejectNullCharacter(t *testing.T) {
 	f := newAPIFixture(t)
 	f.request("patient", "PUT", "/v1/me/profile", map[string]any{"client_operation_id": domain.NewID(), "expected_version": 1, "display_name": "a\x00b"}, 422, nil)
-	f.request("caregiver", "POST", "/v1/invitations", map[string]any{"client_operation_id": domain.NewID(), "scopes": []string{"read"}, "patient_name_hint": "a\x00b"}, 422, nil)
+	f.request("caregiver", "POST", "/v1/families/"+f.family("caregiver")+"/invitations", map[string]any{"client_operation_id": domain.NewID(), "role": "patient", "patient_name_hint": "a\x00b"}, 422, nil)
+	f.request("caregiver", "POST", "/v1/families", map[string]any{"client_operation_id": domain.NewID(), "name": "a\nb"}, 422, nil)
 }
 
 func TestPatientAccessExposesProfileTimezone(t *testing.T) {

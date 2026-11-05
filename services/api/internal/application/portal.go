@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/sha256"
 	"strings"
 	"time"
 
@@ -131,58 +130,4 @@ func (s *Service) RecordPhysicalCount(ctx context.Context, c PhysicalCountComman
 		r.Balance = c.CountedQuantity
 		return r, err
 	})
-}
-
-func (s *Service) CaregiverLinks(ctx context.Context, actor, cursor string) ([]Link, string, error) {
-	if !domain.ValidID(actor) || !validCursor(cursor) {
-		return nil, "", ErrInvalid
-	}
-	rows, err := s.pool.Query(ctx, `SELECT l.id::text,l.patient_user_id::text,l.caregiver_user_id::text,l.scopes,l.status,CASE WHEN p.profile_completed_at IS NOT NULL AND (l.status='active' OR p.id=$1) THEN p.display_name END,CASE WHEN c.profile_completed_at IS NOT NULL AND (l.status='active' OR c.id=$1) THEN c.display_name END FROM caregiver_links l JOIN users p ON p.id=l.patient_user_id JOIN users c ON c.id=l.caregiver_user_id WHERE (l.patient_user_id=$1 OR l.caregiver_user_id=$1) AND l.id>$2::uuid ORDER BY l.id LIMIT 101`, actor, cursorValue(cursor))
-	if err != nil {
-		return nil, "", err
-	}
-	defer rows.Close()
-	out := []Link{}
-	for rows.Next() {
-		var v Link
-		var scopes []string
-		if err = rows.Scan(&v.ID, &v.PatientID, &v.CaregiverID, &scopes, &v.Status, &v.PatientDisplayName, &v.CaregiverDisplayName); err != nil {
-			return nil, "", err
-		}
-		for _, scope := range scopes {
-			v.Scopes = append(v.Scopes, Scope(scope))
-		}
-		out = append(out, v)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, "", err
-	}
-	next := ""
-	if len(out) > PageSize {
-		out = out[:PageSize]
-		next = out[PageSize-1].ID
-	}
-	return out, next, nil
-}
-
-type InvitationPreview struct {
-	CaregiverDisplayName *string   `json:"caregiver_display_name"`
-	PatientNameHint      *string   `json:"patient_name_hint"`
-	CaregiverID          string    `json:"caregiver_id"`
-	Scopes               []Scope   `json:"scopes"`
-	ExpiresAt            time.Time `json:"expires_at"`
-}
-
-func (s *Service) PreviewInvitation(ctx context.Context, actor, token string) (InvitationPreview, error) {
-	var out InvitationPreview
-	if !domain.ValidID(actor) || len(token) != 43 {
-		return out, ErrInvalid
-	}
-	hash := sha256.Sum256([]byte(token))
-	var scopes []string
-	err := s.pool.QueryRow(ctx, `SELECT i.inviter_user_id::text,i.scopes,i.expires_at,CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,i.patient_name_hint FROM invitations i JOIN users u ON u.id=i.inviter_user_id WHERE i.token_hash=$1 AND i.consumed_at IS NULL AND i.expires_at>$2 AND i.inviter_user_id<>$3`, hash[:], s.now(), actor).Scan(&out.CaregiverID, &scopes, &out.ExpiresAt, &out.CaregiverDisplayName, &out.PatientNameHint)
-	for _, scope := range scopes {
-		out.Scopes = append(out.Scopes, Scope(scope))
-	}
-	return out, translate(err)
 }

@@ -37,6 +37,7 @@ type AccountExport struct {
 	InventoryMovements []json.RawMessage `json:"inventory_movements"`
 	InventoryCounts    []json.RawMessage `json:"inventory_counts"`
 	TreatmentChanges   []json.RawMessage `json:"treatment_changes"`
+	FamilyMemberships  []json.RawMessage `json:"family_memberships"`
 	CaregiverLinks     []json.RawMessage `json:"caregiver_links"`
 	ConsentEvents      []json.RawMessage `json:"consent_events"`
 	Invitations        []json.RawMessage `json:"invitations"`
@@ -80,9 +81,10 @@ func (s *Service) exportAccount(ctx context.Context, actor string, maxRows, maxB
 		{&out.TreatmentChanges, `SELECT c.id,c.treatment_id,c.actor_user_id,c.kind,
 		 jsonb_build_object('name',c.previous_data->'medication'->'name','strength_label',c.previous_data->'medication'->'strength_label','form',c.previous_data->'medication'->'form','package_label',c.previous_data->'medication'->'package_label','instructions_text',c.previous_data->'treatment'->'instructions_text','starts_on',c.previous_data->'treatment'->'starts_on','ends_on',c.previous_data->'treatment'->'ends_on','version',c.previous_data->'treatment'->'version','archived_at',c.previous_data->'treatment'->'archived_at') AS previous_data,
 		 c.reason,c.created_at FROM treatment_changes c JOIN treatments t ON t.id=c.treatment_id WHERE t.patient_user_id=$1 ORDER BY c.id`},
+		{&out.FamilyMemberships, `SELECT m.family_id,f.name,m.role,m.joined_at FROM family_members m JOIN families f ON f.id=m.family_id WHERE m.user_id=$1 ORDER BY m.family_id`},
 		{&out.CaregiverLinks, `SELECT id,patient_user_id,caregiver_user_id,status,scopes,created_at,accepted_at,revoked_at,accepted_invitation_id FROM caregiver_links WHERE patient_user_id=$1 OR caregiver_user_id=$1 ORDER BY id`},
 		{&out.ConsentEvents, `SELECT e.id,e.link_id,e.actor_user_id,e.action,e.scopes,e.created_at FROM caregiver_link_events e JOIN caregiver_links l ON l.id=e.link_id WHERE l.patient_user_id=$1 OR l.caregiver_user_id=$1 ORDER BY e.id`},
-		{&out.Invitations, `SELECT id,inviter_user_id,scopes,expires_at,created_at,consumed_at,consumed_by FROM invitations WHERE inviter_user_id=$1 OR consumed_by=$1 ORDER BY id`},
+		{&out.Invitations, `SELECT id,inviter_user_id,family_id,role,scopes,expires_at,created_at,consumed_at,consumed_by FROM invitations WHERE inviter_user_id=$1 OR consumed_by=$1 ORDER BY id`},
 		{&out.AlertPreferences, `SELECT p.link_id,p.consent_id,p.unconfirmed_delay_minutes,p.stock_enabled,p.min_interval_minutes,p.timezone,p.quiet_start_minute,p.quiet_end_minute FROM caregiver_alert_preferences p JOIN caregiver_links l ON l.id=p.link_id WHERE l.caregiver_user_id=$1 ORDER BY p.link_id`},
 		{&out.Devices, `SELECT id,platform,permission,expires_at,revoked_at,updated_at FROM device_registrations WHERE user_id=$1 ORDER BY id`},
 	}

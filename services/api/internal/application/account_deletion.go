@@ -46,6 +46,9 @@ func (s *Service) DeleteAccount(ctx context.Context, c DeleteAccountCommand) err
 	if err = s.leaveAllPools(ctx, tx, c); err != nil {
 		return translate(err)
 	}
+	if err = leaveFamilies(ctx, tx, c.ActorID, s.now().UTC()); err != nil {
+		return translate(err)
+	}
 	if err = s.revokeCaregiving(ctx, tx, c.ActorID); err != nil {
 		return translate(err)
 	}
@@ -168,6 +171,9 @@ func removeOwnHistory(ctx context.Context, tx pgx.Tx, actor string) error {
 		`DELETE FROM medications WHERE patient_user_id=$1`,
 		`DELETE FROM caregiver_link_events WHERE link_id IN (SELECT id FROM caregiver_links WHERE patient_user_id=$1)`,
 		`DELETE FROM caregiver_links WHERE patient_user_id=$1`,
+		// Los vínculos de otras personas pueden nacer de la invitación que esta persona aceptó.
+		`DELETE FROM caregiver_alert_preferences WHERE consent_id IN (SELECT id FROM invitations WHERE consumed_by=$1 OR (inviter_user_id=$1 AND consumed_at IS NULL))`,
+		`UPDATE caregiver_links SET accepted_invitation_id=NULL WHERE accepted_invitation_id IN (SELECT id FROM invitations WHERE consumed_by=$1 OR (inviter_user_id=$1 AND consumed_at IS NULL))`,
 		`DELETE FROM invitations WHERE consumed_by=$1 OR (inviter_user_id=$1 AND consumed_at IS NULL)`,
 		`DELETE FROM patients WHERE user_id=$1`,
 		`DELETE FROM user_profile_changes WHERE user_id=$1`,

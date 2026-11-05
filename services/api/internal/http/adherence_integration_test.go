@@ -39,7 +39,7 @@ func TestF7ReportingHTTPAuthorizationAndThreshold(t *testing.T) {
 	body["client_operation_id"] = domain.NewID()
 	f.request("patient", "POST", thresholdPath, body, 409, nil)
 	f.request("patient", "POST", thresholdPath, map[string]any{"client_operation_id": domain.NewID(), "days": 1}, 422, nil)
-	f.request("patient", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
+	f.leave(link)
 	f.request("caregiver", "GET", path, nil, 404, nil)
 }
 
@@ -63,6 +63,6 @@ func TestF7ForeignTreatmentAndRevokedThresholdReplay(t *testing.T) {
 	path := "/v1/inventory/" + owned.AccountID + "/threshold"
 	body := map[string]any{"client_operation_id": domain.NewID(), "expected_days": 5, "days": 10}
 	f.request("caregiver", "POST", path, body, 200, nil)
-	f.request("patient", "DELETE", "/v1/caregiver-links/"+link.ID, nil, 204, nil)
+	f.leave(link)
 	f.request("caregiver", "POST", path, body, 404, nil)
 }

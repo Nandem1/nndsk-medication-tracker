@@ -19,29 +19,24 @@ func TestInventoryPoolRoutes(t *testing.T) {
 	if len(candidates.Items) != 1 || candidates.Items[0].AccountID != second.AccountID || !candidates.Items[0].You {
 		t.Fatal(candidates)
 	}
-	create := map[string]any{"client_operation_id": domain.NewID(), "account_ids": []string{first.AccountID, second.AccountID}}
+	create := map[string]any{"client_operation_id": domain.NewID(), "account_ids": []string{first.AccountID, second.AccountID}, "counted_account_id": second.AccountID, "counted_quantity": "7.5"}
 	var pool application.PoolResult
 	f.request("stranger", "POST", "/v1/inventory-pools", create, 404, nil)
-	f.request("patient", "POST", "/v1/inventory-pools", map[string]any{"client_operation_id": domain.NewID(), "account_ids": []string{first.AccountID}}, 422, nil)
+	f.request("patient", "POST", "/v1/inventory-pools", map[string]any{"client_operation_id": domain.NewID(), "account_ids": []string{first.AccountID}, "counted_account_id": first.AccountID, "counted_quantity": "1"}, 422, nil)
+	f.request("patient", "POST", "/v1/inventory-pools", map[string]any{"client_operation_id": domain.NewID(), "account_ids": []string{first.AccountID, second.AccountID}, "counted_account_id": second.AccountID, "counted_quantity": "1,5"}, 422, nil)
 	f.request("patient", "POST", "/v1/inventory-pools", create, 200, &pool)
 	if pool.Status != "active" {
 		t.Fatal(pool)
 	}
 	var page Page[Projection]
 	f.request("patient", "GET", "/v1/patients/"+f.patient+"/inventory", nil, 200, &page)
-	if len(page.Items) != 2 || page.Items[0].Pool == nil || page.Items[0].Pool.Status != "active" || page.Items[0].Balance != page.Items[1].Balance {
+	if len(page.Items) != 2 || page.Items[0].Pool == nil || page.Items[0].Pool.Status != "active" || page.Items[0].Balance != "7.500" || page.Items[1].Balance != "7.500" {
 		t.Fatal(page)
 	}
 	f.request("stranger", "GET", "/v1/patients/"+f.patient+"/inventory", nil, 404, nil)
 	f.request("stranger", "GET", "/v1/inventory/"+first.AccountID+"/movements", nil, 404, nil)
 	f.request("stranger", "GET", "/v1/inventory/"+first.AccountID+"/pool-candidates", nil, 404, nil)
-	f.request("stranger", "POST", "/v1/inventory-pools/"+pool.PoolID+"/decision", map[string]any{"client_operation_id": domain.NewID(), "decision": "decline"}, 404, nil)
 	f.request("stranger", "POST", "/v1/inventory-pools/"+pool.PoolID+"/leave", map[string]any{"client_operation_id": domain.NewID(), "account_id": first.AccountID}, 404, nil)
-	var pending Page[application.PendingPool]
-	f.request("stranger", "GET", "/v1/inventory-pools/pending", nil, 200, &pending)
-	if len(pending.Items) != 0 {
-		t.Fatal(pending)
-	}
 	var movements Page[application.MovementView]
 	f.request("patient", "GET", "/v1/inventory/"+first.AccountID+"/movements", nil, 200, &movements)
 	if len(movements.Items) == 0 {

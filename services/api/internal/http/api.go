@@ -51,15 +51,14 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("GET /v1/inventory/{accountId}/movements", a.movements)
 	business.HandleFunc("GET /v1/inventory/{accountId}/pool-candidates", a.poolCandidates)
 	business.HandleFunc("POST /v1/inventory-pools", a.createPool)
-	business.HandleFunc("GET /v1/inventory-pools/pending", a.pendingPools)
-	business.HandleFunc("POST /v1/inventory-pools/{poolId}/decision", a.decidePool)
 	business.HandleFunc("POST /v1/inventory-pools/{poolId}/leave", a.leavePool)
-	business.HandleFunc("GET /v1/caregiver-links", a.links)
-	business.HandleFunc("POST /v1/invitations/preview", a.previewInvitation)
 	business.HandleFunc("GET /v1/patients", a.patients)
-	business.HandleFunc("POST /v1/invitations", a.createInvitation)
-	business.HandleFunc("POST /v1/invitations/accept", a.acceptInvitation)
-	business.HandleFunc("DELETE /v1/caregiver-links/{linkId}", a.revokeLink)
+	business.HandleFunc("GET /v1/families", a.families)
+	business.HandleFunc("POST /v1/families", a.createFamily)
+	business.HandleFunc("POST /v1/families/{familyId}/invitations", a.inviteToFamily)
+	business.HandleFunc("DELETE /v1/families/{familyId}/members/{userId}", a.removeFamilyMember)
+	business.HandleFunc("POST /v1/family-invitations/preview", a.previewFamilyInvitation)
+	business.HandleFunc("POST /v1/family-invitations/accept", a.acceptFamilyInvitation)
 	business.HandleFunc("GET /v1/patients/{patientId}/treatments", a.treatments)
 	business.HandleFunc("POST /v1/patients/{patientId}/treatments", a.createTreatment)
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/schedule-revisions", a.reviseSchedule)
@@ -186,37 +185,6 @@ func (a *API) patients(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, Page[application.PatientAccess]{Items: items, NextCursor: next})
-}
-func (a *API) createInvitation(w http.ResponseWriter, r *http.Request) {
-	var req InvitationRequest
-	if !decode(w, r, &req) {
-		return
-	}
-	out, err := a.service.CreateInvitation(r.Context(), mutation(r, req.OperationID), req.Scopes, req.PatientNameHint)
-	if err != nil {
-		resultError(w, r, err)
-		return
-	}
-	writeJSON(w, 201, out)
-}
-func (a *API) acceptInvitation(w http.ResponseWriter, r *http.Request) {
-	var req AcceptInvitationRequest
-	if !decode(w, r, &req) {
-		return
-	}
-	out, err := a.service.AcceptInvitation(r.Context(), mutation(r, req.OperationID), req.Token)
-	if err != nil {
-		resultError(w, r, err)
-		return
-	}
-	writeJSON(w, 200, out)
-}
-func (a *API) revokeLink(w http.ResponseWriter, r *http.Request) {
-	if err := a.service.RevokeLink(r.Context(), actor(r), r.PathValue("linkId")); err != nil {
-		resultError(w, r, err)
-		return
-	}
-	w.WriteHeader(204)
 }
 func (a *API) treatments(w http.ResponseWriter, r *http.Request) {
 	items, next, err := a.service.Treatments(r.Context(), actor(r), r.PathValue("patientId"), r.URL.Query().Get("cursor"))

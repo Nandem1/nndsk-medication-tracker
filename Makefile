@@ -18,7 +18,8 @@ test:
 
 test-integration:
 	@test -n "$$TEST_DATABASE_URL" || { echo 'Set TEST_DATABASE_URL to a dedicated test database.' >&2; exit 1; }
-	cd services/api && go test -race -count=1 -tags=integration ./...
+	# Los paquetes comparten la base y la reconciliación la recorre completa: se ejecutan de a uno.
+	cd services/api && go test -race -p 1 -count=1 -tags=integration ./...
 
 tokens:
 	node packages/design-tokens/build.mjs

@@ -21,7 +21,7 @@ const poolGate = 7205759403792793
 
 func takePoolGate(ctx context.Context, tx pgx.Tx, kind string) error {
 	switch kind {
-	case "create_pool", "decide_pool", "leave_pool":
+	case "create_pool", "leave_pool":
 		return closePoolGate(ctx, tx)
 	}
 	return sharePoolGate(ctx, tx)
@@ -34,11 +34,9 @@ func sharePoolGate(ctx context.Context, tx pgx.Tx) error {
 type CreatePoolCommand struct {
 	Mutation
 	AccountIDs []string
-}
-type PoolDecisionCommand struct {
-	Mutation
-	PoolID   string
-	Decision string
+	// El saldo común parte de lo que hay en la caja, contado desde esta cuenta.
+	CountedAccountID string
+	CountedQuantity  domain.Quantity
 }
 type LeavePoolCommand struct {
 	Mutation
@@ -59,13 +57,6 @@ type PoolView struct {
 	PoolID  string       `json:"pool_id"`
 	Status  string       `json:"status"`
 	Members []PoolMember `json:"members"`
-}
-type PendingPool struct {
-	PoolID              string   `json:"pool_id"`
-	ProposerDisplayName *string  `json:"proposer_display_name"`
-	MedicationName      string   `json:"medication_name"`
-	StrengthLabel       string   `json:"strength_label"`
-	Others              []string `json:"others"`
 }
 type PoolCandidate struct {
 	AccountID          string  `json:"account_id"`
@@ -181,7 +172,8 @@ func (s *Service) CreateInventoryPool(ctx context.Context, c CreatePoolCommand) 
 		ids[i] = strings.ToLower(id)
 	}
 	slices.Sort(ids)
-	if len(ids) < 2 || len(slices.Compact(ids)) != len(c.AccountIDs) {
+	c.CountedAccountID = strings.ToLower(c.CountedAccountID)
+	if len(ids) < 2 || len(slices.Compact(ids)) != len(c.AccountIDs) || !slices.Contains(ids, c.CountedAccountID) || c.CountedQuantity < 0 || !c.CountedQuantity.Valid() {
 		return PoolResult{}, ErrInvalid
 	}
 	return transact(ctx, s, c.Mutation, accountTarget(ids[0]), ScopeInventory, "create_pool", c, func(tx pgx.Tx) (PoolResult, error) {
@@ -216,26 +208,48 @@ func (s *Service) CreateInventoryPool(ctx context.Context, c CreatePoolCommand) 
 			return zero, ErrConflict
 		}
 		now := s.now().UTC()
-		out := PoolResult{PoolID: domain.NewID(), Status: "pending"}
-		if _, err := tx.Exec(ctx, `INSERT INTO inventory_pools(id,status,created_by,client_operation_id,created_at) VALUES($1,'pending',$2,$3,$4)`, out.PoolID, c.ActorID, c.OperationID, now); err != nil {
+		out := PoolResult{PoolID: domain.NewID(), Status: "active"}
+		threshold := accounts[0].threshold
+		for _, account := range accounts[1:] {
+			threshold = min(threshold, account.threshold)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO inventory_pools(id,status,created_by,client_operation_id,created_at,activated_at,low_stock_days_threshold) VALUES($1,'active',$2,$3,$4,$4,$5)`, out.PoolID, c.ActorID, c.OperationID, now, threshold); err != nil {
 			return zero, err
 		}
 		for _, account := range accounts {
-			status := "pending"
-			var decidedBy *string
-			var decidedAt *time.Time
-			// Quien propone sólo decide por su propia parte.
-			if strings.EqualFold(account.patient, c.ActorID) {
-				status, decidedBy, decidedAt = "accepted", &c.ActorID, &now
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO inventory_pool_members(pool_id,account_id,patient_user_id,status,decided_by,decided_at) VALUES($1,$2,$3,$4,$5,$6)`, out.PoolID, account.id, account.patient, status, decidedBy, decidedAt); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO inventory_pool_members(pool_id,account_id,patient_user_id,status,decided_by,decided_at) VALUES($1,$2,$3,'accepted',$4,$5)`, out.PoolID, account.id, account.patient, c.ActorID, now); err != nil {
 				return zero, err
 			}
 		}
-		status, err := settlePool(ctx, tx, out.PoolID, now)
-		out.Status = status
-		return out, err
+		return out, countSharedBox(ctx, tx, c, ids, now)
 	})
+}
+
+// countSharedBox deja el saldo común igual a lo contado: sumar dos saldos de una misma caja
+// la contaría dos veces. El ajuste es un conteo físico auditable en la cuenta indicada.
+func countSharedBox(ctx context.Context, tx pgx.Tx, c CreatePoolCommand, accounts []string, now time.Time) error {
+	current, err := balanceOf(ctx, tx, accounts)
+	if err != nil {
+		return err
+	}
+	delta := c.CountedQuantity - current
+	if !delta.Valid() {
+		return ErrInvalid
+	}
+	var treatment string
+	if err = tx.QueryRow(ctx, `SELECT treatment_id::text FROM inventory_accounts WHERE id=$1`, c.CountedAccountID).Scan(&treatment); err != nil {
+		return err
+	}
+	var movementID *string
+	if delta != 0 {
+		id, err := movement(ctx, tx, c.Mutation, c.CountedAccountID, treatment, delta, "manual_adjustment", nil, nil, now)
+		if err != nil {
+			return err
+		}
+		movementID = &id
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO inventory_counts(inventory_account_id,actor_user_id,client_operation_id,previous_balance,counted_quantity,reason,movement_id,created_at) VALUES($1,$2,$3,$4::numeric,$5::numeric,'Conteo al compartir la caja',$6,$7)`, c.CountedAccountID, c.ActorID, c.OperationID, current.String(), c.CountedQuantity.String(), movementID, now)
+	return err
 }
 
 // settlePool applies the rules that follow any change in membership and returns the status.
@@ -244,57 +258,19 @@ func settlePool(ctx context.Context, tx pgx.Tx, pool string, now time.Time) (str
 	if err := tx.QueryRow(ctx, `SELECT status FROM inventory_pools WHERE id=$1`, pool).Scan(&status); err != nil {
 		return "", err
 	}
-	var live, pending int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status IN ('pending','accepted')),count(*) FILTER (WHERE status='pending') FROM inventory_pool_members WHERE pool_id=$1`, pool).Scan(&live, &pending); err != nil {
+	var live int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM inventory_pool_members WHERE pool_id=$1 AND status='accepted'`, pool).Scan(&live); err != nil {
 		return "", err
 	}
-	switch {
-	case live < 2:
-		// La cuenta restante conserva su saldo y queda libre para otra propuesta.
-		if _, err := tx.Exec(ctx, `UPDATE inventory_pool_members SET status='left',decided_at=$2 WHERE pool_id=$1 AND status IN ('pending','accepted')`, pool, now); err != nil {
-			return "", err
-		}
-		_, err := tx.Exec(ctx, `UPDATE inventory_pools SET status='dissolved',dissolved_at=$2 WHERE id=$1`, pool, now)
-		return "dissolved", err
-	case status == "pending" && pending == 0:
-		_, err := tx.Exec(ctx, `UPDATE inventory_pools p SET status='active',activated_at=$2,low_stock_days_threshold=LEAST(30,(SELECT min(a.low_stock_days_threshold) FROM inventory_pool_members m JOIN inventory_accounts a ON a.id=m.account_id WHERE m.pool_id=p.id AND m.status='accepted')) WHERE p.id=$1`, pool, now)
-		return "active", err
+	if live >= 2 {
+		return status, nil
 	}
-	return status, nil
-}
-
-func (s *Service) DecideInventoryPool(ctx context.Context, c PoolDecisionCommand) (PoolResult, error) {
-	if !domain.ValidID(c.PoolID) || (c.Decision != "accept" && c.Decision != "decline") {
-		return PoolResult{}, ErrInvalid
+	// La cuenta restante conserva su saldo y queda libre para compartir otra vez.
+	if _, err := tx.Exec(ctx, `UPDATE inventory_pool_members SET status='left',decided_at=$2 WHERE pool_id=$1 AND status='accepted'`, pool, now); err != nil {
+		return "", err
 	}
-	// Sólo el propio paciente decide: ni el vínculo ni el alcance de un cuidador cuentan aquí.
-	return transact(ctx, s, c.Mutation, patientTarget(c.ActorID), ScopeRead, "decide_pool", c, func(tx pgx.Tx) (PoolResult, error) {
-		var zero PoolResult
-		if err := closePoolGate(ctx, tx); err != nil {
-			return zero, err
-		}
-		var status string
-		if err := tx.QueryRow(ctx, `SELECT p.status FROM inventory_pools p WHERE p.id=$1 AND EXISTS (SELECT 1 FROM inventory_pool_members m WHERE m.pool_id=p.id AND m.patient_user_id=$2) FOR UPDATE`, c.PoolID, c.ActorID).Scan(&status); err != nil {
-			return zero, err
-		}
-		if status != "pending" {
-			return zero, ErrConflict
-		}
-		now := s.now().UTC()
-		decision := "accepted"
-		if c.Decision == "decline" {
-			decision = "declined"
-		}
-		tag, err := tx.Exec(ctx, `UPDATE inventory_pool_members SET status=$3,decided_by=$2,decided_at=$4 WHERE pool_id=$1 AND patient_user_id=$2 AND status='pending'`, c.PoolID, c.ActorID, decision, now)
-		if err != nil {
-			return zero, err
-		}
-		if tag.RowsAffected() == 0 {
-			return zero, ErrConflict
-		}
-		settled, err := settlePool(ctx, tx, c.PoolID, now)
-		return PoolResult{c.PoolID, settled}, err
-	})
+	_, err := tx.Exec(ctx, `UPDATE inventory_pools SET status='dissolved',dissolved_at=$2 WHERE id=$1`, pool, now)
+	return "dissolved", err
 }
 
 // derivedOperation gives the second movement of a transfer its own stable operation key.
@@ -375,26 +351,6 @@ func transferOut(ctx context.Context, tx pgx.Tx, c LeavePoolCommand, accounts []
 		}
 	}
 	return nil
-}
-
-func (s *Service) PendingInventoryPools(ctx context.Context, actor string) ([]PendingPool, error) {
-	if !domain.ValidID(actor) {
-		return nil, ErrInvalid
-	}
-	rows, err := s.pool.Query(ctx, `SELECT DISTINCT ON (p.id) p.id::text,CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,md.name,md.strength_label,COALESCE((SELECT array_agg(COALESCE(CASE WHEN ou.profile_completed_at IS NOT NULL THEN ou.display_name END,'`+UnknownPoolMember+`')) FROM inventory_pool_members o JOIN users ou ON ou.id=o.patient_user_id WHERE o.pool_id=p.id AND o.patient_user_id<>$1 AND o.status IN ('pending','accepted')),'{}') FROM inventory_pool_members m JOIN inventory_pools p ON p.id=m.pool_id AND p.status='pending' LEFT JOIN users u ON u.id=p.created_by JOIN inventory_accounts a ON a.id=m.account_id JOIN treatments t ON t.id=a.treatment_id JOIN medications md ON md.id=t.medication_id WHERE m.patient_user_id=$1 AND m.status='pending' ORDER BY p.id LIMIT 100`, actor)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []PendingPool{}
-	for rows.Next() {
-		var v PendingPool
-		if err = rows.Scan(&v.PoolID, &v.ProposerDisplayName, &v.MedicationName, &v.StrengthLabel, &v.Others); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
 }
 
 func (s *Service) PoolCandidates(ctx context.Context, actor, account string) ([]PoolCandidate, error) {

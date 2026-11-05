@@ -24,13 +24,8 @@ func TestAccountExportOwnHistoryAndNoSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreign := treatment(t, s, other)
-	inv, err := s.CreateInvitation(ctx, mutation(owner), []Scope{ScopeRead, ScopeDoses}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.AcceptInvitation(ctx, mutation(other), inv.Token); err != nil {
-		t.Fatal(err)
-	}
+	// La prueba baja el rol a cuidador, y eso deja un segundo evento de consentimiento.
+	grant(t, s, owner, other, RoleCaregiver)
 	// The exporter is an authorized caregiver of another person, including an event they authored there.
 	foreignDose := dose(t, pool, foreign.TreatmentID, "2026-11-01")
 	if _, err = s.RecordDoseEvent(ctx, RecordDoseEventCommand{Mutation: mutation(owner), DoseID: foreignDose, ExpectedVersion: 1, State: domain.Skipped}); err != nil {
@@ -61,14 +56,14 @@ func TestAccountExportOwnHistoryAndNoSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.SchemaVersion != 1 || out.Profile.UserID != owner || len(out.Treatments) != 1 || len(out.DoseEvents) != 2 || len(out.InventoryMovements) != 4 || len(out.InventoryCounts) != 1 || len(out.TreatmentChanges) != 2 || len(out.Devices) != 1 || len(out.Invitations) != 1 || len(out.CaregiverLinks) != 1 || len(out.ConsentEvents) != 1 {
+	if out.SchemaVersion != 1 || out.Profile.UserID != owner || len(out.Treatments) != 1 || len(out.DoseEvents) != 2 || len(out.InventoryMovements) != 4 || len(out.InventoryCounts) != 1 || len(out.TreatmentChanges) != 2 || len(out.Devices) != 1 || len(out.Invitations) != 1 || len(out.CaregiverLinks) != 1 || len(out.ConsentEvents) != 2 || len(out.FamilyMemberships) != 1 {
 		t.Fatalf("incomplete export: %+v", out)
 	}
 	data, err := json.Marshal(out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{foreign.TreatmentID, foreignDose, token, inv.Token, "auth_provider_uid", "token_hash", "client_operation_id", "fingerprint"} {
+	for _, forbidden := range []string{foreign.TreatmentID, foreignDose, token, "auth_provider_uid", "token_hash", "client_operation_id", "fingerprint"} {
 		if strings.Contains(string(data), forbidden) {
 			t.Fatalf("export contains forbidden field or value %q", forbidden)
 		}

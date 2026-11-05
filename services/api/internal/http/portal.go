@@ -60,23 +60,3 @@ func (a *API) movements(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, Page[application.MovementView]{items, next})
 }
-func (a *API) links(w http.ResponseWriter, r *http.Request) {
-	items, next, err := a.service.CaregiverLinks(r.Context(), actor(r), r.URL.Query().Get("cursor"))
-	if err != nil {
-		resultError(w, r, err)
-		return
-	}
-	writeJSON(w, 200, Page[application.Link]{items, next})
-}
-func (a *API) previewInvitation(w http.ResponseWriter, r *http.Request) {
-	var req PreviewInvitationRequest
-	if !decode(w, r, &req) {
-		return
-	}
-	out, err := a.service.PreviewInvitation(r.Context(), actor(r), req.Token)
-	if err != nil {
-		resultError(w, r, err)
-		return
-	}
-	writeJSON(w, 200, out)
-}

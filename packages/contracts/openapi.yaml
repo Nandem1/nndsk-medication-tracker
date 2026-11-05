@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Medication Tracker API",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. F6 adds caregiver alert preferences and owner-scoped device registration. Push is best effort and contains no medical details."
   },
   "servers": [
@@ -186,174 +186,6 @@
               "format": "uuid"
             },
             "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
-          }
-        ]
-      }
-    },
-    "/v1/invitations": {
-      "post": {
-        "operationId": "createInvitation",
-        "description": "Caregiver requests scopes including read. Token returned once, hash only persisted, expires in 24 hours. Retrying creation with the same operation ID returns 409; create a new invitation when the original response is lost.",
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Invitation"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateInvitation"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/invitations/accept": {
-      "post": {
-        "operationId": "acceptInvitation",
-        "description": "Authenticated accepting user becomes patient. Single-use invitation. Same actor, operation ID and token replay returns original result only while that acceptance remains active. Self-acceptance and consumed or expired tokens conflict.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Link"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AcceptInvitation"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/caregiver-links/{linkId}": {
-      "delete": {
-        "operationId": "revokeCaregiverLink",
-        "description": "Patient or linked caregiver may revoke. Naturally idempotent DELETE needs no operation ID. Subsequent reads, mutations and replay are denied.",
-        "responses": {
-          "204": {
-            "description": "Access revoked. Repeating the DELETE remains successful."
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          }
-        },
-        "parameters": [
-          {
-            "name": "linkId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         ]
       }
@@ -1250,123 +1082,6 @@
         }
       }
     },
-    "/v1/invitations/preview": {
-      "post": {
-        "operationId": "previewInvitation",
-        "description": "Previews unconsumed invitation without consuming it. Token only in body.",
-        "responses": {
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvitationPreview"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PreviewInvitation"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/caregiver-links": {
-      "get": {
-        "operationId": "caregiverLinks",
-        "description": "Only links involving the authenticated actor.",
-        "responses": {
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          },
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LinkPage"
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ]
-      }
-    },
     "/v1/devices": {
       "post": {
         "operationId": "registerDevice",
@@ -2017,7 +1732,7 @@
     "/v1/inventory-pools": {
       "post": {
         "operationId": "createInventoryPool",
-        "description": "Requires inventory scope on every account. Two or more distinct, unarchived accounts without a live pool and with the same medication; otherwise 422 or 409. A proposer who is a member accepts only their own part. Balances stay separate until every patient accepts. Idempotent client_operation_id.",
+        "description": "Marks that the accounts use the same physical box. Every account needs inventory scope, the same medication and no live pool. The pool is active at once and its balance becomes counted_quantity in the same transaction.",
         "responses": {
           "200": {
             "description": "Success",
@@ -2066,123 +1781,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreatePool"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/inventory-pools/pending": {
-      "get": {
-        "operationId": "pendingInventoryPools",
-        "description": "Decisions pending for the authenticated actor as patient. A caregiver never receives another patient's decisions.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PendingPoolPage"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          }
-        }
-      }
-    },
-    "/v1/inventory-pools/{poolId}/decision": {
-      "post": {
-        "operationId": "decideInventoryPool",
-        "description": "Only the patient decides for their own accounts; caregiver scopes do not count. Accepting from every member activates the pool with the lowest member threshold. Declining dissolves it if fewer than two accounts remain. Idempotent client_operation_id.",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PoolResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/Error400"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error409"
-          },
-          "413": {
-            "$ref": "#/components/responses/Error413"
-          },
-          "415": {
-            "$ref": "#/components/responses/Error415"
-          },
-          "422": {
-            "$ref": "#/components/responses/Error422"
-          },
-          "429": {
-            "$ref": "#/components/responses/Error429"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error500"
-          },
-          "504": {
-            "$ref": "#/components/responses/Error504"
-          }
-        },
-        "parameters": [
-          {
-            "name": "poolId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PoolDecision"
               }
             }
           }
@@ -2252,6 +1850,356 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LeavePool"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/families": {
+      "get": {
+        "operationId": "listFamilies",
+        "description": "Families of the actor with members, roles and join date. Only members see a family.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createFamily",
+        "description": "Creates a family; the actor becomes admin. Idempotent by client_operation_id.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Family"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFamily"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/families/{familyId}/invitations": {
+      "post": {
+        "operationId": "inviteToFamily",
+        "description": "Admin only. Single-use token returned once, hash only persisted, expires in 7 days. Every send creates another invitation. Clients share it as mistomas://unirse#<token>; the token never travels in a URL to a server.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FamilyInvitationRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "familyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/families/{familyId}/members/{userId}": {
+      "delete": {
+        "operationId": "removeFamilyMember",
+        "description": "A member leaves, or an admin removes someone. Caregiver links derived from the family are revoked in the same transaction. If no admin remains, the oldest caregiver becomes admin.",
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "parameters": [
+          {
+            "name": "familyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/family-invitations/preview": {
+      "post": {
+        "operationId": "previewFamilyInvitation",
+        "description": "Shows the family, inviter, role and current members before accepting.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FamilyInvitationPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewInvitation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/family-invitations/accept": {
+      "post": {
+        "operationId": "acceptFamilyInvitation",
+        "description": "Joins the family with the invited role and derives caregiver links for every patient and caregiver pair. Accepting as patient is the patient's consent to the family. Replaying the same operation returns the current family.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Family"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitation"
               }
             }
           }
@@ -3020,46 +2968,6 @@
           "pool"
         ]
       },
-      "CreateInvitation": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "client_operation_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "read",
-                "treatments",
-                "doses",
-                "inventory"
-              ]
-            },
-            "uniqueItems": true,
-            "minItems": 1,
-            "maxItems": 4,
-            "contains": {
-              "const": "read"
-            }
-          },
-          "patient_name_hint": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 60
-          }
-        },
-        "required": [
-          "client_operation_id",
-          "scopes"
-        ]
-      },
       "Invitation": {
         "type": "object",
         "additionalProperties": false,
@@ -3101,71 +3009,6 @@
         "required": [
           "client_operation_id",
           "token"
-        ]
-      },
-      "Link": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "link_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "patient_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "caregiver_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "read",
-                "treatments",
-                "doses",
-                "inventory"
-              ]
-            }
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "active",
-              "revoked"
-            ]
-          },
-          "patient_display_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 60,
-            "description": "Nombre completo sólo con vínculo activo o para el propio actor; null en los demás casos."
-          },
-          "caregiver_display_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 60,
-            "description": "Nombre completo sólo con vínculo activo o para el propio actor; null en los demás casos."
-          }
-        },
-        "required": [
-          "link_id",
-          "patient_id",
-          "caregiver_id",
-          "scopes",
-          "status",
-          "patient_display_name",
-          "caregiver_display_name"
         ]
       },
       "PatientAccessPage": {
@@ -3351,55 +3194,6 @@
           "token"
         ]
       },
-      "InvitationPreview": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "caregiver_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "read",
-                "treatments",
-                "doses",
-                "inventory"
-              ]
-            }
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "caregiver_display_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 60
-          },
-          "patient_name_hint": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 60
-          }
-        },
-        "required": [
-          "caregiver_id",
-          "scopes",
-          "expires_at",
-          "caregiver_display_name",
-          "patient_name_hint"
-        ]
-      },
       "Movement": {
         "type": "object",
         "additionalProperties": false,
@@ -3463,25 +3257,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Movement"
-            }
-          },
-          "next_cursor": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "items",
-          "next_cursor"
-        ]
-      },
-      "LinkPage": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Link"
             }
           },
           "next_cursor": {
@@ -4650,6 +4425,26 @@
                 "type": "null"
               }
             ]
+          },
+          "family_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient",
+              null
+            ]
           }
         },
         "required": [
@@ -4659,7 +4454,9 @@
           "expires_at",
           "created_at",
           "consumed_at",
-          "consumed_by"
+          "consumed_by",
+          "family_id",
+          "role"
         ]
       },
       "ExportAlertPreference": {
@@ -4866,6 +4663,12 @@
             "items": {
               "$ref": "#/components/schemas/ExportDevice"
             }
+          },
+          "family_memberships": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFamilyMembership"
+            }
           }
         },
         "required": [
@@ -4885,7 +4688,8 @@
           "consent_events",
           "invitations",
           "alert_preferences",
-          "devices"
+          "devices",
+          "family_memberships"
         ],
         "description": "Schema version 1. A single repeatable-read snapshot, without generating future occurrences. Health records belong only to the authenticated actor. Includes cancelled doses and all correction history. Related consent records retain participant IDs. Device tokens, identity-provider IDs, invitation secrets and operation replay storage are excluded. Decimal quantities are strings. Maximum 100000 records across all arrays and 20 MiB of JSON; larger exports fail without a partial attachment."
       },
@@ -5027,64 +4831,6 @@
           "status"
         ]
       },
-      "PendingPool": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "pool_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "proposer_display_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "medication_name": {
-            "type": "string"
-          },
-          "strength_label": {
-            "type": "string"
-          },
-          "others": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "pool_id",
-          "proposer_display_name",
-          "medication_name",
-          "strength_label",
-          "others"
-        ]
-      },
-      "PendingPoolPage": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PendingPool"
-            }
-          },
-          "next_cursor": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "items",
-          "next_cursor"
-        ]
-      },
       "PoolCandidate": {
         "type": "object",
         "additionalProperties": false,
@@ -5158,32 +4904,22 @@
               "format": "uuid"
             },
             "uniqueItems": true
-          }
-        },
-        "required": [
-          "client_operation_id",
-          "account_ids"
-        ]
-      },
-      "PoolDecision": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "client_operation_id": {
+          },
+          "counted_account_id": {
             "type": "string",
             "format": "uuid"
           },
-          "decision": {
+          "counted_quantity": {
             "type": "string",
-            "enum": [
-              "accept",
-              "decline"
-            ]
+            "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$",
+            "description": "What is physically in the shared box. The common balance starts from it through an audited count on counted_account_id."
           }
         },
         "required": [
           "client_operation_id",
-          "decision"
+          "account_ids",
+          "counted_account_id",
+          "counted_quantity"
         ]
       },
       "LeavePool": {
@@ -5233,6 +4969,234 @@
         },
         "required": [
           "identity_removed"
+        ]
+      },
+      "FamilyMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient"
+            ]
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "you": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "role",
+          "joined_at",
+          "you"
+        ]
+      },
+      "Family": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "family_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FamilyMember"
+            }
+          }
+        },
+        "required": [
+          "family_id",
+          "name",
+          "role",
+          "members"
+        ]
+      },
+      "FamilyPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Family"
+            }
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CreateFamily": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "name"
+        ]
+      },
+      "FamilyInvitationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient"
+            ]
+          },
+          "patient_name_hint": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Only for the patient role. Applied when the patient has no name yet."
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "role"
+        ]
+      },
+      "FamilyInvitationPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "family_name": {
+            "type": "string"
+          },
+          "inviter_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient"
+            ]
+          },
+          "patient_name_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FamilyMember"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "family_name",
+          "inviter_display_name",
+          "role",
+          "patient_name_hint",
+          "members",
+          "expires_at"
+        ]
+      },
+      "ExportFamilyMembership": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "family_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "caregiver",
+              "observer",
+              "patient"
+            ]
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "family_id",
+          "name",
+          "role",
+          "joined_at"
         ]
       }
     },
