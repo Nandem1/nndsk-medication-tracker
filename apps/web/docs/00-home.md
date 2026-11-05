@@ -46,6 +46,8 @@ La sección Seguimiento permite elegir semana, mes o rango y filtrar un tratamie
 
 El historial usa el mismo filtro y ordena las dosis por instante programado. Los días del calendario conservan la fecha local original de la pauta. Los rangos admiten hasta 366 días, mientras que inventario conserva su proyección de 30 días.
 
+El detalle de cuenta propone compartir, muestra «Esperando a» o «Compartido con» y permite dejar de compartir con confirmación. El portal no decide por el paciente; esa tarjeta vive en las apps móviles. La actividad neutra de otro miembro muestra sólo la fecha que entrega el servidor.
+
 La antelación de reposición se edita en Inventario con permiso `inventory`. El formulario conserva la operación al reintentar y envía el umbral previo esperado para detectar una edición concurrente. La fecha orientativa y la zona horaria provienen de la API. Guardar antelación no activa push.
 
 ## Evidencia y límites

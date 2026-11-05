@@ -125,10 +125,11 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
                 val doses = api.pages<Dose>("$base/doses", mapOf("from" to day.minusDays(7).toString(), "to" to day.plusDays(21).toString()))
                 val inventory = api.pages<Inventory>("$base/inventory")
                 val report = api.get<DailyReport>("$base/adherence", mapOf("from" to day.toString(), "to" to day.plusDays(1).toString()))
+                val pools = if (c.patientId == me.userId) api.pages<PendingPool>("v1/inventory-pools/pending") else emptyList()
                 val old = mutable.value.patient(c.patientId)?.doses.orEmpty().associateBy { it.id }
                 save(Snapshot(c, doses.map { old[it.id]?.takeIf { previous -> previous.version > it.version } ?: it },
                     treatments, inventory, links.filter { it.patientId == c.patientId }, Instant.now().toString(), access,
-                    if (c.patientId == me.userId) me else null, report))
+                    if (c.patientId == me.userId) me else null, report, pools))
             } catch (e: ApiFailure) {
                 if (e.status == 403 || e.status == 404) deny(uid, c.patientId) else throw e
             }
@@ -190,6 +191,25 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
             put("client_operation_id", operationId)
             put(if (count) "counted_quantity" else "quantity", quantity)
             if (count) { put("reason", reason.trim()); put("expected_balance", expectedBalance) }
+        }.toString())
+        syncLocked()
+    }
+    suspend fun poolCandidates(accountId: String): List<PoolCandidate> = requestResult { api.pages("v1/inventory/$accountId/pool-candidates") }
+    suspend fun proposePool(accounts: List<String>, operationId: String) = action {
+        api.request("v1/inventory-pools", buildJsonObject {
+            put("client_operation_id", operationId); put("account_ids", JsonArray(accounts.map(::JsonPrimitive)))
+        }.toString())
+        syncLocked()
+    }
+    suspend fun decidePool(poolId: String, accept: Boolean, operationId: String) = action {
+        api.request("v1/inventory-pools/$poolId/decision", buildJsonObject {
+            put("client_operation_id", operationId); put("decision", if (accept) "accept" else "decline")
+        }.toString())
+        syncLocked()
+    }
+    suspend fun leavePool(poolId: String, accountId: String, operationId: String) = action {
+        api.request("v1/inventory-pools/$poolId/leave", buildJsonObject {
+            put("client_operation_id", operationId); put("account_id", accountId)
         }.toString())
         syncLocked()
     }

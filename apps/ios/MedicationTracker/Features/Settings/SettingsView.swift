@@ -21,6 +21,7 @@ struct SettingsView: View {
                             Text(model.snapshot.treatments.first { $0.id == account.treatmentID }?.name ?? "Medicamento")
                                 .font(.headline)
                             StockSummary(account: account)
+                            if account.pool != nil { SharedInventoryRows(account: account, canEdit: true, propose: false) }
                         }
                     }
                 }

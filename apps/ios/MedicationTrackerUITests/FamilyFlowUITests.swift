@@ -182,6 +182,87 @@ final class FamilyFlowUITests: XCTestCase {
         capture("familia-revocacion-selectiva")
     }
 
+    /// Propone el cuidador en este teléfono; cada paciente decide por sí mismo. API y PostgreSQL reales.
+    @MainActor
+    func testSharedInventoryConsentConsumptionAndLeave() async throws {
+        let caregiver = try await E2EBackend.signUp("pool-cuida")
+        let mama = try await E2EBackend.signUp("pool-mama")
+        let papa = try await E2EBackend.signUp("pool-papa")
+        _ = try await E2EBackend.userID(caregiver)
+        let mamaID = try await E2EBackend.userID(mama)
+        let papaID = try await E2EBackend.userID(papa)
+        try await E2EBackend.profile(caregiver, name: "Cuidadora sintética")
+        try await E2EBackend.profile(mama, name: "Mamá sintética")
+        try await E2EBackend.profile(papa, name: "Papá sintético")
+        let scopes = ["read", "doses", "treatments", "inventory"]
+        try await E2EBackend.accept(mama, token: E2EBackend.invitation(caregiver, scopes: scopes, hint: "Mamá sintética"))
+        try await E2EBackend.accept(papa, token: E2EBackend.invitation(caregiver, scopes: scopes, hint: "Papá sintético"))
+        try await E2EBackend.createTreatment(caregiver: caregiver, patient: mamaID, name: "Losartán")
+        try await E2EBackend.createTreatment(caregiver: caregiver, patient: papaID, name: "Losartán")
+
+        login(caregiver, name: nil, caregiver: true)
+        XCTAssertTrue(app.buttons["patient-Mamá sintética"].waitForExistence(timeout: timeout))
+        app.buttons["patient-Mamá sintética"].tap()
+        app.segmentedControls["patient-section"].buttons["Inventario"].tap()
+        let inventoryLink = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "caregiver-inventory-")).firstMatch
+        XCTAssertTrue(inventoryLink.waitForExistence(timeout: timeout)); inventoryLink.tap()
+        let propose = app.buttons["pool-propose"]
+        XCTAssertTrue(propose.waitForExistence(timeout: timeout)); scroll(propose); propose.tap()
+        let candidate = app.buttons["pool-candidate"]
+        XCTAssertTrue(candidate.waitForExistence(timeout: timeout))
+        XCTAssertEqual(candidate.label, "Compartir con Papá sintético")
+        capture("familia-p5-candidatos")
+        candidate.tap()
+        XCTAssertTrue(labeled("Esperando a Papá sintético").waitForExistence(timeout: timeout))
+        capture("familia-p5-esperando")
+        let waiting = try await E2EBackend.inventory(mama, patient: mamaID)
+        XCTAssertEqual(waiting.first?.balance, "10.000", "Pendiente mantiene saldos separados")
+        tab("Ajustes")
+        if app.navigationBars.buttons.firstMatch.exists { app.navigationBars.buttons.firstMatch.tap() }
+        logout()
+
+        try await Task.sleep(for: .seconds(61))
+        if app.buttons["login-register"].label == "Volver a entrar" { app.buttons["login-register"].tap() }
+        login(mama, name: nil, caregiver: false)
+        let proposal = app.staticTexts["pool-proposal"]
+        XCTAssertTrue(proposal.waitForExistence(timeout: timeout))
+        XCTAssertTrue(proposal.label.contains("Cuidadora sintética propone compartir Losartán 500 mg con Papá sintético"), proposal.label)
+        capture("familia-p5-propuesta")
+        scroll(app.buttons["pool-accept"]); app.buttons["pool-accept"].tap()
+        XCTAssertTrue(proposal.waitForNonExistence(timeout: timeout))
+        try await E2EBackend.acceptPendingPool(papa)
+        let active = try await E2EBackend.inventory(mama, patient: mamaID)
+        XCTAssertEqual(active.first?.balance, "20.000")
+
+        // Cada paciente consume de su propia cuenta y el saldo común baja una vez por dosis.
+        let ownDoses = try await E2EBackend.doses(mama, patient: mamaID)
+        try await E2EBackend.declare(mama, dose: try XCTUnwrap(ownDoses.first { $0.state == "unconfirmed" }), type: "taken")
+        let otherDoses = try await E2EBackend.doses(papa, patient: papaID)
+        try await E2EBackend.declare(papa, dose: try XCTUnwrap(otherDoses.first { $0.state == "unconfirmed" }), type: "taken")
+        let consumed = try await E2EBackend.inventory(papa, patient: papaID)
+        XCTAssertEqual(consumed.first?.balance, "19.000")
+
+        tab("Hoy"); refresh()
+        tab("Ajustes"); refresh()
+        let leave = app.buttons["pool-leave"]
+        scroll(leave)
+        XCTAssertTrue(labeled("Inventario compartido con Papá sintético").exists)
+        XCTAssertTrue(labeled("Saldo confirmado: 19 comprimidos").exists)
+        capture("familia-p5-compartido")
+        leave.tap()
+        XCTAssertTrue(labeled("El saldo se queda con Papá sintético").waitForExistence(timeout: timeout))
+        capture("familia-p5-salir")
+        app.buttons["Confirmar"].tap()
+        XCTAssertTrue(labeled("Saldo confirmado: 0 comprimidos").waitForExistence(timeout: timeout))
+        let remaining = try await E2EBackend.inventory(papa, patient: papaID)
+        XCTAssertEqual(remaining.first?.balance, "19.000")
+        let ledger = try await E2EBackend.movements(mama, inventory: try XCTUnwrap(active.first).account_id)
+        XCTAssertEqual(ledger.filter { $0.reason == "pool_transfer" }.count, 1)
+    }
+
+    @MainActor private func labeled(_ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
     @MainActor private func enterCredentials(_ email: String) {
         let field = app.textFields["login-email"]
         XCTAssertTrue(field.waitForExistence(timeout: timeout)); field.tap(); field.typeText(email)
@@ -212,7 +293,7 @@ final class FamilyFlowUITests: XCTestCase {
         }
         let use = app.buttons[caregiver ? "use-caregiver" : "use-patient"]
         XCTAssertTrue(use.waitForExistence(timeout: timeout)); dismissPasswordPrompt()
-        for _ in 0..<3 {
+        for _ in 0..<6 {
             // El aviso de contraseña puede llegar tarde y se lleva el toque.
             dismissPasswordPrompt()
             tapAtFrame(use)
@@ -257,7 +338,11 @@ final class FamilyFlowUITests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
     @MainActor private func scrollTap(_ id: String) { let element = app.buttons[id]; scroll(element); element.tap() }
-    @MainActor private func dismissPasswordPrompt() { if app.buttons["Ahora no"].exists { app.buttons["Ahora no"].tap() } }
+    /// La tarjeta de inventario compartido también dice «Ahora no»: ese botón es una decisión del paciente.
+    @MainActor private func dismissPasswordPrompt() {
+        let prompt = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Ahora no", "pool-decline")).firstMatch
+        if prompt.exists { prompt.tap() }
+    }
     @MainActor private func dismissKeyboard() {
         if app.buttons["Return"].exists { app.buttons["Return"].tap() }
         app.swipeUp()

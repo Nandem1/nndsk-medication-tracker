@@ -17,6 +17,8 @@ import cl.nndsk.medication.ui.theme.GraphiteTokens
 import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.time.*
 import cl.nndsk.medication.ui.components.*
+import cl.nndsk.medication.ui.caregiver.SharedInventory
+import cl.nndsk.medication.ui.caregiver.balanceLabel
 
 @Composable internal fun DoseDetail(model: PatientViewModel, state: PatientScreen, id: String) {
     val snapshot = state.snapshot
@@ -50,7 +52,8 @@ import cl.nndsk.medication.ui.components.*
         }
         snapshot.inventory.find { it.treatmentId == dose.treatmentId }?.let { stock ->
             SectionCard("Inventario") {
-                InfoRow("Saldo confirmado", "${quantityText(stock.balance)} ${unitLabel(stock.unit)}")
+                InfoRow(balanceLabel(stock), "${quantityText(stock.balance)} ${unitLabel(stock.unit)}")
+                if (stock.pool != null) SharedInventory(model, stock, state.permits("inventory"), state.offline || state.busy, propose = false)
                 if (state.operations.isNotEmpty()) {
                     val estimate = estimatedBalance(snapshot, state.operations, dose.treatmentId)
                     if (estimate == null) Note("Saldo estimado no disponible hasta revisar los pendientes.")

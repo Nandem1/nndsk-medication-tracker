@@ -71,6 +71,8 @@ class AndroidE2ETest {
         assertEquals("e2e", BuildConfig.BUILD_TYPE)
         app.repository.logout()
         fault("online")
+        // El orden de JUnit no está garantizado: cada caso respeta el límite real de 120 solicitudes por minuto.
+        delay(61_000)
         try {
             val patient = signup("patient")
             val caregiver = signup("caregiver")
@@ -400,4 +402,77 @@ class AndroidE2ETest {
         finally { fault("online"); app.repository.logout() }
     }
 
+    /** Quien propone es un cuidador; el paciente decide en este teléfono. Consumo y salida con API y PostgreSQL reales. */
+    @Test fun sharedInventoryConsentConsumptionAndLeave(): Unit = runBlocking {
+        app.repository.logout(); fault("online")
+        delay(61_000)
+        try {
+            val mama = signup("pool-mama"); val papa = signup("pool-papa"); val caregiver = signup("pool-care")
+            val mamaId = call("/v1/me", mama.second).getValue("user_id").jsonPrimitive.content
+            val papaId = call("/v1/me", papa.second).getValue("user_id").jsonPrimitive.content
+            profile(mama.second, "Mamá sintética"); profile(papa.second, "Papá sintético"); profile(caregiver.second, "Cuidadora sintética")
+            val scopes = listOf("read", "treatments", "doses", "inventory")
+            link(caregiver.second, mama.second, scopes); link(caregiver.second, papa.second, scopes)
+            treatment(caregiver.second, mamaId); treatment(caregiver.second, papaId)
+            val accountOf = { token: String, id: String -> call("/v1/patients/$id/inventory", token).getValue("items").jsonArray.single().jsonObject.getValue("account_id").jsonPrimitive.content }
+            val mamaAccount = accountOf(mama.second, mamaId); val papaAccount = accountOf(papa.second, papaId)
+
+            app.repository.login(caregiver.first, password); app.repository.setUse(true)
+            waitFor { app.repository.state.value.patients.size == 2 }
+            compose.onNodeWithContentDescription("Ver a Mamá sintética").performScrollTo().performClick()
+            compose.onNodeWithText("Inventario").performClick()
+            compose.onNodeWithText("Compartir con…").performScrollTo().performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Papá sintético").fetchSemanticsNodes().isNotEmpty() }
+            capture("pool-candidates")
+            compose.onNodeWithText("Papá sintético").performClick()
+            waitFor { app.repository.state.value.patients.getValue(mamaId).inventory.single().pool?.status == "pending" }
+            compose.onNodeWithText("Esperando a Papá sintético", substring = true).performScrollTo().assertExists()
+            capture("pool-waiting")
+            assertEquals("10.000", balance(caregiver.second, mamaId))
+            app.repository.logout()
+
+            app.repository.login(mama.first, password); app.repository.setUse(false)
+            waitFor { app.repository.state.value.own?.pendingPools?.size == 1 }
+            compose.onNodeWithText("Cuidadora sintética propone compartir", substring = true).performScrollTo().assertExists()
+            capture("pool-proposal")
+            compose.onNodeWithText("Aceptar").performScrollTo().performClick()
+            waitFor { app.repository.state.value.own?.pendingPools?.isEmpty() == true }
+            val pending = call("/v1/inventory-pools/pending", papa.second).getValue("items").jsonArray.single().jsonObject
+            val poolId = pending.getValue("pool_id").jsonPrimitive.content
+            call("/v1/inventory-pools/$poolId/decision", papa.second, buildJsonObject {
+                put("client_operation_id", UUID.randomUUID().toString()); put("decision", "accept")
+            })
+            app.repository.sync()
+            waitFor { app.repository.state.value.own?.inventory?.single()?.pool?.status == "active" }
+            assertEquals("20.000", app.repository.state.value.own!!.inventory.single().balance)
+
+            // Cada paciente consume de su propia cuenta y el saldo común baja una vez por dosis.
+            val own = app.repository.state.value.own!!
+            val dose = own.doses.first { !it.declared() }
+            app.repository.record(own.context, dose.id, declaration(dose, "taken", null, null))
+            val papaDose = call("/v1/patients/$papaId/doses?from=${dose.localDate}&to=${java.time.LocalDate.parse(dose.localDate).plusDays(1)}", papa.second)
+                .getValue("items").jsonArray.first { it.jsonObject.getValue("state").jsonPrimitive.content == "unconfirmed" }.jsonObject
+            call("/v1/doses/${papaDose.getValue("dose_id").jsonPrimitive.content}/events", papa.second, buildJsonObject {
+                put("client_operation_id", UUID.randomUUID().toString()); put("event_type", "taken"); put("expected_version", papaDose.getValue("version").jsonPrimitive.int)
+            })
+            app.repository.sync()
+            waitFor { app.repository.state.value.own?.inventory?.single()?.balance == "19.000" }
+            assertEquals("19.000", balance(papa.second, papaId))
+
+            compose.onNodeWithText("Ajustes").performClick()
+            compose.onNodeWithText("Inventario compartido con Papá sintético", substring = true).performScrollTo().assertExists()
+            capture("pool-settings")
+            compose.onNodeWithText("Dejar de compartir").performScrollTo().performClick()
+            compose.onNodeWithText("El saldo se queda con Papá sintético", substring = true).assertExists()
+            capture("pool-leave")
+            compose.onNodeWithText("Confirmar").performClick()
+            waitFor { app.repository.state.value.own?.inventory?.single()?.pool == null }
+            assertEquals("0.000", app.repository.state.value.own!!.inventory.single().balance)
+            assertEquals("19.000", balance(papa.second, papaId))
+            val reasons = call("/v1/inventory/$mamaAccount/movements", mama.second).getValue("items").jsonArray.map { it.jsonObject.getValue("reason").jsonPrimitive.content }
+            assertEquals(1, reasons.count { it == "pool_transfer" })
+            assertEquals(1, call("/v1/inventory/$papaAccount/movements", papa.second).getValue("items").jsonArray.count { it.jsonObject.getValue("reason").jsonPrimitive.content == "pool_transfer" })
+        } catch (e: Throwable) { capture("pool-failed"); throw e }
+        finally { fault("online"); app.repository.logout() }
+    }
 }

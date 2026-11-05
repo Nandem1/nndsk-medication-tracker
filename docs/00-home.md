@@ -39,6 +39,7 @@ flowchart TB
 - [Consentimiento](../services/api/internal/application/consent.go) emite invitaciones con hash de token, registra aceptación y revocación. Reactivar un vínculo requiere consentimiento nuevo.
 - [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda y el worker materializan ocurrencias mediante el mismo generador.
 - [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado bajo bloqueo de cuenta y crea un ajuste exacto sólo si existe diferencia.
+- [Inventario compartido](../services/api/internal/application/pools.go) agrupa cuentas conservadas y calcula su saldo común desde los movimientos de todas. Exige el consentimiento de cada paciente y filtra en el servidor lo que ve un cuidador sin acceso al otro miembro. El orden de bloqueo es candado de membresía, inventario y cuentas por identificador. Ver [ADR 0009](decisions/0009-modo-familia.md).
 - [OpenAPI](../packages/contracts/openapi.yaml) es el contrato compartido. Los adaptadores son manuales y tipados. No hay clientes móviles o web generados.
 - [`cmd/e2e`](../services/api/cmd/e2e/main.go), sólo con la etiqueta `e2e`, acepta identidades sintéticas o del emulador de Firebase y añade un [proxy de fallos](../services/api/cmd/e2e/proxy.go). Exige una base local desechable. El ejecutable productivo sigue rechazando el emulador.
 - [Compose](../compose.yaml) mantiene PostgreSQL y su volumen. El puerto host predeterminado es 55433 y el puerto del contenedor es 5432.
@@ -49,7 +50,7 @@ flowchart TB
 | --- | --- | --- |
 | iOS | [Mapa iOS](../apps/ios/docs/00-home.md) | Agenda propia, modo cuidador y SQLite por paciente. Modo familia verificado en simulador; en iPhone físico, sólo instalación y login de la versión anterior |
 | Android | [Mapa Android](../apps/android/docs/00-home.md) | Compose, Room por cuenta y paciente, modo cuidador, consentimiento e inventario. Recordatorios sólo propios. F5 tiene aceptación física; modo familia se verifica en emulador |
-| Web | [Mapa web](../apps/web/docs/00-home.md) | Portal React con login, consentimiento, tratamientos, inventario y agenda |
+| Web | [Mapa web](../apps/web/docs/00-home.md) | Portal React con login, consentimiento, tratamientos, inventario compartido y agenda |
 
 Los detalles internos de cada app se documentan en su mapa local cuando se implementan. Los límites compartidos permanecen aquí. La UI no se comparte entre plataformas.
 

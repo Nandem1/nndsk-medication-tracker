@@ -90,6 +90,20 @@ struct APIClient: Sendable {
         _ = try await send("/v1/inventory/\(account)/" + (count ? "counts" : "movements"), query: [], method: "POST", body: JSONEncoder().encode(body))
     }
 
+    func pendingPools() async throws -> [PendingPool] { try await all("/v1/inventory-pools/pending") }
+    func poolCandidates(account: String) async throws -> [PoolCandidate] { try await all("/v1/inventory/\(account)/pool-candidates") }
+    func createPool(accounts: [String], operation: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["client_operation_id": operation, "account_ids": accounts])
+        _ = try await send("/v1/inventory-pools", query: [], method: "POST", body: body)
+    }
+    func decidePool(id: String, accept: Bool, operation: String) async throws {
+        let body = try JSONEncoder().encode(["client_operation_id": operation, "decision": accept ? "accept" : "decline"])
+        _ = try await send("/v1/inventory-pools/\(id)/decision", query: [], method: "POST", body: body)
+    }
+    func leavePool(id: String, account: String, operation: String) async throws {
+        let body = try JSONEncoder().encode(["client_operation_id": operation, "account_id": account])
+        _ = try await send("/v1/inventory-pools/\(id)/leave", query: [], method: "POST", body: body)
+    }
     func treatments(patient: String) async throws -> [Treatment] {
         try await all("/v1/patients/\(patient)/treatments")
     }

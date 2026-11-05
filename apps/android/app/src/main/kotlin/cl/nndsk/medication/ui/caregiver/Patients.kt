@@ -85,7 +85,8 @@ import java.util.UUID
         if (snapshot.inventory.isEmpty()) Note("No hay inventario para mostrar.")
         snapshot.inventory.forEach { stock ->
             SectionCard(snapshot.treatments.find { it.id == stock.treatmentId }?.name ?: "Tratamiento") {
-                InfoRow("Saldo confirmado", "${quantityText(stock.balance)} ${unitLabel(stock.unit)}")
+                InfoRow(balanceLabel(stock), "${quantityText(stock.balance)} ${unitLabel(stock.unit)}")
+                SharedInventory(model, stock, screen.permits("inventory"), screen.offline || screen.busy)
                 if (screen.operations.isNotEmpty()) estimatedBalance(snapshot, screen.operations, stock.treatmentId)?.let {
                     val border = MedicationTrackerTheme.colors.syncFg
                     Box(Modifier.fillMaxWidth().drawBehind {
@@ -113,7 +114,7 @@ import java.util.UUID
     }
     edit?.let { (stock, count) -> InventorySheet(model, snapshot.context.patientId, stock, count, screen.busy, screen.offline) { edit = null } }
     ledger?.let { rows -> AlertDialog(onDismissRequest = { ledger = null }, title = { Text("Movimientos") },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) { if (rows.isEmpty()) Text("Sin movimientos."); rows.forEach { Text("${quantityText(it.quantity)} · ${movementLabel(it.reason)} · ${formatInstant(it.createdAt)}") } } },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { if (rows.isEmpty()) Text("Sin movimientos."); rows.forEach { Text(movementLine(it)) } } },
         confirmButton = { TextButton(onClick = { ledger = null }) { Text("Cerrar") } }) }
 }
 

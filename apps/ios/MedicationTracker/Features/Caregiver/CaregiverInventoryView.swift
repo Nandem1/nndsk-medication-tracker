@@ -72,7 +72,10 @@ struct CaregiverInventoryDetail: View {
         Group {
             if let snapshot = model.patientSnapshot(patient), let account = snapshot.inventory.first(where: { $0.id == accountID }) {
                 List {
-                    Section { FamilyStockSummary(account: account, snapshot: snapshot) }
+                    Section {
+                        FamilyStockSummary(account: account, snapshot: snapshot)
+                        SharedInventoryRows(account: account, canEdit: model.permits("inventory", patient: patient), propose: true)
+                    }
                     if model.permits("inventory", patient: patient) {
                         Section {
                             Button("Registrar reposición") { form = InventoryFormPresentation(account: account, kind: .replenishment) }.frame(minHeight: 44).accessibilityIdentifier("inventory-replenish").disabled(model.syncProblem == .transport)
@@ -90,7 +93,8 @@ struct CaregiverInventoryDetail: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(movement.label).font(.headline)
                                 Text(ExactQuantity.withUnit(movement.quantity, unit: account.unit))
-                                Text(Instant.parse(movement.createdAt).map(DoseText.instant) ?? movement.createdAt).font(.footnote)
+                                if let name = movement.patientName { Text(name) }
+                                Text(movement.sharedDate ?? Instant.parse(movement.createdAt).map(DoseText.instant) ?? movement.createdAt).font(.footnote)
                             }
                         }
                     }

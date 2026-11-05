@@ -30,6 +30,7 @@ struct TodayView: View {
                 TodayProgress(registered: plan.registeredCount, total: plan.total)
                     .plainTodayRow()
             }
+            ForEach(model.pendingPools) { PendingPoolCard(pool: $0) }
             if !plan.review.isEmpty {
                 Section {
                     ForEach(plan.review) { DoseRow(dose: $0, now: now) }

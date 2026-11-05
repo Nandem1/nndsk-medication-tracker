@@ -35,4 +35,14 @@ class FamilyTest {
         assertTrue(reminderDoses(snapshot, emptyList(), now).isEmpty())
         assertEquals(listOf(dose), reminderDoses(own.copy(doses = listOf(dose)), emptyList(), now))
     }
+    @Test fun sharedInventoryTextsNameOnlyOthersAndHideForeignTime() {
+        val pool = InventoryPool("p", "active", listOf(PoolMember("Mamá", current = true), PoolMember("Papá"), PoolMember(null, status = "pending")))
+        assertEquals("Papá, Paciente sin nombre", poolOthers(pool))
+        assertEquals("Paciente sin nombre", poolOthers(pool, "pending"))
+        val proposal = poolProposal(PendingPool("p", "Hermana", "Losartán", "50 mg", listOf("Papá")))
+        assertEquals("Hermana propone compartir Losartán 50 mg con Papá. Compartirán el mismo saldo y podrán ver cuánto queda.", proposal)
+        assertEquals("02-11-2026", sharedActivityDate("2026-11-02T00:00:00Z"))
+        val decoded = wireJson.decodeFromString<Inventory>("""{"treatment_id":"t","balance":"20.000","unit":"tablet","pool":{"pool_id":"p","status":"active","members":[{"patient_display_name":"otra persona","you":false,"current":false,"status":"accepted"}]}}""")
+        assertEquals("otra persona", poolOthers(decoded.pool!!))
+    }
 }

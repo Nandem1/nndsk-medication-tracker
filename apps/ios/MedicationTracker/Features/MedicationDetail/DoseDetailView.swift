@@ -39,6 +39,7 @@ struct DoseDetailView: View {
             if let account = treatment.flatMap({ model.account(for: $0.id) }) {
                 Section("Inventario") {
                     StockSummary(account: account)
+                    if account.pool != nil { SharedInventoryRows(account: account, canEdit: true, propose: false) }
                 }
             }
             if let treatment, !treatment.instructions.isEmpty {

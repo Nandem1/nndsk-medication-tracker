@@ -150,3 +150,40 @@ Resultados sobre la versión final, en simulador iPhone 17 con iOS 27.2, API y P
 - No se ejecutó en iPhone físico. No acredita entrega real de correo ni revisión con VoiceOver.
 
 Architecture Impact: cambian persistencia, sincronización, autenticación y navegación iOS. Conserva los contratos y las reglas de consumo. Mapas general e iOS actualizados. Sin despliegue ni instalación física.
+
+## P5, inventario compartido
+
+Resultados sobre la versión final:
+
+- `make tokens-check`, `make test`, `make lint`, `make build`: PASS.
+- `make test-integration`, base desechable nueva `medication_f1_familia_p5`: PASS. Incluye las 14 pruebas de la sección 9.9, además de salida sin saldo, propuesta pendiente, un solo paciente, reposición, umbral común y desfase de reloj.
+- Migración 7, up, down y up en base desechable vacía: PASS. El down falla si ya existen movimientos `pool_transfer`, porque la historia es append-only.
+- `make test-web-e2e`, `E2E_PORT_OFFSET=100`: 12 casos PASS. El puerto 5173 estaba ocupado por un proceso ajeno, que no se tocó.
+- `make test-android`, `make lint-android`: PASS. `make test-android-device`: 8 pruebas PASS. `make test-android-e2e`: 3 casos PASS, en emulador.
+- `make test-ios`: 83 pruebas en 18 suites PASS. `make lint-ios`: PASS. `make test-ios-e2e`: 11 casos PASS, 0 esperas de inactividad agotadas, en simulador.
+
+**Alcance real de los E2E.** Android e iOS: el cuidador propone en la app, Mamá acepta en la app y sale en Ajustes. Android declara con `record()`, sin tocar los botones, e iOS mediante la API. El otro paciente acepta y consume mediante la API. Web: propone y sale en el portal; aceptar y consumir usan la API, porque el portal no decide por el paciente. Se usa un solo teléfono, y no hay dos pacientes operando en dos dispositivos. La carrera real entre pacientes está en integración. No se ejecutó en teléfonos físicos.
+
+**Bug corregido: reloj adelantado.** El emulador recién iniciado iba 0,48 s adelantado y «Me lo tomé» terminaba como «Necesita revisión: datos rechazados». Ver [ADR 0009](../decisions/0009-modo-familia.md#desfase-de-reloj-en-declaraciones). La prueba falló antes del cambio y pasó después. La corrida de Android de las 21:57 lo reprodujo y la final pasó con el mismo emulador.
+
+**Pruebas que cambiaron:**
+
+- El caso `consentOffline…` de Android añade una pausa de 61 s. Con un caso más cambió el orden de JUnit y empezó a fallar al guardar el nombre, justo después de otro caso. La causa probable, sin confirmar en el log, es el límite de 120 solicitudes por minuto. No cambió lo que se exige.
+- El helper de iOS que cierra el aviso de contraseña ahora excluye `pool-decline`, porque rechazaba la propuesta al tocar el «Ahora no» de la tarjeta.
+- La elección local de uso admite hasta 6 reintentos de toque. No es una mutación de servidor.
+
+**Capturas revisadas:** propuesta, candidatos, espera, compartido y salida en web, Android e iOS. Web corrigió un botón «Confirmar» sin contexto en la propuesta pendiente.
+
+**Incidencias de entorno:**
+
+- `make migrate-up` lee `.env`. Una ejecución por error migró la base local de desarrollo `medication_tracker` de la versión 5 a la 7. Es local, con 1 usuario y 0 dosis. Staging y producción no se tocaron.
+- Colima y el emulador estaban detenidos al retomar. Se levantaron con los comandos del proyecto. El emulador sigue corriendo sin ventana (AVD `medication_f5`).
+
+**Observaciones sin corregir:**
+
+- Los movimientos de otros miembros parten en la activación, así que la lista puede no explicar todo el saldo común.
+- En iOS, las decisiones pendientes viven en memoria: tras reabrir sin conexión no aparecen hasta sincronizar. Decidir exige red de todos modos.
+- «Ahora no» rechaza la propuesta de forma definitiva. Volver a compartir requiere otra propuesta.
+- En iOS, Hoy y Ajustes siguen diciendo «Saldo confirmado» y aclaran en una nota que es común. Android dice «Saldo común confirmado». Se mantuvo así para no cambiar la UI aceptada.
+
+Architecture Impact: nueva migración y tablas, orden de bloqueo global, saldo efectivo, proyección combinada, privacidad en el servidor, cinco rutas nuevas y tolerancia de reloj en declaraciones. Mapas general y de las tres apps, contrato y ADR actualizados. Sin despliegue ni instalación física. Falta `living-architecture REVIEW`, previsto antes del último merge.

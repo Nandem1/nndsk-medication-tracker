@@ -61,3 +61,7 @@ Las pruebas unitarias verifican identidad por instalación/cuenta y el cuerpo de
 Logout oculta el estado inmediatamente y ejecuta la limpieza bajo el mutex del repositorio sin cancelación. Intenta desregistrar push, borrar credenciales y limpiar Room de forma independiente. Un fallo de Room no vuelve a publicar el snapshot anterior. La identidad conserva una marca de borrado pendiente que impide restaurar credenciales cuando la eliminación quedó incompleta.
 
 Los fallos se muestran sin afirmar que todos los datos fueron borrados. La pantalla de acceso permite reintentar la limpieza sin autenticarse. El borrado lógico no acredita saneamiento forense ni protección del selector de aplicaciones. Ver [verificación F8](../../../docs/runbooks/f8-verification.md).
+
+## Inventario compartido
+
+El snapshot de cada paciente trae `pool` por cuenta, y el propio trae `pendingPools`. Room no cambia de esquema porque el snapshot se guarda como JSON. [`SharedInventory.kt`](../app/src/main/kotlin/cl/nndsk/medication/ui/caregiver/SharedInventory.kt) reúne la tarjeta de decisión de Hoy, el estado y la salida. Proponer, decidir y salir requieren red, no entran a la cola y conservan su operación para reintentar. El estimado local sigue restando sólo las declaraciones pendientes de este teléfono.

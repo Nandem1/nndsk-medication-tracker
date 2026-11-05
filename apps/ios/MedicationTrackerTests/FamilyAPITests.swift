@@ -74,3 +74,20 @@ private actor HeldProfileTransport: HTTPTransport {
         return (Data(body.utf8), HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!)
     }
 }
+
+struct SharedInventoryTextTests {
+    @Test func namesOnlyOtherMembersAndHidesForeignTime() throws {
+        let data = Data(#"{"pool_id":"p","status":"active","members":[{"patient_display_name":"Mamá","you":false,"current":true,"status":"accepted"},{"patient_display_name":"Papá","you":false,"current":false,"status":"accepted"},{"patient_display_name":null,"you":false,"current":false,"status":"pending"}]}"#.utf8)
+        let pool = try JSONDecoder().decode(InventoryPool.self, from: data)
+        #expect(pool.others() == "Papá, Paciente sin nombre")
+        #expect(pool.others(status: "pending") == "Paciente sin nombre")
+        let pending = PendingPool(id: "p", proposer: "Hermana", medication: "Losartán", strength: "50 mg", others: ["Papá"])
+        #expect(pending.text == "Hermana propone compartir Losartán 50 mg con Papá. Compartirán el mismo saldo y podrán ver cuánto queda.")
+        let shared = InventoryMovement(id: "m", quantity: "-0.500", reason: "shared_activity", createdAt: "2026-11-02T00:00:00Z")
+        #expect(shared.sharedDate == "02-11-2026")
+        #expect(shared.label == "Actividad compartida")
+        let own = InventoryMovement(id: "m", quantity: "2.000", reason: "pool_transfer", createdAt: "2026-11-02T10:11:12Z")
+        #expect(own.sharedDate == nil)
+        #expect(own.label == "Traspaso por inventario compartido")
+    }
+}

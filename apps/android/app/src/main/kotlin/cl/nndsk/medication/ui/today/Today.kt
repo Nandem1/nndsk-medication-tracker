@@ -25,6 +25,7 @@ import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.time.*
 import cl.nndsk.medication.ui.components.*
 import cl.nndsk.medication.ui.detail.DeclarationActions
+import cl.nndsk.medication.ui.caregiver.PendingPoolCard
 
 /** Cuenta registros, no tomas: una omisión también suma. Sin rachas ni metas. */
 @Composable internal fun Today(model: PatientViewModel, state: PatientScreen, now: Instant, open: (String) -> Unit) {
@@ -41,6 +42,7 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
             Text("${plan.registeredCount} de ${plan.total} registradas", style = GraphiteTokens.Type.patientLabel)
             LinearProgressIndicator({ plan.registeredCount.toFloat() / plan.total }, Modifier.fillMaxWidth(), color = colors.action, trackColor = colors.border, drawStopIndicator = {})
         }
+        if (!state.caregiver) snapshot?.pendingPools.orEmpty().forEach { PendingPoolCard(model, it, state.busy || state.offline) }
         if (plan.review.isNotEmpty()) {
             SectionTitle("Por revisar")
             plan.review.forEach { DoseRow(it, state, now, open = open) }

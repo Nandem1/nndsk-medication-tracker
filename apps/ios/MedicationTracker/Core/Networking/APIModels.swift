@@ -82,6 +82,7 @@ struct InventoryProjection: Codable, Sendable, Identifiable, Equatable {
     var timezone: String? = nil
     var replenishOn: String? = nil
     var lowStock: Bool? = nil
+    var pool: InventoryPool? = nil
 
     var id: String { accountID }
 
@@ -94,6 +95,7 @@ struct InventoryProjection: Codable, Sendable, Identifiable, Equatable {
         case from, through, timezone
         case replenishOn = "replenish_on"
         case lowStock = "low_stock"
+        case pool
     }
 }
 

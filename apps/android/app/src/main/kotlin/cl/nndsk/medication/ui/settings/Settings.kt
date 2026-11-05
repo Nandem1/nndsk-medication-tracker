@@ -3,6 +3,7 @@ package cl.nndsk.medication.ui.settings
 import android.content.ClipboardManager
 import cl.nndsk.medication.ui.account.ProfileEditor
 import cl.nndsk.medication.ui.caregiver.InviteSheet
+import cl.nndsk.medication.ui.caregiver.SharedInventory
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -66,6 +67,11 @@ import cl.nndsk.medication.ui.components.*
             DoseAction("Ajustes de notificaciones") { notificationSettings() }
         }
         if (model.app.remotePush.configured) SectionCard("Avisos remotos del cuidador") { Text(pushDiagnostic) }
+        state.own?.let { own -> own.inventory.filter { it.pool != null }.forEach { stock ->
+            SectionCard(own.treatments.find { it.id == stock.treatmentId }?.name ?: "Inventario") {
+                SharedInventory(model, stock, true, state.busy || state.offline, propose = false)
+            }
+        } }
         if (state.operations.isNotEmpty()) SectionCard("Registros pendientes") {
             state.operations.forEach { op ->
                 val body = wireJson.decodeFromString<Command>(op.body)

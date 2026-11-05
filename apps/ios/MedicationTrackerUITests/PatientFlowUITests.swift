@@ -290,7 +290,7 @@ final class PatientFlowUITests: XCTestCase {
         let patientUse = app.buttons["use-patient"]
         if patientUse.waitForExistence(timeout: timeout) {
             dismissPasswordPrompt()
-            for _ in 0 ..< 3 {
+            for _ in 0 ..< 6 {
                 // El aviso de contraseña puede llegar tarde y se lleva el toque.
                 dismissPasswordPrompt()
                 tapAtFrame(patientUse)

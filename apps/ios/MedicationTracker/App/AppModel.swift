@@ -25,6 +25,7 @@ final class AppModel {
     private(set) var snapshot = LocalSnapshot()
     private(set) var patients: [String: LocalSnapshot] = [:]
     private(set) var accesses: [PatientAccess] = []
+    private(set) var pendingPools: [PendingPool] = []
     private(set) var allOperations: [PendingOperation] = []
     private(set) var profile: Me?
     private(set) var email = ""
@@ -204,7 +205,7 @@ final class AppModel {
         phase = .signingOut
         sessionGeneration += 1
         snapshot = LocalSnapshot()
-        patients = [:]; accesses = []; allOperations = []; profile = nil; patientPath = []
+        patients = [:]; accesses = []; pendingPools = []; allOperations = []; profile = nil; patientPath = []
         email = ""; caregiverPreference = nil
         retryTask?.cancel()
         await sync?.stop()
@@ -214,7 +215,7 @@ final class AppModel {
         do { try await store.wipe() } catch { cleanupFailed = true }
         if await identity.signOut() == false { cleanupFailed = true }
         snapshot = LocalSnapshot()
-        patients = [:]; accesses = []; allOperations = []; profile = nil; patientPath = []
+        patients = [:]; accesses = []; pendingPools = []; allOperations = []; profile = nil; patientPath = []
         email = ""; caregiverPreference = nil
         isSyncing = false
         reminders = ReminderDiagnostic()
@@ -237,7 +238,14 @@ final class AppModel {
         isSyncing = false
         await handle(outcome)
         await refreshLocal()
+        await refreshPendingPools(generation: generation)
         await refreshPush()
+    }
+
+    /// Decidir exige red, así que no se guarda en disco. Sin conexión se conserva lo ya leído.
+    private func refreshPendingPools(generation: Int) async {
+        guard let api, let pools = try? await api.pendingPools(), generation == sessionGeneration, phase == .signedIn else { return }
+        pendingPools = pools
     }
 
     private func refreshPush() async {
@@ -448,6 +456,25 @@ final class AppModel {
     func inventoryMutation(patient: String, account: String, quantity: String, count: Bool, reason: String, expected: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request(patient: patient) { try await api.inventoryMutation(account: account, quantity: quantity, count: count, reason: reason, expected: expected, operation: operation) }
+        await syncNow()
+    }
+    func poolCandidates(account: String) async throws -> [PoolCandidate] {
+        guard let api else { throw APIError.unauthenticated }
+        return try await request { try await api.poolCandidates(account: account) }
+    }
+    func proposePool(accounts: [String], operation: String) async throws {
+        guard let api else { throw APIError.unauthenticated }
+        try await request { try await api.createPool(accounts: accounts, operation: operation) }
+        await syncNow()
+    }
+    func decidePool(id: String, accept: Bool, operation: String) async throws {
+        guard let api else { throw APIError.unauthenticated }
+        try await request { try await api.decidePool(id: id, accept: accept, operation: operation) }
+        await syncNow()
+    }
+    func leavePool(id: String, account: String, operation: String) async throws {
+        guard let api else { throw APIError.unauthenticated }
+        try await request { try await api.leavePool(id: id, account: account, operation: operation) }
         await syncNow()
     }
     func leave(patient: String) async throws {

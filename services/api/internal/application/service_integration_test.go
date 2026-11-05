@@ -519,3 +519,30 @@ func TestDatabaseOwnershipAndAppendOnlyConstraints(t *testing.T) {
 		t.Fatal("NULL correction reason accepted")
 	}
 }
+
+// Un teléfono con el reloj algo adelantado no vuelve inválida una declaración legítima.
+func TestOccurredAtToleratesSmallClockSkew(t *testing.T) {
+	s, p, a := fixture(t)
+	ctx := context.Background()
+	tr := treatment(t, s, a)
+	id := dose(t, p, tr.TreatmentID, "2026-11-01")
+	tooFar := s.now().Add(clockSkewTolerance + time.Second)
+	if _, err := s.RecordDoseEvent(ctx, RecordDoseEventCommand{Mutation: mutation(a), DoseID: id, ExpectedVersion: 1, State: domain.Taken, OccurredAt: &tooFar}); !errors.Is(err, ErrInvalid) {
+		t.Fatal("una hora claramente futura se rechaza", err)
+	}
+	ahead := s.now().Add(500 * time.Millisecond)
+	result, err := s.RecordDoseEvent(ctx, RecordDoseEventCommand{Mutation: mutation(a), DoseID: id, ExpectedVersion: 1, State: domain.Taken, OccurredAt: &ahead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored time.Time
+	if err = p.QueryRow(ctx, "SELECT occurred_at FROM dose_events WHERE id=$1", result.EventID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if !stored.Equal(s.now()) {
+		t.Fatal("nunca se guarda una toma en el futuro del servidor", stored)
+	}
+	if result.Balance != 9500 {
+		t.Fatal(result.Balance)
+	}
+}

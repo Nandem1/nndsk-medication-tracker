@@ -195,4 +195,16 @@ extension E2EBackend {
         let (_, revoked) = try await call(patient.token, "DELETE", "/v1/caregiver-links/\(link)")
         XCTAssertEqual(revoked, 204)
     }
+    static func createPool(_ caregiver: Account, accounts: [String]) async throws {
+        let (_, status) = try await call(caregiver.token, "POST", "/v1/inventory-pools", body: ["client_operation_id": UUID().uuidString.lowercased(), "account_ids": accounts])
+        XCTAssertEqual(status, 200)
+    }
+    static func acceptPendingPool(_ patient: Account) async throws {
+        let (data, status) = try await call(patient.token, "GET", "/v1/inventory-pools/pending")
+        XCTAssertEqual(status, 200)
+        let rows = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["items"] as? [[String: Any]] ?? []
+        let id = try XCTUnwrap(rows.first?["pool_id"] as? String)
+        let (_, decided) = try await call(patient.token, "POST", "/v1/inventory-pools/\(id)/decision", body: ["client_operation_id": UUID().uuidString.lowercased(), "decision": "accept"])
+        XCTAssertEqual(decided, 200)
+    }
 }

@@ -9,6 +9,9 @@ import (
 	"medication-tracker/services/api/internal/domain"
 )
 
+// clockSkewTolerance accepts ordinary phone clock drift; beyond it the time stays visibly rejected.
+const clockSkewTolerance = 5 * time.Minute
+
 func (s *Service) RecordDoseEvent(ctx context.Context, c RecordDoseEventCommand) (DoseResult, error) {
 	return transact(ctx, s, c.Mutation, doseTarget(c.DoseID), ScopeDoses, "record_dose", c, func(tx pgx.Tx) (DoseResult, error) {
 		return s.writeEvent(ctx, tx, c.Mutation, c.DoseID, c.ExpectedVersion, c.State, c.OccurredAt, "", "")
@@ -34,8 +37,12 @@ func (s *Service) writeEvent(ctx context.Context, tx pgx.Tx, m Mutation, id stri
 	if state == domain.TakenLate && occurredAt == nil {
 		return zero, ErrInvalid
 	}
-	if occurredAt != nil && (occurredAt.IsZero() || occurredAt.After(now) || occurredAt.Year() < 1) {
+	if occurredAt != nil && (occurredAt.IsZero() || occurredAt.After(now.Add(clockSkewTolerance)) || occurredAt.Year() < 1) {
 		return zero, ErrInvalid
+	}
+	// A phone clock slightly ahead is not a future dose: the instant is capped at the server's.
+	if occurredAt != nil && occurredAt.After(now) {
+		occurredAt = &now
 	}
 	if state == domain.Taken && occurredAt == nil {
 		occurredAt = &now

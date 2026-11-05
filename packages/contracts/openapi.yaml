@@ -604,7 +604,7 @@
     "/v1/doses/{doseId}/events": {
       "post": {
         "operationId": "recordDoseEvent",
-        "description": "Requires self or doses scope. taken_late requires occurred_at; skipped forbids it. Future occurrence conflicts. The actor comes exclusively from verified identity. Retries preserve original response.",
+        "description": "Requires self or doses scope. taken_late requires occurred_at; skipped forbids it. Future occurrence conflicts. The actor comes exclusively from verified identity. Retries preserve original response. An occurred_at up to 5 minutes ahead of the server is treated as clock drift and stored as the server's time; further ahead returns 422.",
         "responses": {
           "200": {
             "description": "Success",
@@ -673,7 +673,7 @@
     "/v1/doses/{doseId}/corrections": {
       "post": {
         "operationId": "correctDoseEvent",
-        "description": "Requires self or doses scope. References the current event, expected version and a reason. Appends audit and compensating stock movement.",
+        "description": "Requires self or doses scope. References the current event, expected version and a reason. Appends audit and compensating stock movement. occurred_at follows the same 5-minute clock drift rule.",
         "responses": {
           "200": {
             "description": "Success",

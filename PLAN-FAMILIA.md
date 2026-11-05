@@ -1,6 +1,6 @@
 # PLAN-FAMILIA.md — Modo familia de punta a punta
 
-> **Estado al 2026-11-04:** P0 a P4 implementadas, verificadas y publicadas en `main`. P5 a P7 no iniciadas. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
+> **Estado al 2026-11-04:** P0 a P5 implementadas, verificadas en local y publicadas en `main`. P6 y P7 no iniciadas. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
 > **Punto de partida:** `main` en `6219d33`, más este plan.
 > **Ejecutor previsto:** otro modelo, sin contexto de la conversación que originó este plan. Todo lo necesario está aquí, en `AGENTS.md` y en `PLAN.md`.
 > **Regla de lectura:** lee `AGENTS.md`, `PLAN.md` y este archivo completos antes de cambiar nada. Las decisiones de la sección 2 ya están tomadas por el usuario o delegadas por él: no las reabras. Si el código contradice una suposición de este plan, sigue la intención, resuelve con el cambio más pequeño y registra la diferencia en el informe de cierre.
@@ -27,15 +27,18 @@ La rama de trabajo es `feat/modo-familia`. `main` y `origin/main` quedaron en `2
 
 El candidato de Codex se conservó. Faltaban ajustes de las pruebas, dos textos y un bug de `ConsentView`. La suite final, los comandos y los límites están en el [runbook](docs/runbooks/familia-verification.md). `.tmp/familia-p4` conserva una copia ya integrada; no volver a aplicarla.
 
+### P5 cerrada
+
+Inventario compartido en backend, web, Android e iOS. Resultados y diferencias en el runbook y en ADR 0009.
+
 ### Pendientes concretos, en orden
 
-1. Ejecutar P5 completo conforme a la sección 9. **No existe aún la migración 7 ni el inventario compartido.** Escribir primero las 14 pruebas de integración requeridas, después dominio, contrato y tres clientes.
-2. Ejecutar P6 conforme a la sección 10. **No se implementaron aún exportación nativa ni borrado de cuenta.** Leer los runbooks de seguridad y release antes de tocar historia o retención.
-3. Ejecutar P7 completo. Faltan verificación final de todas las plataformas, migraciones up/down/up, staging, instalación/copia a teléfonos y escenario de aceptación de doce puntos. No marcar preparación para producción ni cumplimiento legal.
+1. Ejecutar P6 conforme a la sección 10. **No se implementaron aún exportación nativa ni borrado de cuenta.** Leer los runbooks de seguridad y release antes de tocar historia o retención.
+2. Ejecutar P7 completo. Faltan verificación final de todas las plataformas, migraciones up/down/up, staging, instalación/copia a teléfonos y escenario de aceptación de doce puntos. No marcar preparación para producción ni cumplimiento legal.
 
 ### Entorno local para retomar
 
-- Base iOS desechable `medication_f4_familia_p4`, migrada a versión 6; P5 requiere migrarla a 7. API/proxy/Auth usan puertos 18083/18084/9099. Comprobar que estén libres antes de arrancar; identificar procesos antes de terminarlos.
+- Base iOS desechable `medication_f4_familia_p4`, migrada a versión 6. Usar `medication_f4_familia_p5`, en versión 7. Migrar con el binario de goose y `GOOSE_DBSTRING`: `make migrate-up` lee `.env` y apunta a la base de desarrollo. API/proxy/Auth usan puertos 18083/18084/9099. Comprobar que estén libres antes de arrancar; identificar procesos antes de terminarlos.
 - Simulador iPhone 17, iOS 27.2, UUID `63A76226-B64A-4067-9EA5-37C0B7B52600`. Es un simulador, no el iPhone físico del usuario.
 - Definir `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` y `XCODE_DEVELOPER_DIR` con ese valor. El `xcrun` sin esa configuración no encuentra `simctl`. Esta instalación ejecuta el runtime pero no se encontró `Simulator.app`.
 - XcodeGen local `.bin/xcodegen-2.46.0/xcodegen`; pasar su ruta absoluta si se ejecuta desde otro worktree. Generar el proyecto con el comando existente, nunca fabricarlo.
