@@ -231,7 +231,7 @@ Sin corregir, porque el plan no lo define: una propuesta de un cuidador ya elimi
 
 ## P7, estado parcial
 
-Staging en versión 8 con API y worker desplegados. Con la credencial `medication-staging-api`, una cuenta sintética real inició sesión (`/v1/me` 200), se eliminó (`identity_removed` true) y su token dejó de servir (401). Instalación en iPhone físico: falló; ver el informe. Producción no se tocó.
+Staging en versión 8 con API y worker desplegados. Con la credencial `medication-staging-api`, una cuenta sintética real inició sesión (`/v1/me` 200), se eliminó (`identity_removed` true) y su token dejó de servir (401). iPhone físico: la app se instaló, pero no abrió porque el teléfono estaba bloqueado. Producción no se tocó.
 
 Pendiente: escenario de aceptación de 12 puntos en teléfonos, copia del APK al Xiaomi (no conectado), repetir la revisión independiente y marcar `PLAN.md`. Queda en Firebase una cuenta `staging-smoke-*@example.test` de una prueba interrumpida.
 
