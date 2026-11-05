@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"encoding/json"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
