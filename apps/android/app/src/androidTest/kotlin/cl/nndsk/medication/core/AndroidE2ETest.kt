@@ -295,8 +295,9 @@ class AndroidE2ETest {
             profile(patient.second, "Paciente uno sintético"); profile(second.second, "Paciente dos sintético"); profile(reader.second, "Lector sintético")
             app.repository.login(patient.first, password); app.repository.setUse(false)
             waitFor { app.repository.state.value.own?.profile?.profileComplete == true }
-            compose.onNodeWithText("Ajustes").performClick()
-            compose.onNodeWithText("Pegar código o revisar accesos").performScrollTo().performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("¿Te invitó un cuidador?").fetchSemanticsNodes().isNotEmpty() }
+            capture("family-today-invited")
+            compose.onNodeWithText("Ingresar código").performScrollTo().performClick()
             compose.onNodeWithText("Pegar código").performScrollTo().performClick()
             compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Cuidador sintético podrá:").performScrollTo().assertExists()

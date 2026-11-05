@@ -12,26 +12,46 @@ struct PatientsView: View {
                 }
                 ForEach(model.accesses.filter { model.patients[$0.patientID] != nil }) { access in
                     if let snapshot = model.patients[access.patientID] {
-                        NavigationLink(value: access.patientID) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(access.name).font(.headline)
-                                if let report = snapshot.report {
-                                    Text("\(report.summary.confirmed) de \(report.summary.evaluable) registradas")
-                                    Text("\(report.summary.unconfirmed) sin confirmar")
-                                    Text("Período: \(DoseText.day(report.from)) a \(DoseText.day(report.to)), fin no incluido").font(.footnote)
-                                } else { Text("Resumen sin actualizar") }
-                                Text("\(snapshot.inventory.filter { $0.lowStock == true }.count) reposiciones por revisar")
-                                if let date = snapshot.lastSyncAt { Text("Datos guardados de: \(DoseText.instant(date))").font(.footnote).foregroundStyle(Semantic.muted) }
-                            }.padding(.vertical, 6)
-                        }.accessibilityIdentifier("patient-\(access.name)")
+                        Section {
+                            NavigationLink(value: access.patientID) { PatientSummary(access: access, snapshot: snapshot) }
+                                .accessibilityIdentifier("patient-\(access.name)")
+                        }
                     }
                 }
                 Section { NavigationLink("Invitar a alguien") { InviteView() }.accessibilityIdentifier("open-invite") }
-                Text(DoseText.selfReported).font(.footnote).foregroundStyle(Semantic.muted)
+                Section { Text(FamilyText.selfReported).font(.footnote).foregroundStyle(Semantic.muted) }
             }.navigationTitle("Pacientes")
                 .navigationDestination(for: String.self) { CaregiverPatientView(patient: $0) }
                 .refreshable { await model.syncNow() }
         }
+    }
+}
+
+/// Cada aviso aparece sólo si hay algo que revisar.
+private struct PatientSummary: View {
+    let access: PatientAccess
+    let snapshot: LocalSnapshot
+    @Environment(AppModel.self) private var model
+    private var replenishments: Int { snapshot.inventory.filter { $0.lowStock == true }.count }
+    private var review: Bool { model.allOperations.contains { $0.patientID == access.patientID && $0.status != .pending } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(access.name).font(.title3.weight(.semibold))
+            if let report = snapshot.report {
+                Text(FamilyText.period(from: report.from, timezone: access.timezone)).font(.footnote).foregroundStyle(Semantic.muted)
+                Text("\(report.summary.confirmed) de \(report.summary.evaluable) registradas").font(.headline)
+                if report.summary.unconfirmed > 0 {
+                    StatusBadge(text: "\(report.summary.unconfirmed) sin confirmar", systemImage: "questionmark.circle", tone: .unconfirmed)
+                }
+            } else { Text("Resumen sin actualizar").foregroundStyle(Semantic.muted) }
+            if replenishments > 0 {
+                StatusBadge(text: replenishments == 1 ? "1 reposición por revisar" : "\(replenishments) reposiciones por revisar", systemImage: "shippingbox", tone: .scheduled)
+            }
+            if review { StatusBadge(text: "Registros por revisar", systemImage: "exclamationmark.triangle", tone: .danger) }
+            if model.syncProblem == .transport, let date = snapshot.lastSyncAt {
+                Text("Datos guardados de: \(DoseText.instant(date))").font(.footnote).foregroundStyle(Semantic.muted)
+            }
+        }.padding(.vertical, 6)
     }
 }
 
@@ -134,7 +154,7 @@ struct CaregiverAgendaView: View {
                         if !plan.overdue.isEmpty { Section("Pasaron sin registrar") { rows(plan.overdue, snapshot: snapshot, now: context.date) } }
                         if !plan.registered.isEmpty { Section("Ya registradas") { rows(plan.registered, snapshot: snapshot, now: context.date) } }
                     }
-                    Text(DoseText.selfReported).font(.footnote).foregroundStyle(Semantic.muted)
+                    Text(FamilyText.selfReported).font(.footnote).foregroundStyle(Semantic.muted)
                 }
                 .refreshable { await model.syncNow() }
                 .sheet(item: $lateDose) { dose in LateDoseForm(dose: dose, patient: patient) }

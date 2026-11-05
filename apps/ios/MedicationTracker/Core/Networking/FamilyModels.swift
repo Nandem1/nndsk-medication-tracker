@@ -109,8 +109,24 @@ enum InvitationPreset: String, CaseIterable, Identifiable {
         case .administer: ["read", "treatments", "doses", "inventory"]
         }
     }
+    var summary: String {
+        switch self {
+        case .read: "Ves su agenda, historial e inventario. No cambias nada."
+        case .record: "Además, registras y corriges sus tomas."
+        case .administer: "Además, administras sus tratamientos e inventario."
+        }
+    }
 }
 enum FamilyText {
+    static let selfReported = "Los registros son declaraciones. No demuestran que el medicamento se haya tomado."
+    /// El informe guardado puede ser de otro día: sólo se llama «hoy» si lo es, en la zona del paciente.
+    static func period(from: String, timezone: String?, now: Date = .now) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone.flatMap(TimeZone.init(identifier:)) ?? .current
+        let today = calendar.dateComponents([.year, .month, .day], from: now)
+        let current = String(format: "%04d-%02d-%02d", today.year ?? 0, today.month ?? 0, today.day ?? 0)
+        return from == current ? "Hoy hasta ahora" : "Datos del \(DoseText.day(from))"
+    }
     static let missedGuidance = "Si la persona olvidó una dosis o la tomó tarde, sigan las instrucciones de su profesional de salud o consulten a un farmacéutico. Esta app no indica cambiar ni reponer dosis."
     static func token(_ text: String) throws -> String {
         guard let range = text.range(of: "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])", options: .regularExpression) else { throw APIError.invalid }

@@ -79,6 +79,14 @@ struct TodayView: View {
                 }
             }
             ReminderPrompt()
+            // Al final, para no mover nada de la pantalla aceptada.
+            if plan.total == 0, !model.isSyncing, model.snapshot.links.isEmpty {
+                Section("¿Te invitó un cuidador?") {
+                    NavigationLink("Ingresar código") { ConsentView() }
+                        .frame(minHeight: Tokens.Size.minTouchIos)
+                        .accessibilityIdentifier("today-invited")
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)

@@ -63,7 +63,10 @@ final class FamilyFlowUITests: XCTestCase {
         try await E2EBackend.profile(caregiver, name: "Cuidador visible")
         let token = try await E2EBackend.invitation(caregiver, scopes: ["read"], hint: "Nombre sugerido")
         login(patient, name: "Paciente visible", caregiver: false)
-        tab("Ajustes"); scrollTap("open-consent")
+        let invited = app.buttons["today-invited"]
+        XCTAssertTrue(invited.waitForExistence(timeout: timeout))
+        capture("familia-hoy-invitacion")
+        scrollTap("today-invited")
         let field = app.textFields["invitation-token"]
         scroll(field); field.tap()
         field.typeText("Hola, te invito a Mis tomas. Abre la app, entra en Ajustes › Acceso de cuidadores y pega este código: \(token). Vence en 24 horas.")

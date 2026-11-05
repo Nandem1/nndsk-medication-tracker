@@ -26,30 +26,30 @@ struct CaregiverInventoryView: View {
 struct FamilyStockSummary: View {
     let account: InventoryProjection
     let snapshot: LocalSnapshot
+    @Environment(AppModel.self) private var model
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Saldo confirmado: \(ExactQuantity.withUnit(account.balance, unit: account.unit))").accessibilityIdentifier("family-stock-confirmed")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Saldo confirmado").font(.footnote).foregroundStyle(Semantic.muted)
+                Text(ExactQuantity.withUnit(account.balance, unit: account.unit)).font(.title2.weight(.semibold))
+            }.accessibilityElement(children: .combine).accessibilityIdentifier("family-stock-confirmed")
             if let estimate = StockEstimate.estimated(account: account, doses: snapshot.doses, operations: snapshot.operations) {
                 Text("Estimado con registros pendientes: \(ExactQuantity.withUnit(estimate, unit: account.unit))")
                     .padding(8).overlay(RoundedRectangle(cornerRadius: 8).stroke(Semantic.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                     .accessibilityIdentifier("family-stock-estimated")
             }
             if let uncovered = account.firstUncoveredAt.flatMap(Instant.parse) {
-                Text("El saldo no alcanza desde: \(DoseText.instant(uncovered))")
                 if let from = account.from.flatMap(Instant.parse) {
-                    Text("Cobertura prevista: \(coverageDays(from: from, to: uncovered)) días completos")
+                    Text("Cobertura: \(coverageDays(from: from, to: uncovered)) días completos")
                 }
-            } else if let through = account.through.flatMap(Instant.parse) {
-                Text("La agenda consultada está cubierta hasta: \(DoseText.instant(through))")
-                if let from = account.from.flatMap(Instant.parse) {
-                    let days = coverageDays(from: from, to: through)
-                    Text("Cobertura prevista: al menos \(days) días completos dentro de esta proyección.")
-                }
+                Text("El saldo no alcanza desde: \(DoseText.instant(uncovered))").font(.footnote)
+            } else if let through = account.through.flatMap(Instant.parse), let from = account.from.flatMap(Instant.parse) {
+                Text("Cobertura: al menos \(coverageDays(from: from, to: through)) días")
             }
-            if let replenish = account.replenishOn { Text("Revisar reposición: \(DoseText.day(replenish))") }
-            if account.lowStock == true { Label("Reposición por revisar", systemImage: "shippingbox") }
-            if let last = snapshot.lastSyncAt { Text("Datos guardados de: \(DoseText.instant(last))").font(.footnote).foregroundStyle(Semantic.muted) }
+            if account.lowStock == true { StatusBadge(text: "Reposición por revisar", systemImage: "shippingbox", tone: .scheduled) }
+            if let replenish = account.replenishOn { Text("Fecha de revisión: \(DoseText.day(replenish))").font(.footnote) }
             if (ExactQuantity.parse(account.balance) ?? 0) < 0 { Text("El saldo es negativo. Revisa el conteo físico.") }
+            if model.syncProblem == .transport, let last = snapshot.lastSyncAt { Text("Datos guardados de: \(DoseText.instant(last))").font(.footnote).foregroundStyle(Semantic.muted) }
         }
     }
     private func coverageDays(from: Date, to: Date) -> Int {
@@ -89,7 +89,8 @@ struct CaregiverInventoryDetail: View {
                             Label(error, systemImage: rejection ? "exclamationmark.triangle" : "info.circle").foregroundStyle(rejection ? Semantic.danger : Semantic.muted)
                             Button("Reintentar") { Task { await load() } }.frame(minHeight: 44)
                         } else if !loading && movements.isEmpty { Text("Sin movimientos registrados.") }
-                        ForEach(movements) { movement in
+                        // Lo más reciente primero. La API no los entrega por fecha.
+                        ForEach(movements.sorted { $0.createdAt > $1.createdAt }) { movement in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(movement.label).font(.headline)
                                 Text(ExactQuantity.withUnit(movement.quantity, unit: account.unit))

@@ -235,3 +235,26 @@ Staging en versión 8 con API y worker desplegados. Con la credencial `medicatio
 
 Pendiente: escenario de aceptación de 12 puntos en teléfonos, copia del APK al Xiaomi (no conectado), repetir la revisión independiente y marcar `PLAN.md`. Queda en Firebase una cuenta `staging-smoke-*@example.test` de una prueba interrumpida.
 
+## Mejoras de UI/UX de modo familia
+
+Pedido por el usuario tras probar las apps. Implementado en la rama `feat/familia-ux`, sin desplegar y sin instalar en teléfonos físicos. Sólo cambia lo que añadió este plan, más el formato de cantidades en toda la web y el estado vacío de Hoy.
+
+**Cambios.** Web: cantidades en es-CL («19.000» se leía como diecinueve mil), tarjetas simples, invitar y aceptar en pantallas separadas, acciones de inventario plegadas y columna Persona. Android: pestañas reales, menú del paciente, Acceso de cuidadores en pantalla propia, invitación con opciones simples, movimientos en la tarjeta, rechazos visibles dentro de la hoja de inventario y coma decimal. iOS: tarjetas simples, invitación con pasos siguientes, revisión al pegar, inventario con jerarquía y movimientos de más reciente a más antiguo. Web y Android unifican «Quitar acceso». Las tres plataformas ofrecen ingresar el código en el estado vacío o en Accesos.
+
+**Corregido al revisar.** En Android, «Fecha de revisión» mostraba la fecha de sincronización. Un error de guardado de inventario quedaba oculto detrás de la hoja.
+
+**Resultados en la versión final, con bases desechables `medication_f3_familia_ux`, `medication_f4_android_familia_ux` y `medication_f4_familia_ux`:**
+
+- `make tokens-check`, `make test`, `make lint` y `make build`: PASS.
+- `make test-web-e2e`: 13/13 PASS, con navegador, HTTP y PostgreSQL reales. Un primer intento dio 12/13 porque Vite recargó la página al optimizar una dependencia nueva en frío.
+- `make test-android`, `make lint-android` y `make test-android-device`: PASS. `make test-android-e2e`: 4/4 PASS en emulador, también con modo oscuro y escala de fuente 1,3. Una corrida intermedia en oscuro falló esperando el saldo tras guardar una reposición, y no se reprodujo en las siguientes. La causa no se determinó.
+- `make test-ios`: 84 pruebas PASS. `make lint-ios`: PASS. `make test-ios-e2e`: 12/12 PASS en simulador; después se amplió y repitió `testAcceptFullMessageAndRevokeNamedCaregiver`, que pasó. Los cinco flujos de familia también pasaron en modo oscuro con texto grande, antes de los últimos ajustes de orden en iOS.
+
+**Capturas revisadas.** Web claro, oscuro, móvil y texto al 200 %. Android claro y oscuro con fuente 1,3. iOS claro y oscuro con texto grande. No hubo revisión manual con VoiceOver ni TalkBack.
+
+**Decisión.** Ajustes de iOS conserva su orden aceptado. Su lista ya lleva a una pantalla propia de cuidadores, y Hoy ofrece el código cuando hace falta.
+
+**Sin implementar:** «Invitación enviada, esperando autorización», porque necesita un endpoint nuevo.
+
+Architecture Impact: nueva ruta web `/invite`, nueva pantalla Android `ui/settings/Access.kt`. Sin cambios en backend, contratos ni datos. Mapas de las tres apps actualizados.
+

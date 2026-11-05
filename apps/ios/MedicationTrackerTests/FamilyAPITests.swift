@@ -3,6 +3,12 @@ import Testing
 @testable import MedicationTracker
 
 @Suite struct FamilyAPITests {
+    @Test func reportOnlyCallsTodayWhatIsToday() {
+        let now = Date(timeIntervalSince1970: 1_793_880_000) // 2026-11-05T12:00:00Z
+        #expect(FamilyText.period(from: "2026-11-05", timezone: "America/Santiago", now: now) == "Hoy hasta ahora")
+        #expect(FamilyText.period(from: "2026-11-06", timezone: "Pacific/Auckland", now: now.addingTimeInterval(12 * 3600)) == "Hoy hasta ahora")
+        #expect(FamilyText.period(from: "2026-11-04", timezone: "America/Santiago", now: now).hasPrefix("Datos del "))
+    }
     @Test func lateUnauthorizedProfileWriteCannotRetryWithAnotherAccount() async throws {
         let transport = HeldProfileTransport()
         let secrets = MemorySecrets()

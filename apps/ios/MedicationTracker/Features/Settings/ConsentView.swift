@@ -21,23 +21,6 @@ struct ConsentView: View {
             Section {
                 Text("Tus datos de salud son tuyos. Un cuidador sólo puede verlos o editarlos si aceptas su invitación, y puedes revocar ese acceso cuando quieras.")
             }
-            Section("Cuidadores con acceso") {
-                if model.snapshot.links.isEmpty {
-                    Text("Ningún cuidador tiene acceso.").accessibilityIdentifier("links-empty")
-                }
-                ForEach(model.snapshot.links) { link in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(link.caregiverDisplayName ?? "Cuidador sin nombre")
-                            .font(.headline)
-                            .accessibilityIdentifier("link-row")
-                        ForEach(link.scopes, id: \.self) { Text(DoseText.scope($0)) }
-                        Button("Quitar acceso", role: .destructive) { revoking = link }
-                            .buttonStyle(.bordered)
-                            .frame(minHeight: 44)
-                            .accessibilityIdentifier("revoke-link")
-                    }
-                }
-            }
             Section("Aceptar una invitación") {
                 TextField("Código de invitación", text: $token, axis: .vertical)
                     .textInputAutocapitalization(.never)
@@ -50,7 +33,12 @@ struct ConsentView: View {
                         reviewedToken = nil
                         acceptOperationID = UUID().uuidString.lowercased()
                     }
-                Button("Pegar código") { token = UIPasteboard.general.string ?? "" }.disabled(working).frame(minHeight: 44).accessibilityIdentifier("invitation-paste")
+                Button("Pegar código") {
+                    token = UIPasteboard.general.string ?? ""
+                    error = nil
+                    if cleanToken.isEmpty { error = "No encontramos un código copiado. Vuelve al mensaje, cópialo e intenta de nuevo." }
+                    else { Task { await review() } }
+                }.disabled(working).frame(minHeight: 44).accessibilityIdentifier("invitation-paste")
                 if let error {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(Semantic.danger)
@@ -59,8 +47,8 @@ struct ConsentView: View {
                 if let preview {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("\(preview.caregiverDisplayName ?? "Cuidador sin nombre") podrá:").font(.headline)
+                        ForEach(preview.scopes, id: \.self) { Text("• \(DoseText.scope($0))") }
                         if let hint = preview.patientNameHint { Text("Nombre sugerido: \(hint)") }
-                        ForEach(preview.scopes, id: \.self) { Text(DoseText.scope($0)) }
                         Text("La invitación vence: \(Instant.parse(preview.expiresAt).map(DoseText.instant) ?? preview.expiresAt)")
                             .font(.footnote)
                     }
@@ -85,6 +73,23 @@ struct ConsentView: View {
                     .accessibilityIdentifier("invitation-review")
                 }
             }
+            Section("Cuidadores con acceso") {
+                if model.snapshot.links.isEmpty {
+                    Text("Ningún cuidador tiene acceso.").accessibilityIdentifier("links-empty")
+                }
+                ForEach(model.snapshot.links) { link in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(link.caregiverDisplayName ?? "Cuidador sin nombre")
+                            .font(.headline)
+                            .accessibilityIdentifier("link-row")
+                        ForEach(link.scopes, id: \.self) { Text(DoseText.scope($0)) }
+                        Button("Quitar acceso", role: .destructive) { revoking = link }
+                            .buttonStyle(.bordered)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("revoke-link")
+                    }
+                }
+            }
         }
         // La revisión deja «Autorizar» bajo la barra de pestañas, donde un toque no llega al botón.
         .onChange(of: preview != nil) { _, reviewed in
@@ -95,7 +100,7 @@ struct ConsentView: View {
         .navigationTitle("Acceso de cuidadores")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.syncNow() }
-        .confirmationDialog("¿Revocar el acceso de este cuidador?", isPresented: Binding(get: { revoking != nil }, set: { if !$0 { revoking = nil } }), titleVisibility: .visible, presenting: revoking) { link in
+        .confirmationDialog("¿Quitar el acceso de este cuidador?", isPresented: Binding(get: { revoking != nil }, set: { if !$0 { revoking = nil } }), titleVisibility: .visible, presenting: revoking) { link in
             Button("Quitar acceso", role: .destructive) {
                 Task { await revoke(link) }
             }

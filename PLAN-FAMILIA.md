@@ -563,4 +563,5 @@ Evita repetir estos errores, todos ocurridos:
 - **Fechas en la web:** Agenda, alertas y panel Hoy usan la fecha del navegador. Si tocas esto, usa la zona del paciente.
 - **`make test-android-e2e` exige el lockfile al día.** Si cambias dependencias, regenera con `--write-locks` en las configuraciones `debug` y `e2e`, y revisa que no entren versiones inesperadas.
 - **El script iOS `ios-e2e.sh` y `android-e2e.sh` usan los puertos 9099, 18083 y 18084.** Sin servidores sueltos antes de lanzarlos.
+- **`make test-ios-e2e` sólo desinstala la app si `IOS_DESTINATION` usa `name=`.** Con `id=` el permiso de notificaciones sobrevive entre corridas y falla el test de recordatorios, también sobre código sin cambios. Usar el destino predeterminado.
 - **`Local.xcconfig`, `.env` y `apps/web/.env.local` no se versionan.** Comprueba con `git check-ignore` antes de editarlos.
