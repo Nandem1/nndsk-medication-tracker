@@ -38,8 +38,9 @@ flowchart TB
 - [Aplicación](../services/api/internal/application/service.go) autoriza antes de consultar respuestas idempotentes. Resuelve el paciente desde el recurso y mantiene el bloqueo compartido del vínculo hasta terminar la transacción. El propio paciente puede operar sus datos. Los cuidadores necesitan consentimiento activo y el alcance correspondiente.
 - [Consentimiento](../services/api/internal/application/consent.go) emite invitaciones con hash de token, registra aceptación y revocación. Reactivar un vínculo requiere consentimiento nuevo.
 - [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda y el worker materializan ocurrencias mediante el mismo generador.
-- [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado bajo bloqueo de cuenta y crea un ajuste exacto sólo si existe diferencia.
-- [Inventario compartido](../services/api/internal/application/pools.go) agrupa cuentas conservadas y calcula su saldo común desde los movimientos de todas. Exige el consentimiento de cada paciente y filtra en el servidor lo que ve un cuidador sin acceso al otro miembro. El orden de bloqueo es candado de membresía, inventario y cuentas por identificador. Ver [ADR 0009](decisions/0009-modo-familia.md).
+- [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado, común si hay inventario compartido, bajo bloqueo de inventario y crea un ajuste exacto sólo si existe diferencia.
+- [Inventario compartido](../services/api/internal/application/pools.go) agrupa cuentas conservadas y calcula su saldo común desde los movimientos de todas. Exige el consentimiento de cada paciente y filtra en el servidor lo que ve un cuidador sin acceso al otro miembro. El orden de bloqueo es candado de membresía antes de cualquier fila, inventario y cuentas por identificador. Ver [ADR 0009](decisions/0009-modo-familia.md).
+- [Borrado de cuenta](../services/api/internal/application/account_deletion.go) elimina la historia propia en una transacción y conserva anonimizado al autor de historia ajena. Es la única excepción a los triggers append-only. Firebase se elimina después del commit y admite reintento.
 - [OpenAPI](../packages/contracts/openapi.yaml) es el contrato compartido. Los adaptadores son manuales y tipados. No hay clientes móviles o web generados.
 - [`cmd/e2e`](../services/api/cmd/e2e/main.go), sólo con la etiqueta `e2e`, acepta identidades sintéticas o del emulador de Firebase y añade un [proxy de fallos](../services/api/cmd/e2e/proxy.go). Exige una base local desechable. El ejecutable productivo sigue rechazando el emulador.
 - [Compose](../compose.yaml) mantiene PostgreSQL y su volumen. El puerto host predeterminado es 55433 y el puerto del contenedor es 5432.
@@ -81,7 +82,7 @@ Los detalles internos de cada app se documentan en su mapa local cuando se imple
 
 [Dispositivos](../services/api/internal/application/devices.go) pertenecen al actor autenticado. Los tokens no aparecen en respuestas ni logs. Las preferencias están vinculadas a la generación de consentimiento. Las alertas están desactivadas hasta configurarlas. El payload push es genérico y no concede acceso a datos.
 
-[Reconciliación](../services/api/internal/application/reconcile.go) inspecciona estado, consumo, ledger, ventana de agenda y entregas/dispositivos obsoletos. No reescribe historia. [Métricas](../services/api/internal/observability/metrics.go) sirven contadores agregados en listeners privados. El [backup](../services/api/cmd/backup/main.go) cifra dumps y restringe el restore de ensayo a bases locales vacías.
+[Reconciliación](../services/api/internal/application/reconcile.go) inspecciona estado, consumo, ledger, ventana de agenda, entregas/dispositivos obsoletos e inventarios compartidos. No reescribe historia. [Métricas](../services/api/internal/observability/metrics.go) sirven contadores agregados en listeners privados. El [backup](../services/api/cmd/backup/main.go) cifra dumps y restringe el restore de ensayo a bases locales vacías.
 
 El worker comparte transacciones y reglas del backend, pero es un proceso separado. La planificación bloquea tratamientos dentro de un ciclo global y está pensada para escala familiar. Antes de aumentar volumen hay que medir su duración y contención.
 
@@ -128,7 +129,7 @@ flowchart TB
     Export --> Download[JSON versionado sin secretos]
 ```
 
-El esquema de datos no cambia. Borrado de cuenta y supresiones de backups siguen pendientes de política e implementación. Los workflows separan Go, web, Android e iOS habilitable. No hay publicación ni despliegue F8. Ver [seguridad](runbooks/f8-security.md), [evidencia](runbooks/f8-verification.md), [release](runbooks/f8-release.md) y [entrega a Claude](design/claude-redesign-handoff.md).
+F8 no cambió el esquema. El borrado de cuenta llegó después en modo familia. Las supresiones tras restaurar backups siguen pendientes de política e implementación. Los workflows separan Go, web, Android e iOS habilitable. No hay publicación ni despliegue F8. Ver [seguridad](runbooks/f8-security.md), [evidencia](runbooks/f8-verification.md), [release](runbooks/f8-release.md) y [entrega a Claude](design/claude-redesign-handoff.md).
 
 Los valores visuales compartidos viven en [`packages/design-tokens/tokens.json`](../packages/design-tokens/README.md). Un generador sin dependencias produce adaptadores para CSS, SwiftUI y Compose, y `make tokens-check` valida sincronía y contraste. Las apps no comparten componentes de UI. Las tres apps implementan el rediseño Graphite sin cambios de API, dominio ni colas; el estado está en la [guía de rediseño](design/claude-redesign-handoff.md).
 

@@ -475,4 +475,63 @@ class AndroidE2ETest {
         } catch (e: Throwable) { capture("pool-failed"); throw e }
         finally { fault("online"); app.repository.logout() }
     }
+
+    /** Exporta con el selector nativo y elimina la cuenta: la historia del otro paciente queda intacta. */
+    @Test fun exportAndDeleteAccountKeepOtherHistory(): Unit = runBlocking {
+        app.repository.logout(); fault("online")
+        delay(61_000)
+        try {
+            val patient = signup("delete-patient"); val caregiver = signup("delete-care"); val other = signup("delete-other")
+            val patientId = call("/v1/me", patient.second).getValue("user_id").jsonPrimitive.content
+            val otherId = call("/v1/me", other.second).getValue("user_id").jsonPrimitive.content
+            profile(patient.second, "Persona que se va"); profile(caregiver.second, "Cuidadora sintética"); profile(other.second, "Otra persona sintética")
+            val scopes = listOf("read", "treatments", "doses", "inventory")
+            link(caregiver.second, patient.second, scopes)
+            // Quien se va también cuida a otra persona y registró en su historia.
+            link(patient.second, other.second, scopes)
+            treatment(patient.second, patientId); treatment(patient.second, otherId)
+            val day = Instant.now().atZone(ZoneId.of("America/Santiago")).toLocalDate()
+            val due = call("/v1/patients/$otherId/doses?from=$day&to=${day.plusDays(1)}", other.second)
+                .getValue("items").jsonArray.first { it.jsonObject.getValue("state").jsonPrimitive.content == "unconfirmed" }.jsonObject
+            call("/v1/doses/${due.getValue("dose_id").jsonPrimitive.content}/events", patient.second, buildJsonObject {
+                put("client_operation_id", UUID.randomUUID().toString()); put("event_type", "taken"); put("expected_version", due.getValue("version").jsonPrimitive.int)
+            })
+
+            app.repository.login(patient.first, password); app.repository.setUse(false)
+            waitFor { app.repository.state.value.own != null }
+            val uid = app.identity.uid!!
+            val exported = wireJson.parseToJsonElement(app.repository.exportAccount()).jsonObject
+            assertEquals(patientId, exported.getValue("profile").jsonObject.getValue("user_id").jsonPrimitive.content)
+            compose.onNodeWithText("Ajustes").performClick()
+            compose.onNodeWithText("Descargar mis datos").performScrollTo().performClick()
+            val exports = java.io.File(app.cacheDir, "exports")
+            compose.waitUntil(20_000) { exports.listFiles().orEmpty().isNotEmpty() }
+            Thread.sleep(1_500)
+            shell("screencap -p /data/local/tmp/delete-chooser.png")
+            shell("input keyevent 4")
+            compose.waitUntil(20_000) { exports.listFiles().orEmpty().isEmpty() }
+            // La ventana recupera el foco poco después de cerrar el selector nativo.
+            compose.waitForIdle(); Thread.sleep(1_500)
+            compose.onNodeWithText("Eliminar mi cuenta").performScrollTo().performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Eliminar definitivamente").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Eliminar definitivamente").assertIsNotEnabled()
+            compose.onNodeWithText("Escribe BORRAR").performTextInput("BORRAR")
+            capture("delete-dialog")
+            compose.onNodeWithText("Eliminar definitivamente").performClick()
+            compose.waitUntil(30_000) { app.repository.state.value.session == Session.SignedOut && !app.repository.state.value.busy }
+            assertNull(app.identity.uid)
+            assertTrue(app.database.local().snapshots(uid).isEmpty())
+            assertTrue(app.database.local().allOperations(uid).isEmpty())
+
+            val caregiverAccess = runCatching { call("/v1/patients/$patientId/inventory", caregiver.second) }
+            assertTrue("El cuidador ya no debe ver a la persona eliminada", caregiverAccess.isFailure)
+            assertEquals("9.500", balance(other.second, otherId))
+            val after = call("/v1/patients/$otherId/doses?from=$day&to=${day.plusDays(1)}", other.second).getValue("items").jsonArray
+            assertEquals(1, after.count { it.jsonObject.getValue("state").jsonPrimitive.content == "taken" })
+            // La identidad ya no existe: el correo no vuelve a entrar.
+            app.repository.login(patient.first, password)
+            assertEquals(Session.SignedOut, app.repository.state.value.session)
+        } catch (e: Throwable) { capture("delete-failed"); throw e }
+        finally { fault("online"); app.repository.logout() }
+    }
 }

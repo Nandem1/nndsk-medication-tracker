@@ -90,6 +90,14 @@ struct APIClient: Sendable {
         _ = try await send("/v1/inventory/\(account)/" + (count ? "counts" : "movements"), query: [], method: "POST", body: JSONEncoder().encode(body))
     }
 
+    /// El contenido son datos de salud: nunca se registra.
+    func exportAccount() async throws -> Data { try await send("/v1/me/export", query: [], method: "GET", body: nil, timeout: 30) }
+    func deleteAccount(operation: String) async throws -> Bool {
+        struct Result: Decodable { let identity_removed: Bool }
+        let body = try JSONEncoder().encode(["client_operation_id": operation, "confirm": "BORRAR"])
+        let result: Result = try await request("/v1/me", method: "DELETE", body: body)
+        return result.identity_removed
+    }
     func pendingPools() async throws -> [PendingPool] { try await all("/v1/inventory-pools/pending") }
     func poolCandidates(account: String) async throws -> [PoolCandidate] { try await all("/v1/inventory/\(account)/pool-candidates") }
     func createPool(accounts: [String], operation: String) async throws {

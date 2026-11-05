@@ -213,6 +213,17 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         }.toString())
         syncLocked()
     }
+    /** El archivo contiene datos de salud: nunca se registra en logs. */
+    suspend fun exportAccount(): String = requestResult { api.request("v1/me/export") }
+    /** Con la identidad aún activa conserva la sesión, para que la persona pueda reintentar. */
+    suspend fun deleteAccount(operationId: String): Boolean {
+        val removed = requestResult {
+            val body = buildJsonObject { put("client_operation_id", operationId); put("confirm", "BORRAR") }.toString()
+            wireJson.parseToJsonElement(api.request("v1/me", body, delete = true)).jsonObject.getValue("identity_removed").jsonPrimitive.boolean
+        }
+        if (removed) logout()
+        return removed
+    }
     suspend fun revoke(id: String) = action {
         api.request("v1/caregiver-links/$id", delete = true)
         syncLocked()

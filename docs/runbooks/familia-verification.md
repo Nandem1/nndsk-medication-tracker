@@ -187,3 +187,44 @@ Resultados sobre la versión final:
 - En iOS, Hoy y Ajustes siguen diciendo «Saldo confirmado» y aclaran en una nota que es común. Android dice «Saldo común confirmado». Se mantuvo así para no cambiar la UI aceptada.
 
 Architecture Impact: nueva migración y tablas, orden de bloqueo global, saldo efectivo, proyección combinada, privacidad en el servidor, cinco rutas nuevas y tolerancia de reloj en declaraciones. Mapas general y de las tres apps, contrato y ADR actualizados. Sin despliegue ni instalación física. Falta `living-architecture REVIEW`, previsto antes del último merge.
+
+## P6, exportación y borrado de cuenta
+
+Resultados en bases desechables nuevas `medication_f*_familia_p6`:
+
+- `make tokens-check`, `make test`, `make lint`, `make build`, `make test-integration`: PASS. Migración 8, up, down y up: PASS.
+- `make test-web-e2e`: 13 casos PASS.
+- `make test-android-e2e`: 4 casos PASS, en emulador.
+- `make test-ios`: 83 pruebas en 18 suites PASS. `make lint-ios`: PASS. `make test-ios-e2e`: 12 casos PASS, en simulador.
+
+La corrida final, con todas las migraciones up, down hasta 0 y up, se repitió tras las correcciones de la revisión independiente.
+
+Las pruebas de integración comprueban: confirmación obligatoria, salida de inventario con traspaso, historia ajena intacta, autor anonimizado, fila eliminada sin autoría, revocación auditada como cuidador, reintento, replay de terceros eliminado, reconciliación sin cambios y historia append-only fuera del borrado.
+
+**Bug corregido: hoja de compartir en iOS.** Con `.sheet` sobre la `Section`, la hoja existía para XCTest pero no se veía en la captura, y la prueba pasaba igual. Se movió al botón, y la prueba ahora exige que siga abierta tras 3 s. Captura revisada: `mis-datos`, JSON, 5 KB, con «Guardar en Archivos». Otro caso de un E2E en verde que no significa que se vea bien.
+
+**Otro ajuste visual.** En Android, la pestaña Pacientes usaba el icono de Historial.
+
+**No verificado:**
+
+- Quitar la identidad en un proyecto Firebase real. Requiere permisos de administración en la credencial de la API. Sólo se probó con el emulador y con un doble que falla.
+- Contenido del archivo en un destino real. En Android, el E2E cierra el selector sin enviar.
+- Si se pierde la respuesta tras eliminar la identidad, el reintento recibe 401. El teléfono conserva sus datos locales hasta cerrar sesión.
+
+**Sigue pendiente, sin afirmar cumplimiento legal:** reaplicar supresiones después de restaurar un backup, caducidad de backups, aceptar la política de retención y revisión legal. La pantalla avisa que las copias pueden conservar datos.
+
+Architecture Impact: nueva excepción controlada al append-only, ruta `DELETE /v1/me`, proveedor de identidad con baja y archivo temporal en clientes. Mapas y contrato actualizados. Sin despliegue en esta fase.
+
+## Revisión independiente de P5 y P6
+
+`living-architecture REVIEW` y revisión de corrección, panel de un solo modelo, sólo lectura, resultado PARTIAL. Se confirmaron y corrigieron cinco defectos. Los cuatro primeros tenían una prueba que falló antes del cambio; el quinto tiene una prueba propia que no reprodujo la carrera:
+
+- Respuestas de replay de terceros conservaban nombres, ids o conteos de la persona eliminada.
+- Una declaración simultánea al borrado podía interbloquear y recibir un conflicto espurio, porque tomaba filas antes del candado. Ahora toda mutación toma el candado primero, y la entrega de alertas también.
+- Un id en mayúsculas podía dejar el traspaso en la propia cuenta. Los ids de cuenta se normalizan.
+- Quien rechazó o salió de un inventario seguía viendo nombres. Ahora sólo los ven los miembros vigentes.
+- Una petición entre el borrado y la baja en Firebase podía recrear una fila con el identificador. Se elimina tras la baja.
+
+También se corrigió documentación desactualizada en el mapa general.
+
+Sin corregir, porque el plan no lo define: una propuesta de un cuidador ya eliminado sigue aceptable, la exportación no incluye la membresía en inventarios y un inventario disuelto queda como fila vacía.

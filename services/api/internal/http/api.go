@@ -20,6 +20,7 @@ type contextKey int
 const (
 	actorKey contextKey = iota
 	requestKey
+	identityKey
 )
 
 type API struct {
@@ -43,6 +44,7 @@ func NewAPI(ping func(context.Context) error, service *application.Service, veri
 	business.HandleFunc("PUT /v1/me/profile", a.updateProfile)
 	business.HandleFunc("PUT /v1/patients/{patientId}/profile", a.updateProfile)
 	business.HandleFunc("GET /v1/me/export", a.exportAccount)
+	business.HandleFunc("DELETE /v1/me", a.deleteAccount)
 	business.HandleFunc("PATCH /v1/treatments/{treatmentId}", a.updateTreatment)
 	business.HandleFunc("POST /v1/treatments/{treatmentId}/archive", a.archiveTreatment)
 	business.HandleFunc("POST /v1/inventory/{accountId}/counts", a.physicalCount)
@@ -160,7 +162,8 @@ func (a *API) authenticate(next http.Handler) http.Handler {
 			resultError(w, r, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey, id)))
+		ctx := context.WithValue(context.WithValue(r.Context(), actorKey, id), identityKey, uid)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 func (a *API) me(w http.ResponseWriter, r *http.Request) {

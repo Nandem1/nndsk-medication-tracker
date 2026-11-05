@@ -65,3 +65,7 @@ Los fallos se muestran sin afirmar que todos los datos fueron borrados. La panta
 ## Inventario compartido
 
 El snapshot de cada paciente trae `pool` por cuenta, y el propio trae `pendingPools`. Room no cambia de esquema porque el snapshot se guarda como JSON. [`SharedInventory.kt`](../app/src/main/kotlin/cl/nndsk/medication/ui/caregiver/SharedInventory.kt) reúne la tarjeta de decisión de Hoy, el estado y la salida. Proponer, decidir y salir requieren red, no entran a la cola y conservan su operación para reintentar. El estimado local sigue restando sólo las declaraciones pendientes de este teléfono.
+
+## Datos de la cuenta
+
+[`AccountActions.kt`](../app/src/main/kotlin/cl/nndsk/medication/ui/account/AccountActions.kt) guarda la exportación en `cache/exports`, la comparte con `FileProvider` y la borra al volver. Eliminar la cuenta exige escribir BORRAR y, si el servidor quitó la identidad, limpia el teléfono con el mismo cierre de sesión.

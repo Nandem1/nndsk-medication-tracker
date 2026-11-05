@@ -14,6 +14,11 @@ import (
 type Verifier interface {
 	Verify(context.Context, string) (string, error)
 }
+
+// IdentityRemover removes a login after its account data is gone. An unknown uid is success.
+type IdentityRemover interface {
+	DeleteUser(context.Context, string) error
+}
 type Firebase struct{ client *firebaseauth.Client }
 
 func NewFirebase(ctx context.Context, project string) (*Firebase, error) {
@@ -36,6 +41,12 @@ func newFirebase(ctx context.Context, project string, options ...option.ClientOp
 		return nil, errors.New("cannot initialize identity verifier")
 	}
 	return &Firebase{client: client}, nil
+}
+func (f *Firebase) DeleteUser(ctx context.Context, uid string) error {
+	if err := f.client.DeleteUser(ctx, uid); err != nil && !firebaseauth.IsUserNotFound(err) {
+		return errors.New("cannot remove identity")
+	}
+	return nil
 }
 func (f *Firebase) Verify(ctx context.Context, raw string) (string, error) {
 	token, err := f.client.VerifyIDTokenAndCheckRevoked(ctx, raw)

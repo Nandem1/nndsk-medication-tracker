@@ -16,8 +16,20 @@ import (
 const UnknownPoolMember = "otra persona"
 
 // poolGate orders membership changes against inventory locks. Lockers share it and read a
-// membership that cannot change until they commit. Global order: gate, pool, accounts by id.
+// membership that cannot change until they commit. Global order: gate, row locks, pool, accounts by id.
 const poolGate = 7205759403792793
+
+func takePoolGate(ctx context.Context, tx pgx.Tx, kind string) error {
+	switch kind {
+	case "create_pool", "decide_pool", "leave_pool":
+		return closePoolGate(ctx, tx)
+	}
+	return sharePoolGate(ctx, tx)
+}
+func sharePoolGate(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1)`, int64(poolGate))
+	return err
+}
 
 type CreatePoolCommand struct {
 	Mutation
@@ -113,7 +125,7 @@ func lockAccounts(ctx context.Context, tx pgx.Tx, accounts []string) error {
 
 // lockInventory locks what an account's balance depends on and returns its treatment.
 func lockInventory(ctx context.Context, tx pgx.Tx, account string) (string, error) {
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1)`, int64(poolGate)); err != nil {
+	if err := sharePoolGate(ctx, tx); err != nil {
 		return "", err
 	}
 	var treatment string
@@ -164,7 +176,10 @@ func scanPoolAccount(row pgx.Row) (poolAccount, error) {
 }
 
 func (s *Service) CreateInventoryPool(ctx context.Context, c CreatePoolCommand) (PoolResult, error) {
-	ids := slices.Clone(c.AccountIDs)
+	ids := make([]string, len(c.AccountIDs))
+	for i, id := range c.AccountIDs {
+		ids[i] = strings.ToLower(id)
+	}
 	slices.Sort(ids)
 	if len(ids) < 2 || len(slices.Compact(ids)) != len(c.AccountIDs) {
 		return PoolResult{}, ErrInvalid
@@ -294,6 +309,7 @@ func (s *Service) LeaveInventoryPool(ctx context.Context, c LeavePoolCommand) (P
 	if !domain.ValidID(c.PoolID) {
 		return PoolResult{}, ErrInvalid
 	}
+	c.AccountID = strings.ToLower(c.AccountID)
 	return transact(ctx, s, c.Mutation, accountTarget(c.AccountID), ScopeInventory, "leave_pool", c, func(tx pgx.Tx) (PoolResult, error) {
 		var zero PoolResult
 		if err := closePoolGate(ctx, tx); err != nil {
@@ -437,7 +453,7 @@ func poolView(ctx context.Context, tx pgx.Tx, actor, account string) (*PoolView,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.Query(ctx, `SELECT CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,m.patient_user_id=$2,m.account_id=$3,m.status,m.patient_user_id=$2 OR EXISTS (SELECT 1 FROM inventory_pool_members o WHERE o.pool_id=m.pool_id AND o.patient_user_id=$2) OR EXISTS (SELECT 1 FROM caregiver_links l WHERE l.patient_user_id=m.patient_user_id AND l.caregiver_user_id=$2 AND l.status='active' AND 'read'=ANY(l.scopes)) FROM inventory_pool_members m JOIN users u ON u.id=m.patient_user_id WHERE m.pool_id=$1 AND m.status IN ('pending','accepted') ORDER BY m.account_id`, view.PoolID, actor, account)
+	rows, err := tx.Query(ctx, `SELECT CASE WHEN u.profile_completed_at IS NOT NULL THEN u.display_name END,m.patient_user_id=$2,m.account_id=$3,m.status,m.patient_user_id=$2 OR EXISTS (SELECT 1 FROM inventory_pool_members o WHERE o.pool_id=m.pool_id AND o.patient_user_id=$2 AND o.status IN ('pending','accepted')) OR EXISTS (SELECT 1 FROM caregiver_links l WHERE l.patient_user_id=m.patient_user_id AND l.caregiver_user_id=$2 AND l.status='active' AND 'read'=ANY(l.scopes)) FROM inventory_pool_members m JOIN users u ON u.id=m.patient_user_id WHERE m.pool_id=$1 AND m.status IN ('pending','accepted') ORDER BY m.account_id`, view.PoolID, actor, account)
 	if err != nil {
 		return nil, err
 	}

@@ -67,3 +67,5 @@ La lista de pacientes consulta los conteos del informe de la API y todas las pá
 Las invitaciones ofrecen tres conjuntos explícitos de permisos y un nombre sugerido opcional. Copiar y pegar usan el portapapeles sólo al tocar un botón. Se acepta un único código o el mensaje completo y se muestran nombre, permisos y vencimiento antes del consentimiento. Los nombres de contrapartes revocadas llegan nulos y no se sustituyen por identificadores.
 
 `make test-web-e2e` usa [el ejecutor de pruebas](../scripts/e2e.mjs) para iniciar API y Vite por caso. Esto evita que el límite por IP de un caso se consuma con las peticiones de los anteriores. El límite productivo permanece intacto. Los E2E usan identidad sintética, HTTP, PostgreSQL y navegador reales; no prueban entrega de correo ni creación de cuentas en Firebase remoto.
+
+Mi perfil permite eliminar la cuenta escribiendo BORRAR. La sesión se cierra cuando el servidor confirma que quitó la identidad.

@@ -35,6 +35,16 @@ func (v verifier) Verify(ctx context.Context, token string) (string, error) {
 	return "", errors.New("invalid test identity")
 }
 
+func (v verifier) DeleteUser(ctx context.Context, uid string) error {
+	if v.emulator == nil || strings.HasPrefix(uid, "synthetic-") {
+		return nil
+	}
+	if err := v.emulator.DeleteUser(ctx, uid); err != nil && !firebaseauth.IsUserNotFound(err) {
+		return errors.New("cannot remove emulator identity")
+	}
+	return nil
+}
+
 // El SDK sólo acepta tokens sin firma si FIREBASE_AUTH_EMULATOR_HOST está definido. El ejecutable
 // productivo rechaza esa variable; este binario existe únicamente con la etiqueta e2e.
 func emulatorClient(ctx context.Context) *firebaseauth.Client {

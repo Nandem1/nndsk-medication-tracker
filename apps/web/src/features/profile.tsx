@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { z } from "zod";
 import { logout } from "@identity";
 import { useSession } from "../app/session";
 import { useRefresh, useResource } from "../lib/queries";
@@ -97,6 +98,38 @@ export function ProfileGate({ children }: { children: ReactNode }) {
   );
 }
 
+function DeleteAccount() {
+  const { api } = useSession();
+  const [pending, setPending] = useState(false);
+  return (
+    <section className="panel">
+      <h2>Eliminar mi cuenta</h2>
+      <p>
+        Se borrarán tus tomas, tratamientos, inventario y accesos, y tus cuidadores dejarán de verte. Si compartes
+        inventario, el saldo se queda con quienes permanecen. Lo que registraste en la historia de otra persona se
+        conserva sin tu nombre. Las copias de seguridad pueden conservar datos hasta que venzan. No se puede deshacer.
+      </p>
+      {pending && <p role="alert">Tus datos se borraron, pero no pudimos cerrar tu acceso. Intenta nuevamente.</p>}
+      <MutationForm
+        label="Eliminar definitivamente"
+        variant="destructive"
+        prepare={(form) => {
+          if (form.get("confirm") !== "BORRAR") throw new Error("Escribe BORRAR para confirmar.");
+          return { confirm: "BORRAR" };
+        }}
+        submit={async (data) => {
+          const result = await api.request("/me", z.object({ identity_removed: z.boolean() }), data, "DELETE");
+          setPending(!result.identity_removed);
+          if (result.identity_removed) await logout();
+        }}
+        done={() => undefined}
+      >
+        <Field label="Escribe BORRAR" name="confirm" autoComplete="off" />
+      </MutationForm>
+    </section>
+  );
+}
+
 export function MyProfile() {
   const query = useResource("/me", me);
   const refresh = useRefresh();
@@ -134,6 +167,7 @@ export function MyProfile() {
           </section>
         )}
       </QueryState>
+      <DeleteAccount />
     </main>
   );
 }

@@ -117,3 +117,7 @@ La cola serial de `SyncEngine` ordena envío, refresco, historial e invalidació
 ## Inventario compartido
 
 `InventoryProjection.pool` se guarda con la caché de cada paciente. `AppModel.pendingPools` vive sólo en memoria: decidir exige red, y sin conexión se conserva lo ya leído. [SharedInventoryViews](../MedicationTracker/Features/Caregiver/SharedInventoryViews.swift) reúne la tarjeta de decisión de Hoy, el estado y la salida. Sin una propuesta pendiente, Hoy no cambia. Proponer, decidir y salir no entran a la cola y conservan su operación para reintentar.
+
+## Datos de la cuenta
+
+[AccountDataViews](../MedicationTracker/Features/Account/AccountDataViews.swift) escribe la exportación en una carpeta temporal con protección de archivo, la comparte con la hoja nativa y la borra al cerrarla. Eliminar la cuenta exige escribir BORRAR y, si el servidor quitó la identidad, limpia el dispositivo con el mismo cierre de sesión.

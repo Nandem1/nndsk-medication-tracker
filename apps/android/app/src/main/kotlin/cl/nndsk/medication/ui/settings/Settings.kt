@@ -1,6 +1,7 @@
 package cl.nndsk.medication.ui.settings
 
 import android.content.ClipboardManager
+import cl.nndsk.medication.ui.account.AccountActions
 import cl.nndsk.medication.ui.account.ProfileEditor
 import cl.nndsk.medication.ui.caregiver.InviteSheet
 import cl.nndsk.medication.ui.caregiver.SharedInventory
@@ -46,6 +47,7 @@ import cl.nndsk.medication.ui.components.*
     val notificationSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
         state.own?.let { ProfileEditor(model, it, state.busy) }
+        state.own?.let { AccountActions(model, state.busy || state.offline) }
         SectionCard("Uso de la app") {
             DoseAction("Tomo mis medicamentos") { model.run { model.repository.setUse(false) } }
             DoseAction("Cuido a alguien") { model.run { model.repository.setUse(true) } }

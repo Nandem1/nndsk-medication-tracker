@@ -69,7 +69,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
         if (state.session == Session.Active) PatientTopBar(if (onboarding) Tab("Tu cuenta") else stack.lastOrNull(), state.busy, onBack = { if (stack.size > 1) stack.removeLastOrNull() }) { model.run { model.repository.sync() } }
     }, bottomBar = {
         if (state.session == Session.Active && !onboarding) NavigationBar {
-            tabs.forEach { name -> val icon = when (name) { "Hoy" -> R.drawable.ic_today; "Historial", "Pacientes" -> R.drawable.ic_history; else -> R.drawable.ic_settings }; NavigationBarItem(selected = stack.lastOrNull { it is Tab } == Tab(name), onClick = { stack.clear(); stack.add(Tab(name)) },
+            tabs.forEach { name -> val icon = when (name) { "Hoy" -> R.drawable.ic_today; "Historial" -> R.drawable.ic_history; "Pacientes" -> R.drawable.ic_shared; else -> R.drawable.ic_settings }; NavigationBarItem(selected = stack.lastOrNull { it is Tab } == Tab(name), onClick = { stack.clear(); stack.add(Tab(name)) },
                 icon = { Icon(painterResource(icon), contentDescription = null) }, label = { Text(name) }) }
         }
     }) { padding ->

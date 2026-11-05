@@ -260,6 +260,60 @@ final class FamilyFlowUITests: XCTestCase {
         XCTAssertEqual(ledger.filter { $0.reason == "pool_transfer" }.count, 1)
     }
 
+    /// Exporta con la hoja nativa y elimina la cuenta: la historia del otro paciente queda intacta.
+    @MainActor
+    func testExportAndDeleteAccountKeepOtherHistory() async throws {
+        let patient = try await E2EBackend.signUp("borrar-paciente")
+        let caregiver = try await E2EBackend.signUp("borrar-cuida")
+        let other = try await E2EBackend.signUp("borrar-otro")
+        let patientID = try await E2EBackend.userID(patient)
+        let otherID = try await E2EBackend.userID(other)
+        _ = try await E2EBackend.userID(caregiver)
+        try await E2EBackend.profile(patient, name: "Persona que se va")
+        try await E2EBackend.profile(caregiver, name: "Cuidadora sintética")
+        let scopes = ["read", "doses", "treatments", "inventory"]
+        try await E2EBackend.accept(patient, token: E2EBackend.invitation(caregiver, scopes: scopes, hint: "Persona"))
+        // Quien se va también cuida a otra persona y registró en su historia.
+        try await E2EBackend.accept(other, token: E2EBackend.invitation(patient, scopes: scopes, hint: "Otro"))
+        try await E2EBackend.createTreatment(caregiver: patient, patient: patientID, name: "Losartán")
+        try await E2EBackend.createTreatment(caregiver: other, patient: otherID, name: "Losartán")
+        let doses = try await E2EBackend.doses(other, patient: otherID)
+        try await E2EBackend.declare(patient, dose: try XCTUnwrap(doses.first { $0.state == "unconfirmed" }), type: "taken")
+
+        login(patient, name: nil, caregiver: false)
+        tab("Ajustes")
+        scrollTap("open-profile")
+        scrollTap("export-account")
+        let shareSheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: timeout), "La hoja nativa debe abrirse")
+        try await Task.sleep(for: .seconds(3))
+        XCTAssertTrue(shareSheet.exists, "La hoja debe seguir abierta")
+        capture("familia-p6-exportar")
+        // Dentro de un sheet no hay región de popover: se cierra como cualquier hoja.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+        if !shareSheet.waitForNonExistence(timeout: 3) { shareSheet.swipeDown(velocity: .fast) }
+        XCTAssertTrue(shareSheet.waitForNonExistence(timeout: timeout))
+        capture("familia-p6-mi-perfil")
+        scrollTap("open-delete-account")
+        let delete = app.buttons["delete-account"]
+        XCTAssertTrue(delete.waitForExistence(timeout: timeout))
+        XCTAssertFalse(delete.isEnabled, "Sin escribir BORRAR no se puede eliminar")
+        let confirm = app.textFields["delete-confirm"]
+        confirm.tap(); confirm.typeText("BORRAR")
+        capture("familia-p6-eliminar")
+        delete.tap()
+        XCTAssertTrue(app.textFields["login-email"].waitForExistence(timeout: timeout))
+
+        do {
+            _ = try await E2EBackend.doses(caregiver, patient: patientID)
+            XCTFail("El cuidador ya no debe ver a la persona eliminada")
+        } catch {}
+        let remaining = try await E2EBackend.inventory(other, patient: otherID)
+        XCTAssertEqual(remaining.first?.balance, "9.500", "La historia de otro paciente queda intacta")
+        let after = try await E2EBackend.doses(other, patient: otherID)
+        XCTAssertEqual(after.filter { $0.state == "taken" }.count, 1)
+    }
+
     @MainActor private func labeled(_ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }

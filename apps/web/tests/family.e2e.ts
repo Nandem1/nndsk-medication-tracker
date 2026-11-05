@@ -127,3 +127,33 @@ test("onboarding can close a failed session and reload a concurrent profile", as
   await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page.getByLabel("Correo electrónico")).toBeVisible();
 });
+
+test("delete account asks to confirm, closes the session and removes caregiver access", async ({ page, request }) => {
+  const suffix = Date.now();
+  const name = "borrar-" + suffix;
+  const caregiver = { Authorization: "Bearer synthetic-cuida-" + suffix };
+  await page.goto("/");
+  await page.getByLabel("Correo electrónico").fill(name + "@example.test");
+  await page.getByLabel("Contraseña").fill("test-only");
+  await page.getByRole("button", { name: "Iniciar sesión", exact: true }).click();
+  await page.getByLabel("Nombre visible").fill("Persona que se va");
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Personas a tu cuidado" })).toBeVisible();
+  const headers = { Authorization: "Bearer synthetic-" + name };
+  const me = await (await request.get(e2eApiURL + "/v1/me", { headers })).json();
+  const invitation = await (await request.post(e2eApiURL + "/v1/invitations", { headers: caregiver, data: { client_operation_id: crypto.randomUUID(), scopes: ["read"] } })).json();
+  expect((await request.post(e2eApiURL + "/v1/invitations/accept", { headers, data: { client_operation_id: crypto.randomUUID(), token: invitation.token } })).status()).toBe(200);
+  expect((await request.get(e2eApiURL + "/v1/patients/" + me.user_id + "/inventory", { headers: caregiver })).status()).toBe(200);
+
+  await page.getByRole("link", { name: "Mi perfil", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Eliminar mi cuenta" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("familia-p6-eliminar.png"), fullPage: true });
+  await page.getByLabel("Escribe BORRAR").fill("borrar");
+  await page.getByRole("button", { name: "Eliminar definitivamente", exact: true }).click();
+  await expect(page.getByText("Escribe BORRAR para confirmar.")).toBeVisible();
+  expect((await request.get(e2eApiURL + "/v1/patients/" + me.user_id + "/inventory", { headers: caregiver })).status()).toBe(200);
+  await page.getByLabel("Escribe BORRAR").fill("BORRAR");
+  await page.getByRole("button", { name: "Eliminar definitivamente", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  expect((await request.get(e2eApiURL + "/v1/patients/" + me.user_id + "/inventory", { headers: caregiver })).status()).toBe(404);
+});

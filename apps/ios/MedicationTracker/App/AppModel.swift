@@ -458,6 +458,17 @@ final class AppModel {
         try await request(patient: patient) { try await api.inventoryMutation(account: account, quantity: quantity, count: count, reason: reason, expected: expected, operation: operation) }
         await syncNow()
     }
+    func exportAccount() async throws -> Data {
+        guard let api else { throw APIError.unauthenticated }
+        return try await request { try await api.exportAccount() }
+    }
+    /// Con la identidad aún activa conserva la sesión, para que la persona pueda reintentar.
+    func deleteAccount(operation: String) async throws -> Bool {
+        guard let api else { throw APIError.unauthenticated }
+        let removed = try await request { try await api.deleteAccount(operation: operation) }
+        if removed { await signOut() }
+        return removed
+    }
     func poolCandidates(account: String) async throws -> [PoolCandidate] {
         guard let api else { throw APIError.unauthenticated }
         return try await request { try await api.poolCandidates(account: account) }

@@ -1,6 +1,6 @@
 # PLAN-FAMILIA.md — Modo familia de punta a punta
 
-> **Estado al 2026-11-04:** P0 a P5 implementadas, verificadas en local y publicadas en `main`. P6 y P7 no iniciadas. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
+> **Estado al 2026-11-04:** P0 a P6 implementadas, verificadas en local y publicadas en `main`. P7 en curso. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
 > **Punto de partida:** `main` en `6219d33`, más este plan.
 > **Ejecutor previsto:** otro modelo, sin contexto de la conversación que originó este plan. Todo lo necesario está aquí, en `AGENTS.md` y en `PLAN.md`.
 > **Regla de lectura:** lee `AGENTS.md`, `PLAN.md` y este archivo completos antes de cambiar nada. Las decisiones de la sección 2 ya están tomadas por el usuario o delegadas por él: no las reabras. Si el código contradice una suposición de este plan, sigue la intención, resuelve con el cambio más pequeño y registra la diferencia en el informe de cierre.
@@ -33,8 +33,7 @@ Inventario compartido en backend, web, Android e iOS. Resultados y diferencias e
 
 ### Pendientes concretos, en orden
 
-1. Ejecutar P6 conforme a la sección 10. **No se implementaron aún exportación nativa ni borrado de cuenta.** Leer los runbooks de seguridad y release antes de tocar historia o retención.
-2. Ejecutar P7 completo. Faltan verificación final de todas las plataformas, migraciones up/down/up, staging, instalación/copia a teléfonos y escenario de aceptación de doce puntos. No marcar preparación para producción ni cumplimiento legal.
+1. Ejecutar P7 completo. Faltan verificación final de todas las plataformas, migraciones up/down/up, staging, instalación/copia a teléfonos y escenario de aceptación de doce puntos. No marcar preparación para producción ni cumplimiento legal.
 
 ### Entorno local para retomar
 

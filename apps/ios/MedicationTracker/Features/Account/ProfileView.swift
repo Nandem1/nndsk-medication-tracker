@@ -65,6 +65,7 @@ struct ProfileView: View {
                     Text("Cuido a alguien").tag(true)
                 }.pickerStyle(.inline).labelsHidden().accessibilityIdentifier("profile-use")
             }
+            AccountDataSection()
         }.navigationTitle("Mi perfil")
     }
 }

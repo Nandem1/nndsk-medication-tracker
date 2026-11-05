@@ -209,6 +209,10 @@ func (s *Service) claimAlert(ctx context.Context) (*delivery, bool, error) {
 		return nil, false, err
 	}
 	defer tx.Rollback(ctx)
+	// Before the outbox row: an account deletion holding the gate removes that row.
+	if err = sharePoolGate(ctx, tx); err != nil {
+		return nil, false, err
+	}
 	now := s.now().UTC()
 	var d delivery
 	var link, consent, kind string

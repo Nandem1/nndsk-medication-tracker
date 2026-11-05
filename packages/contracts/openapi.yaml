@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Medication Tracker API",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "description": "F2 HTTP identity and consent contract. Decimal quantities are strings. Every write scope requires read. Authentication uses Firebase ID tokens. Requests have an 8-second context timeout and a 65536-byte body limit. Initial in-process rate limit is 120 requests/minute per direct peer IP with a maximum of 1024 windows, excluding probes; forwarding headers are not trusted. All errors omit medical data. Manual typed adapters live in services/api/internal/http/dto.go. Authentication provider token revocation is not checked by VerifyIDToken; caregiver consent revocation is checked per operation. F6 adds caregiver alert preferences and owner-scoped device registration. Push is best effort and contains no medical details."
   },
   "servers": [
@@ -73,6 +73,62 @@
             "description": "Return IDs after this UUID. Pages are UUID ordered; clients sort agenda by scheduled_at for display."
           }
         ]
+      },
+      "delete": {
+        "operationId": "deleteAccount",
+        "description": "Deletes the authenticated account in one transaction: leaves shared inventories transferring the balance to those who stay, revokes links, and removes the actor's own patient history. Other patients' history stays; where the actor is an author, the user row is kept anonymized. Repeating the request is safe: no replay row is stored, because it would retain data of the removed account. Backups keep data until they expire, and deletions must be reapplied after a restore.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error409"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error413"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error415"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error422"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error429"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error500"
+          },
+          "504": {
+            "$ref": "#/components/responses/Error504"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccount"
+              }
+            }
+          }
+        }
       }
     },
     "/v1/patients": {
@@ -5146,6 +5202,37 @@
         "required": [
           "client_operation_id",
           "account_id"
+        ]
+      },
+      "DeleteAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirm": {
+            "type": "string",
+            "const": "BORRAR"
+          }
+        },
+        "required": [
+          "client_operation_id",
+          "confirm"
+        ]
+      },
+      "AccountDeletion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "identity_removed": {
+            "type": "boolean",
+            "description": "False when the data was deleted but the identity provider could not remove the login. Retry the same request."
+          }
+        },
+        "required": [
+          "identity_removed"
         ]
       }
     },

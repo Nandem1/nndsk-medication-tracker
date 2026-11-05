@@ -129,6 +129,11 @@ func transact[T any](ctx context.Context, s *Service, m Mutation, target accessT
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", strings.ToLower(m.ActorID+"/"+m.OperationID)); err != nil {
 		return zero, err
 	}
+	// The gate comes before any row lock, so a membership change never waits on a row while
+	// the holder of that row waits on the gate.
+	if err = takePoolGate(ctx, tx, kind); err != nil {
+		return zero, err
+	}
 	if err = authorize(ctx, tx, m.ActorID, target, scope); err != nil {
 		return zero, err
 	}

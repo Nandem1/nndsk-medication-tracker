@@ -14,6 +14,7 @@ interface WireApi {
     @POST suspend fun post(@Url path: String, @Header("Authorization") token: String, @Body body: RequestBody): Response<ResponseBody>
     @PUT suspend fun put(@Url path: String, @Header("Authorization") token: String, @Body body: RequestBody): Response<ResponseBody>
     @DELETE suspend fun delete(@Url path: String, @Header("Authorization") token: String): Response<ResponseBody>
+    @HTTP(method = "DELETE", hasBody = true) suspend fun deleteBody(@Url path: String, @Header("Authorization") token: String, @Body body: RequestBody): Response<ResponseBody>
 }
 
 class Api(private val identity: Identity) {
@@ -26,6 +27,7 @@ class Api(private val identity: Identity) {
         suspend fun send(force: Boolean): Response<ResponseBody> {
             val token = "Bearer ${identity.token(force)}"
             return when {
+                delete && body != null -> wire.deleteBody(path, token, body.toRequestBody("application/json".toMediaType()))
                 delete -> wire.delete(path, token)
                 put && body != null -> wire.put(path, token, body.toRequestBody("application/json".toMediaType()))
                 body != null -> wire.post(path, token, body.toRequestBody("application/json".toMediaType()))
