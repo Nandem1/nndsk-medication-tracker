@@ -59,3 +59,13 @@ El portal sigue servido localmente en `http://127.0.0.1:5173`, con proxy hacia e
 Los despliegues anteriores registrados antes de la actualización eran API `<deployment-id>` y worker `<deployment-id>`, ambos saludables. Quedan como referencia operacional para una reversión autorizada. La [verificación F7](f7-verification.md) conserva las pruebas locales previas y sus límites.
 
 El usuario confirmó su E2E de F7 en staging el 2026-11-03 con «excelente, todo correcto» y autorizó el commit de cierre. La aceptación conserva los límites y pendientes que no fueron detallados en esa prueba.
+
+## Credencial de Firebase Admin
+
+Desde F8, la API comprueba revocación con Firebase Admin, y el borrado de cuenta da de baja el acceso. Sin credencial, los tokens reales no reciben respuesta a tiempo y nadie puede iniciar sesión. Railway sólo ofrece variables, así que la API lee `FIREBASE_SERVICE_ACCOUNT_JSON`, además de ADC.
+
+La credencial es una cuenta de servicio con el rol «Firebase Authentication Admin» sobre el proyecto de Firebase. Se carga como variable sólo en el servicio `api` de staging. No se versiona, no se imprime y el archivo descargado se borra después de cargarla. Producción necesita su propia cuenta de servicio, no ésta.
+
+## Actualización a modo familia
+
+API y worker se actualizaron desde un paquete limpio de `git archive`. Las migraciones 6, 7 y 8 se aplicaron en una sola transacción mediante `railway ssh`, y se registraron en `goose_db_version`. El usuario autorizó usar su clave SSH existente, que se registró en Railway sólo durante la migración y se retiró al terminar. Producción no se tocó.

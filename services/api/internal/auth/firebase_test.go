@@ -135,3 +135,16 @@ func TestFirebaseRejectsEmulatorAndMissingProject(t *testing.T) {
 		t.Fatal("emulator accepted")
 	}
 }
+
+func TestCredentialOptions(t *testing.T) {
+	if options, err := credentialOptions("  "); err != nil || options != nil {
+		t.Fatal("sin variable se usan las credenciales por defecto", err)
+	}
+	if _, err := credentialOptions("{sin-json"); err == nil || strings.Contains(err.Error(), "sin-json") {
+		t.Fatal("una credencial inválida se rechaza sin repetir su contenido", err)
+	}
+	if options, err := credentialOptions(`{"type":"service_account"}`); err != nil || len(options) != 1 {
+		t.Fatal(err)
+	}
+}
+

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"context"
 	"errors"
 	"os"
@@ -21,8 +22,24 @@ type IdentityRemover interface {
 }
 type Firebase struct{ client *firebaseauth.Client }
 
+// NewFirebase uses FIREBASE_SERVICE_ACCOUNT_JSON when the platform only offers environment
+// variables, and Application Default Credentials otherwise.
 func NewFirebase(ctx context.Context, project string) (*Firebase, error) {
-	return newFirebase(ctx, project)
+	options, err := credentialOptions(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON"))
+	if err != nil {
+		return nil, err
+	}
+	return newFirebase(ctx, project, options...)
+}
+
+func credentialOptions(raw string) ([]option.ClientOption, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	if !json.Valid([]byte(raw)) {
+		return nil, errors.New("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON")
+	}
+	return []option.ClientOption{option.WithCredentialsJSON([]byte(raw))}, nil
 }
 
 func newFirebase(ctx context.Context, project string, options ...option.ClientOption) (*Firebase, error) {
