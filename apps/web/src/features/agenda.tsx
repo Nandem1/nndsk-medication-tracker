@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { quantityLabel } from "../lib/inventory";
 import {
   dose,
   unitLabels,
@@ -58,7 +59,7 @@ export function Agenda({
                     )?.name ?? "Tratamiento"}
                   </h3>
                   <p>
-                    {item.quantity}{" "}
+                    {quantityLabel(item.quantity)}{" "}
                     {
                       unitLabels[
                         treatments.find(

@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "../app/session";
 import {
   patient,
-  scopeLabels,
   projection,
   adherence,
   type Patient,
@@ -12,6 +11,10 @@ import { useList } from "../lib/queries";
 import { patientLabel } from "../lib/sections";
 import { shiftDate, patientDate } from "../lib/dashboard";
 import { QueryState } from "../components/query-state";
+import { StateChip, StateIcon } from "../components/state-chip";
+import { Button } from "../components/ui/button";
+
+const boxIcon = "M3 8l9-5 9 5v8l-9 5-9-5V8ZM3 8l9 5 9-5M12 13v8";
 
 function PatientCard({ person }: { person: Patient }) {
   const { api, identity } = useSession();
@@ -34,37 +37,45 @@ function PatientCard({ person }: { person: Patient }) {
       };
     },
   });
+  const otherZone = person.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const unconfirmed = summary.data?.report.summary.unconfirmed ?? 0;
+  const replenishments = summary.data?.replenishments ?? 0;
   return (
     <article className="panel patient">
       <Link
         to="/patients/$patientId"
         params={{ patientId: person.patient_id }}
-        search={{ section: "treatments" }}
+        search={{ section: "dashboard" }}
       >
         <h2>{patientLabel(person)}</h2>
       </Link>
-      <p>{person.scopes.map((scope) => scopeLabels[scope]).join(" · ")}</p>
       <QueryState query={summary}>
         {summary.data && (
           <>
-            <p className="eyebrow">Hoy hasta ahora · {date} · {person.timezone}</p>
-            <p>
+            <p className="eyebrow">Hoy hasta ahora{otherZone ? " · " + person.timezone : ""}</p>
+            <p className="patient-progress">
               <strong>
                 {summary.data.report.summary.confirmed} de {summary.data.report.summary.evaluable} registradas
               </strong>
             </p>
-            <p>{summary.data.report.summary.unconfirmed} sin confirmar</p>
-            <p>{summary.data.replenishments} reposiciones por revisar</p>
+            {(unconfirmed > 0 || replenishments > 0) && (
+              <p className="patient-flags">
+                {unconfirmed > 0 && <StateChip state="unconfirmed" label={unconfirmed + " sin confirmar"} />}
+                {replenishments > 0 && (
+                  <span className="badge">
+                    <StateIcon path={boxIcon} />
+                    {replenishments === 1 ? "1 reposición por revisar" : replenishments + " reposiciones por revisar"}
+                  </span>
+                )}
+              </p>
+            )}
           </>
         )}
       </QueryState>
-      <Link
-        to="/patients/$patientId"
-        params={{ patientId: person.patient_id }}
-        search={{ section: "treatments" }}
-      >
-        Abrir registro →
-      </Link>
+      {person.scopes.length === 1 && person.scopes[0] === "read" && (
+        <p className="hint">Tu acceso permite sólo mirar.</p>
+      )}
+      <p className="patient-open" aria-hidden="true">Ver seguimiento →</p>
     </article>
   );
 }
@@ -76,16 +87,24 @@ export function Patients() {
       <p className="eyebrow">Seguimiento con consentimiento</p>
       <h1>Personas a tu cuidado</h1>
       <p>Revisa los registros de hoy y las reposiciones pendientes.</p>
-      <Link to="/consent">Invitar a alguien</Link>
+      <div className="page-actions">
+        <Button asChild><Link to="/invite">Invitar a alguien</Link></Button>
+      </div>
       <QueryState query={query}>
         {query.data?.length === 0 && (
-          <p>No tienes pacientes vinculados. Crea una invitación para comenzar.</p>
+          <section className="panel">
+            <p>No tienes pacientes vinculados. Invita a una persona y aparecerá aquí cuando autorice el acceso.</p>
+            <p><Link to="/consent">¿Te invitaron a ti? Pega tu código en Accesos.</Link></p>
+          </section>
         )}
         <div className="patients">
           {query.data?.map((person) => (
             <PatientCard key={person.patient_id} person={person} />
           ))}
         </div>
+        {!!query.data?.length && (
+          <p className="hint">Los registros son declaraciones. No demuestran que el medicamento se haya tomado.</p>
+        )}
       </QueryState>
     </main>
   );

@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type FormEvent } from "react";
+import { useRef, useState, type ReactNode, type FormEvent, type Ref } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "./ui/button";
 import type { Schedule } from "../lib/api/contracts";
@@ -42,6 +42,8 @@ export function MutationForm<T>({
   children,
   label,
   variant = "default",
+  quiet = false,
+  formRef,
 }: {
   prepare: (data: FormData) => T;
   submit: (payload: T & { client_operation_id: string }) => Promise<unknown>;
@@ -49,6 +51,9 @@ export function MutationForm<T>({
   children?: ReactNode;
   label: string;
   variant?: "default" | "outline" | "destructive";
+  /** Para acciones que no guardan cambios o que muestran su propio resultado. */
+  quiet?: boolean;
+  formRef?: Ref<HTMLFormElement>;
 }) {
   const last = useRef<{ fingerprint: string; id: string } | null>(null);
   const [validation, setValidation] = useState("");
@@ -76,7 +81,7 @@ export function MutationForm<T>({
     }
   }
   return (
-    <form onSubmit={send}>
+    <form onSubmit={send} ref={formRef}>
       {children}
       {(validation || mutation.error) && (
         <p role="alert">{validation || mutation.error?.message}</p>
@@ -84,7 +89,7 @@ export function MutationForm<T>({
       <Button variant={variant} disabled={mutation.isPending}>
         {mutation.isPending ? "Guardando…" : label}
       </Button>
-      {mutation.isSuccess && <p role="status">Cambios guardados.</p>}
+      {mutation.isSuccess && !quiet && <p role="status">Cambios guardados.</p>}
     </form>
   );
 }

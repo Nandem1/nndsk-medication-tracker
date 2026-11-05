@@ -14,6 +14,7 @@ import { Patients } from "./features/patients";
 import { PatientDetail } from "./features/patient";
 import { MyProfile } from "./features/profile";
 import { Consent } from "./features/consent";
+import { Invite } from "./features/invite";
 import { parseSection } from "./lib/sections";
 import "./style.css";
 const rootRoute = createRootRoute({
@@ -21,8 +22,8 @@ const rootRoute = createRootRoute({
     <SessionBoundary>
       <nav className="main-nav" aria-label="Navegación principal">
         <Link to="/">Pacientes</Link>
+        <Link to="/consent">Accesos</Link>
         <Link to="/profile">Mi perfil</Link>
-        <Link to="/consent">Invitaciones y consentimiento</Link>
       </nav>
       <Outlet />
       <footer>
@@ -46,6 +47,11 @@ const consentRoute = createRoute({
   path: "/consent",
   component: Consent,
 });
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/invite",
+  component: Invite,
+});
 const patientRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/patients/$patientId",
@@ -57,7 +63,7 @@ const patientRoute = createRoute({
   },
 });
 const router = createRouter({
-  routeTree: rootRoute.addChildren([patientsRoute, consentRoute, patientRoute, profileRoute]),
+  routeTree: rootRoute.addChildren([patientsRoute, consentRoute, inviteRoute, patientRoute, profileRoute]),
 });
 declare module "@tanstack/react-router" {
   interface Register {

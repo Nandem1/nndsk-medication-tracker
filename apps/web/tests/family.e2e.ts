@@ -22,7 +22,7 @@ test("create account, complete profile, invite with name and see names on both s
     await page.getByRole("button", { name: "Continuar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Personas a tu cuidado" })).toBeVisible();
   }
-  await cp.getByRole("link", { name: "Invitaciones y consentimiento" }).click();
+  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
   await cp.getByLabel("¿Cómo se llama?").fill("Mamá");
   await expect(cp.getByLabel("Administrar todo", { exact: true })).toBeChecked();
   await cp.getByRole("button", { name: "Crear invitación", exact: true }).click();
@@ -32,10 +32,11 @@ test("create account, complete profile, invite with name and see names on both s
   const message = await cp.evaluate(() => navigator.clipboard.readText());
   expect(message).toBe(invitationMessage(token));
   await cp.screenshot({ path: test.info().outputPath("familia-p2-invitation.png"), fullPage: true });
-  await pp.getByRole("link", { name: "Invitaciones y consentimiento" }).click();
+  await pp.getByRole("link", { name: "Accesos", exact: true }).click();
   await pp.evaluate((text) => navigator.clipboard.writeText(text), message);
   await pp.getByRole("button", { name: "Pegar código", exact: true }).click();
-  await pp.getByRole("button", { name: "Revisar invitación", exact: true }).click();
+  await expect(pp.getByRole("heading", { name: "Revisa antes de aceptar" })).toBeVisible();
+  await pp.screenshot({ path: test.info().outputPath("familia-ux-consent.png"), fullPage: true });
   await expect(pp.getByText("Hermana", { exact: true })).toBeVisible();
   await expect(pp.getByText("Nombre sugerido: Mamá", { exact: true })).toBeVisible();
   await pp.getByLabel("Entiendo los permisos").check();
@@ -57,6 +58,12 @@ test("create account, complete profile, invite with name and see names on both s
   await cp.getByRole("link", { name: "Pacientes", exact: true }).click();
   expect(await cp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await cp.screenshot({ path: test.info().outputPath("familia-p2-patients-mobile.png"), fullPage: true });
+  await cp.emulateMedia({ colorScheme: "dark" });
+  await cp.screenshot({ path: test.info().outputPath("familia-ux-patients-dark.png"), fullPage: true });
+  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
+  await cp.addStyleTag({ content: ":root { font-size: 200% !important; }" });
+  expect(await cp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await cp.screenshot({ path: test.info().outputPath("familia-ux-invite-dark-large.png"), fullPage: true });
   await caregiver.close(); await patient.close();
 });
 

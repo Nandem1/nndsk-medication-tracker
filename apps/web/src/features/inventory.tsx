@@ -12,7 +12,7 @@ import {
   type Projection,
 } from "../lib/api/contracts";
 import { decimal } from "../lib/forms";
-import { coverageDays, coverageLabel, coveredShare, movementDate, poolOthers, subtractDecimal } from "../lib/inventory";
+import { coverageDays, coverageLabel, coveredShare, movementDate, poolOthers, quantityLabel, subtractDecimal } from "../lib/inventory";
 import { Button } from "../components/ui/button";
 import { Field, MutationForm } from "../components/forms";
 import { QueryState } from "../components/query-state";
@@ -129,24 +129,25 @@ function Account({
   const unit = unitLabel(item.unit);
   const estimate = subtractDecimal(item.balance, item.scheduled_quantity);
   const through = zonedDate(item.through, item.timezone);
+  const people = history.data?.some((m) => m.patient_display_name);
   return (
     <article className="panel account-detail">
       <h3>{name}</h3>
       <div className="balances">
         <div className="balance-card">
-          <h4>Saldo confirmado</h4>
+          <h4>{item.pool?.status === "active" ? "Saldo común confirmado" : "Saldo confirmado"}</h4>
           <p className="balance">
-            {item.balance} <span>{unit}</span>
+            {quantityLabel(item.balance)} <span>{unit}</span>
           </p>
           <p className="hint">Según los movimientos registrados en el servidor.</p>
         </div>
         <div className="balance-card is-estimate">
           <h4>Saldo estimado al {through}</h4>
           <p className="balance-estimate">
-            {estimate} <span>{unit}</span>
+            {quantityLabel(estimate)} <span>{unit}</span>
           </p>
           <p className="hint">
-            Saldo confirmado menos {item.scheduled_quantity} {unit} previstas sin
+            Saldo confirmado menos {quantityLabel(item.scheduled_quantity)} {unit} previstas sin
             registrar. Es una estimación, no un conteo.
             {estimate.startsWith("-") && " Un valor negativo indica que la agenda necesita más de lo disponible."}
           </p>
@@ -159,11 +160,6 @@ function Account({
       )}
       <SharedInventory item={item} canEdit={canEdit} />
       <ProjectionBar item={item} />
-      <p className="hint">
-        Estimación según la agenda, hasta 30 días. El saldo se basa en registros
-        declarados, no en una verificación de ingestión.
-      </p>
-      <p>Antelación configurada: {item.low_stock_days_threshold} días.</p>
       {item.replenish_on ? (
         <p className={item.low_stock ? "notice" : "hint"}>
           {item.low_stock ? "Revisar reposición. " : ""}Fecha de revisión: {item.replenish_on} · {item.timezone}.
@@ -171,20 +167,19 @@ function Account({
       ) : (
         <p className="hint">Sin fecha de revisión dentro de la proyección.</p>
       )}
-      <p className="hint">La fecha de revisión usa días de calendario de la pauta. No activa notificaciones push.</p>
-      {canEdit && <MutationForm
-        key={item.low_stock_days_threshold}
-        label="Guardar antelación"
-        prepare={(f) => ({ expected_days: item.low_stock_days_threshold, days: z.coerce.number().int().min(0).max(30).parse(f.get("days")) })}
-        submit={(data) => api.request("/inventory/" + item.account_id + "/threshold", z.unknown(), data)}
-        done={refresh}
-      >
-        <Field label="Días de antelación" name="days" type="number" min="0" max="30" value={String(item.low_stock_days_threshold)} />
-      </MutationForm>}
+      <p>Antelación configurada: {item.low_stock_days_threshold} días.</p>
+      <details className="inventory-note">
+        <summary>Cómo se calcula</summary>
+        <p className="hint">
+          Estimación según la agenda, hasta 30 días. El saldo se basa en registros
+          declarados, no en una verificación de ingestión.
+        </p>
+        <p className="hint">La fecha de revisión usa días de calendario de la pauta. No activa notificaciones push.</p>
+      </details>
       {canEdit && (
-        <div className="columns">
-          <div>
-            <h4>Registrar reposición</h4>
+        <div className="inventory-actions">
+          <details className="action-panel">
+            <summary>Registrar reposición</summary>
             <MutationForm
               label="Agregar reposición"
               prepare={(f) => ({
@@ -201,9 +196,9 @@ function Account({
             >
               <Field label="Cantidad recibida" name="quantity" />
             </MutationForm>
-          </div>
-          <div>
-            <h4>Conteo físico</h4>
+          </details>
+          <details className="action-panel">
+            <summary>Conteo físico</summary>
             <MutationForm
               key={item.balance}
               label="Guardar conteo"
@@ -228,7 +223,19 @@ function Account({
                 a contar.
               </p>
             </MutationForm>
-          </div>
+          </details>
+          <details className="action-panel">
+            <summary>Aviso de reposición</summary>
+            <MutationForm
+              key={item.low_stock_days_threshold}
+              label="Guardar antelación"
+              prepare={(f) => ({ expected_days: item.low_stock_days_threshold, days: z.coerce.number().int().min(0).max(30).parse(f.get("days")) })}
+              submit={(data) => api.request("/inventory/" + item.account_id + "/threshold", z.unknown(), data)}
+              done={refresh}
+            >
+              <Field label="Días de antelación" name="days" type="number" min="0" max="30" value={String(item.low_stock_days_threshold)} />
+            </MutationForm>
+          </details>
         </div>
       )}
       <h4>Movimientos</h4>
@@ -242,6 +249,7 @@ function Account({
                 <tr>
                   <th scope="col">Fecha</th>
                   <th scope="col">Motivo</th>
+                  {people && <th scope="col">Persona</th>}
                   <th scope="col" className="numeric">Cantidad ({unit})</th>
                   <th scope="col">Nota</th>
                 </tr>
@@ -253,8 +261,9 @@ function Account({
                     <tr key={m.movement_id}>
                       <td>{movementDate(m)}</td>
                       <td>{reasons[m.reason] ?? m.reason}</td>
-                      <td className="numeric">{m.quantity_delta}</td>
-                      <td>{[m.patient_display_name, m.note].filter(Boolean).join(" · ")}</td>
+                      {people && <td>{m.patient_display_name}</td>}
+                      <td className="numeric">{quantityLabel(m.quantity_delta)}</td>
+                      <td>{m.note}</td>
                     </tr>
                   ))}
               </tbody>

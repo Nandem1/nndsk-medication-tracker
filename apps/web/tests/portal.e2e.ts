@@ -26,11 +26,11 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   const cp = await c.newPage();
   const pp = await p.newPage();
   await login(cp, caregiver);
-  await cp.getByRole("link", { name: "Invitaciones y consentimiento" }).click();
+  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
   await cp.getByRole("button", { name: "Crear invitación" }).click();
   const code = await cp.getByLabel("Código de invitación").inputValue();
   await login(pp, patient);
-  await pp.getByRole("link", { name: "Invitaciones y consentimiento" }).click();
+  await pp.getByRole("link", { name: "Accesos", exact: true }).click();
   await pp.getByLabel("Código recibido").fill(code);
   await pp.getByRole("button", { name: "Revisar invitación" }).click();
   await expect(
@@ -48,6 +48,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   await expect(patientCard).toHaveCount(1);
   await patientCard.click();
   const patientId = new URL(cp.url()).pathname.split("/").pop()!;
+  await cp.getByRole("link", { name: "Tratamientos", exact: true }).click();
   await cp.getByRole("button", { name: "Nuevo tratamiento" }).click();
   await cp
     .getByLabel("Nombre del medicamento")
@@ -95,7 +96,7 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
     fullPage: true,
   });
   await cp.getByRole("link", { name: "Inventario", exact: true }).click();
-  await expect(cp.locator(".balance")).toContainText("3.000");
+  await expect(cp.locator(".balance")).toHaveText("3 comprimidos");
   const operations: string[] = [];
   await cp.route("**/v1/inventory/*/movements", async (route) => {
     if (route.request().method() !== "POST") {
@@ -108,21 +109,23 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
       await route.abort("failed");
     } else await route.continue();
   });
+  await cp.getByText("Registrar reposición", { exact: true }).click();
   await cp.getByLabel("Cantidad recibida").fill("2.25");
   await cp.getByRole("button", { name: "Agregar reposición" }).click();
   await expect(cp.getByRole("alert")).toContainText("No hay conexión");
   await cp.getByRole("button", { name: "Agregar reposición" }).click();
-  await expect(cp.locator(".balance")).toContainText("5.250");
+  await expect(cp.locator(".balance")).toHaveText("5,25 comprimidos");
   expect(operations).toHaveLength(2);
   expect(operations[0]).toBe(operations[1]);
   await cp.unroute("**/v1/inventory/*/movements");
+  await cp.getByText("Conteo físico", { exact: true }).click();
   await cp.getByLabel("Cantidad contada").fill("4.125");
   await cp.getByLabel("Motivo del ajuste").fill("Conteo sintético");
   await cp.getByRole("button", { name: "Guardar conteo" }).click();
-  await expect(cp.locator(".balance")).toContainText("4.125");
+  await expect(cp.locator(".balance")).toHaveText("4,125 comprimidos");
   await expect(
     cp.getByRole("row", { name: /Ajuste por conteo físico/ }),
-  ).toContainText("-1.125");
+  ).toContainText("-1,125");
   await cp.getByRole("link", { name: "Tratamientos", exact: true }).click();
   await cp.getByRole("button", { name: "Editar datos" }).click();
   await cp
@@ -137,8 +140,8 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   await cp.getByRole("button", { name: "Confirmar archivo" }).click();
   await expect(cp.getByText("Archivado", { exact: true })).toBeVisible();
   pp.on("dialog", (d) => d.accept());
-  await pp.getByRole("button", { name: "Revocar acceso" }).click();
-  await expect(pp.getByText("Acceso revocado", { exact: false })).toBeVisible();
+  await pp.getByRole("button", { name: "Quitar acceso" }).click();
+  await expect(pp.getByText("Acceso quitado", { exact: false })).toBeVisible();
   await cp.getByRole("link", { name: "Inventario", exact: true }).click();
   await expect(cp.getByRole("alert")).toContainText("No tienes permiso");
   await expect(
@@ -171,9 +174,7 @@ test("network loading, empty, error and permission states", async ({
   await page.route("**/v1/patients?**", (route) =>
     route.fulfill({ status: 500, json: {} }),
   );
-  await page
-    .getByRole("link", { name: "Invitaciones y consentimiento" })
-    .click();
+  await page.getByRole("link", { name: "Accesos", exact: true }).click();
   await page.getByRole("link", { name: "Pacientes", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("No se pudo completar");
   await page.unroute("**/v1/patients?**");
@@ -188,9 +189,7 @@ test("a lost invitation response can be replaced by a new invitation", async ({
   page,
 }) => {
   await login(page, "lost-invitation-" + Date.now());
-  await page
-    .getByRole("link", { name: "Invitaciones y consentimiento" })
-    .click();
+  await page.getByRole("link", { name: "Invitar a alguien" }).click();
   const operations: string[] = [];
   await page.route("**/v1/invitations", async (route) => {
     operations.push(route.request().postDataJSON().client_operation_id);
@@ -222,6 +221,7 @@ test("an open editor retains its version after a background update", async ({
     .filter({ has: page.getByRole("heading", { name }) })
     .click();
   const patientId = new URL(page.url()).pathname.split("/").pop();
+  await page.getByRole("link", { name: "Tratamientos", exact: true }).click();
   await page.getByRole("button", { name: "Nuevo tratamiento" }).click();
   await page.getByLabel("Nombre del medicamento").fill("Synthetic original");
   await page.getByRole("button", { name: "Guardar tratamiento" }).click();

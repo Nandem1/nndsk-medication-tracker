@@ -207,7 +207,88 @@ nav,
 }
 .patient {
   display: block;
+  position: relative;
+  margin: 0;
   transition: border-color 120ms ease;
+}
+/* Toda la tarjeta abre al paciente, sin un segundo enlace que repita el destino. */
+.patient > a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--mt-radius-lg);
+}
+.patient > a:hover {
+  text-decoration: none;
+}
+.patient h2 {
+  margin: 0 0 var(--mt-space-md);
+}
+.patient-progress {
+  font-size: var(--mt-type-caregiver-heading-size);
+  margin: var(--mt-space-xs) 0 var(--mt-space-md);
+}
+.patient-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-sm);
+  margin: var(--mt-space-md) 0;
+}
+.patient-open {
+  color: var(--mt-color-accent);
+  margin-bottom: 0;
+}
+.page-actions {
+  margin: var(--mt-space-lg) 0 var(--mt-space-xl);
+}
+/* El enlace con forma de botón no hereda el color de los enlaces. */
+.page-actions a,
+.page-actions a:hover {
+  color: var(--mt-color-on-action);
+  text-decoration: none;
+}
+.narrow {
+  max-width: 44rem;
+}
+.choice {
+  margin-bottom: var(--mt-space-md);
+}
+.choice .hint {
+  margin: 0 0 0 calc(1.25rem + var(--mt-space-sm));
+}
+.invite-result {
+  background: var(--mt-color-surface-raised);
+  border: 1px solid var(--mt-color-border);
+  border-radius: var(--mt-radius-md);
+  padding: var(--mt-space-lg);
+  margin: var(--mt-space-lg) 0;
+}
+.invite-result textarea {
+  font-family: var(--mt-font-mono);
+}
+.next-steps {
+  list-style: decimal;
+  padding-left: 1.4rem;
+}
+.next-steps li {
+  margin: var(--mt-space-xs) 0;
+}
+.inventory-actions {
+  display: grid;
+  gap: var(--mt-space-sm);
+  margin: var(--mt-space-lg) 0 var(--mt-space-xl);
+}
+.action-panel {
+  border: 1px solid var(--mt-color-border-strong);
+  border-radius: var(--mt-radius-md);
+  padding: 0 var(--mt-space-lg);
+}
+.action-panel[open] {
+  padding-bottom: var(--mt-space-lg);
+}
+.inventory-note summary {
+  color: var(--mt-color-text-muted);
+  font-weight: 500;
 }
 .patient:hover {
   border-color: var(--mt-color-border-strong);
@@ -831,6 +912,9 @@ td {
   }
 }
 @media (max-width: 500px) {
+  .movements td {
+    white-space: normal;
+  }
   .report-filters,
   .metric-grid,
   .balances {

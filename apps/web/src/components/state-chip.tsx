@@ -19,11 +19,11 @@ export function StateIcon({ path }: { path: string }) {
 }
 
 /** Estado de una dosis con icono y texto: nunca depende sólo del color. */
-export function StateChip({ state }: { state: DoseStateName }) {
+export function StateChip({ state, label }: { state: DoseStateName; label?: string }) {
   return (
     <span className={"badge state-" + state}>
       <StateIcon path={paths[state]} />
-      {stateLabels[state]}
+      {label ?? stateLabels[state]}
     </span>
   );
 }

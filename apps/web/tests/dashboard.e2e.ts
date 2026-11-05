@@ -71,6 +71,7 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   const selectAccount = () => page.getByRole("list", { name: "Cuentas de inventario" }).getByRole("button", { name: /Reposición sintética F7/ }).click();
   await selectAccount();
   const account = page.getByRole("article").filter({ has: page.getByRole("heading", { name: "Reposición sintética F7", exact: true }) });
+  await account.getByText("Aviso de reposición", { exact: true }).click();
   await account.getByLabel("Días de antelación").fill("10");
   await account.getByRole("button", { name: "Guardar antelación" }).click();
   await expect(account.getByText("Antelación configurada: 10 días.")).toBeVisible();
@@ -83,7 +84,7 @@ test("F7 dashboard, honest response calendar, history filters and persisted stoc
   await page.getByRole("link", { name: "Inventario", exact: true }).click();
   await selectAccount();
   await expect(account.getByLabel("Días de antelación")).toHaveValue("10");
-  await expect(account.locator(".balance")).toContainText("3.000");
+  await expect(account.locator(".balance")).toHaveText("3 comprimidos");
   await expect(account.locator(".is-estimate")).toHaveCSS("border-top-style", "dashed");
   await expect(account.getByRole("img", { name: /Según la agenda/ })).toBeVisible();
 });

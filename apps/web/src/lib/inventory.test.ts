@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverageDays, coverageLabel, coveredShare, movementDate, poolOthers, subtractDecimal } from "./inventory";
+import { coverageDays, coverageLabel, coveredShare, dateTimeLabel, movementDate, poolOthers, quantityLabel, subtractDecimal } from "./inventory";
 
 describe("exact decimal subtraction", () => {
   it("keeps thousandths without float error", () => {
@@ -13,6 +13,28 @@ describe("exact decimal subtraction", () => {
   });
   it("rejects anything that is not a decimal", () => {
     expect(() => subtractDecimal("1,5", "1")).toThrow();
+  });
+});
+
+describe("cantidades para mostrar en es-CL", () => {
+  it("no deja ceros que se lean como miles", () => {
+    expect(quantityLabel("19.000")).toBe("19");
+    expect(quantityLabel("1000.000")).toBe("1000");
+  });
+  it("usa coma decimal y conserva cada decimal exacto", () => {
+    expect(quantityLabel("-0.500")).toBe("-0,5");
+    expect(quantityLabel("4.125")).toBe("4,125");
+    expect(quantityLabel("123456789.001")).toBe("123456789,001");
+  });
+  it("no muestra un cero negativo", () => {
+    expect(quantityLabel("0.000")).toBe("0");
+    expect(quantityLabel("-0.000")).toBe("0");
+  });
+  it("rechaza lo que no es decimal", () => {
+    expect(() => quantityLabel("1,5")).toThrow();
+  });
+  it("muestra fecha y hora sin segundos ni doble punto", () => {
+    expect(dateTimeLabel("2026-11-05T12:43:18Z")).not.toMatch(/:18|\.\.$/);
   });
 });
 

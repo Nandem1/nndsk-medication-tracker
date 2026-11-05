@@ -22,6 +22,20 @@ export function subtractDecimal(a: string, b: string) {
   return (result < 0n ? "-" : "") + whole + fraction;
 }
 
+/** Cantidad para mostrar en es-CL, sólo con texto: «19.000» se leería como diecinueve mil. */
+export function quantityLabel(value: string) {
+  const { negative, whole, fraction } = parts(value);
+  const integer = whole.replace(/^0+(?=\d)/, "");
+  const decimals = fraction.replace(/0+$/, "");
+  const zero = integer === "0" && !decimals;
+  return (negative && !zero ? "-" : "") + integer + (decimals ? "," + decimals : "");
+}
+
+/** Fecha y hora sin segundos. Termina en «p. m.», así que no admite un punto final. */
+export function dateTimeLabel(value: string) {
+  return new Date(value).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 const dayMs = 86400000;
 
 /** Días completos cubiertos según la proyección del servidor; null si cubre toda la ventana. */
@@ -58,7 +72,7 @@ export function poolOthers(pool: Pool, status?: Pool["members"][number]["status"
 
 /** El servidor anula la hora de la actividad ajena: se muestra sólo la fecha, sin convertir de zona. */
 export function movementDate(item: Pick<Movement, "created_at" | "reason">) {
-  if (item.reason !== "shared_activity") return new Date(item.created_at).toLocaleString("es-CL");
+  if (item.reason !== "shared_activity") return dateTimeLabel(item.created_at);
   const [year, month, day] = item.created_at.slice(0, 10).split("-");
   return `${day}-${month}-${year}`;
 }

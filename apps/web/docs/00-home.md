@@ -7,10 +7,14 @@ flowchart TB
     Login[Entrar, crear cuenta y recuperar contraseña] --> Session[Sesión Firebase en memoria]
     Session --> Profile[Completar perfil antes de navegar]
     Profile --> Router[TanStack Router]
-    Router --> Patients[Pacientes y consentimiento]
+    Router --> Patients[Pacientes]
+    Router --> Invite[Invitar a alguien]
+    Router --> Consent[Accesos: aceptar y quitar]
     Router --> Patient[Tratamientos, inventario y agenda]
     Patient --> Dashboard[Dashboard, historial y calendario de respuestas]
     Patients --> Query[TanStack Query en memoria]
+    Invite --> Query
+    Consent --> Query
     Patient --> Query
     Dashboard --> Query
     Query --> Adapter[Adaptador HTTP y esquemas Zod]
@@ -21,7 +25,7 @@ flowchart TB
 
 - [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta y la sección a su parámetro `section`. Las pestañas de paciente viven en el encabezado de [sesión](../src/app/session.tsx). La API entrega el nombre único de cada persona; [`sections.ts`](../src/lib/sections.ts) sólo aplica el texto alternativo para perfiles incompletos. No se muestran UUID como etiquetas.
 - [Sesión](../src/app/session.tsx) controla carga, acceso anónimo y acceso autenticado. El [adaptador Firebase](../src/app/firebase.ts) obtiene tokens y usa persistencia en memoria. Registro y recuperación llaman al SDK de Firebase. El resultado de recuperación no revela si existe la cuenta.
-- [Pantallas](../src/features/) contienen pacientes, consentimiento y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
+- [Pantallas](../src/features/) contienen pacientes, invitación (`/invite`), accesos y consentimiento (`/consent`) y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
 - [Cliente HTTP](../src/lib/api/client.ts) transmite tokens, recorre páginas y valida respuestas con los [esquemas](../src/lib/api/contracts.ts). Los datos clínicos no se guardan en almacenamiento persistente del navegador.
 - [Formularios](../src/components/forms.tsx) conservan la clave idempotente mientras se reintenta el mismo contenido. Las [validaciones](../src/lib/forms.ts) mantienen cantidades decimales como texto y comprueban horarios.
 - [Configuración Vite](../vite.config.ts) separa la identidad de pruebas de Firebase real. `make web-dev` sirve el portal local y dirige `/v1` a `API_PROXY_TARGET`, configurado en un archivo local ignorado. Sin configuración usa `http://127.0.0.1:8080`; PostgreSQL se accede sólo desde la API. El modo E2E mantiene su API local en el puerto 18083. Un despliegue del portal necesitaría servir web y API bajo el mismo origen.
@@ -32,7 +36,7 @@ Cambiar de identidad limpia la caché. Las respuestas 401, 403 y 404 cierran la 
 
 Las invitaciones se muestran una sola vez al crearlas. Cada envío crea una nueva operación porque el token no se puede recuperar si se pierde la respuesta. La persona que acepta revisa los alcances antes de autorizar. Los tokens no forman parte de rutas ni parámetros de navegación.
 
-Las cantidades viajan como cadenas. El servidor calcula diferencias de inventario y decide si una versión o saldo esperado sigue vigente. Archivar conserva el historial y deja de generar dosis futuras.
+Las cantidades viajan como cadenas y se muestran con `quantityLabel`, sin ceros finales y con coma decimal, sólo con operaciones de texto. El servidor calcula diferencias de inventario y decide si una versión o saldo esperado sigue vigente. Archivar conserva el historial y deja de generar dosis futuras.
 
 La agenda diferencia pendiente, sin confirmar, tomada, tomada tarde y omitida mediante texto. El historial describe declaraciones, no demuestra ingestión.
 

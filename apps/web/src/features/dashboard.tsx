@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { quantityLabel } from "../lib/inventory";
 import {
   adherence,
   dose,
@@ -51,7 +52,7 @@ function History({
                   </time>
                   <span>{treatment?.name ?? "Tratamiento"}</span>
                   <span>
-                    {item.quantity} {unitLabels[treatment?.unit ?? "other"]} · {item.timezone}
+                    {quantityLabel(item.quantity)} {unitLabels[treatment?.unit ?? "other"]} · {item.timezone}
                   </span>
                   <StateChip state={item.state} />
                   {item.dst_adjusted && <span>Horario ajustado por cambio de hora.</span>}
@@ -123,7 +124,7 @@ function TodayOverview({
                     <time dateTime={item.scheduled_at}>{item.local_time}</time>
                     <span>
                       {nameOf(item.treatment_id)}
-                      <small>{item.quantity} {unitLabels[treatment?.unit ?? "other"]}</small>
+                      <small>{quantityLabel(item.quantity)} {unitLabels[treatment?.unit ?? "other"]}</small>
                     </span>
                     <StateChip state={item.state} />
                   </li>

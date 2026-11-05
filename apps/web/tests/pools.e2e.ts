@@ -64,12 +64,16 @@ test("propose, consent, shared balance and leave across two patients", async ({ 
   await treatment(request, care, mama);
   await treatment(request, care, papa);
 
+  await page.getByRole("link", { name: "Mi perfil", exact: true }).click();
+  await page.getByRole("link", { name: "Pacientes", exact: true }).click();
+  await expect(page.getByText("1 sin confirmar", { exact: true })).toHaveCount(2);
+  await page.screenshot({ path: test.info().outputPath("familia-ux-pacientes.png"), fullPage: true });
   await openInventory(page, "Mamá");
-  await expect(page.locator(".balance")).toContainText("10.000");
+  await expect(page.locator(".balance")).toHaveText("10 comprimidos");
   await page.screenshot({ path: test.info().outputPath("familia-p5-candidatos.png"), fullPage: true });
   await page.getByRole("button", { name: "Compartir con Papá", exact: true }).click();
   await expect(page.getByText("Esperando a Mamá, Papá").or(page.getByText("Esperando a Papá"))).toBeVisible();
-  await expect(page.locator(".balance")).toContainText("10.000");
+  await expect(page.locator(".balance")).toHaveText("10 comprimidos");
   await page.screenshot({ path: test.info().outputPath("familia-p5-esperando.png"), fullPage: true });
 
   for (const name of [mamaUser, papaUser]) {
@@ -80,26 +84,36 @@ test("propose, consent, shared balance and leave across two patients", async ({ 
   }
   await openInventory(page, "Mamá");
   await expect(page.getByText("Compartido con Papá", { exact: true })).toBeVisible();
-  await expect(page.locator(".balance")).toContainText("20.000");
+  await expect(page.locator(".balance")).toHaveText("20 comprimidos");
 
   await consume(request, mamaUser, mama);
   await consume(request, papaUser, papa);
   await openInventory(page, "Mamá");
-  await expect(page.locator(".balance")).toContainText("19.000");
+  await expect(page.locator(".balance")).toHaveText("19 comprimidos");
+  await expect(page.getByRole("heading", { name: "Saldo común confirmado" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Consumo declarado" })).toHaveCount(2);
+  await expect(page.getByRole("columnheader", { name: "Persona" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Consumo declarado.*Papá/ })).toContainText("-0,5");
   await expect(page.getByRole("cell", { name: "Actividad compartida" })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("familia-p5-compartido.png"), fullPage: true });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByText("Registrar reposición", { exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("familia-ux-inventario-mobile-dark.png"), fullPage: true });
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await openInventory(page, "Papá");
   await expect(page.getByText("Compartido con Mamá", { exact: true })).toBeVisible();
-  await expect(page.locator(".balance")).toContainText("19.000");
+  await expect(page.locator(".balance")).toHaveText("19 comprimidos");
 
   await page.getByRole("button", { name: "Dejar de compartir", exact: true }).click();
   await expect(page.getByText("El saldo se queda con Mamá.", { exact: false })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("familia-p5-salir.png"), fullPage: true });
   await page.getByRole("button", { name: "Confirmar", exact: true }).click();
-  await expect(page.locator(".balance")).toContainText("0.000");
+  await expect(page.locator(".balance")).toHaveText("0 comprimidos");
   await expect(page.getByRole("cell", { name: "Traspaso por inventario compartido" })).toBeVisible();
   await openInventory(page, "Mamá");
-  await expect(page.locator(".balance")).toContainText("19.000");
+  await expect(page.locator(".balance")).toHaveText("19 comprimidos");
   await expect(page.getByText("Compartido con", { exact: false })).toHaveCount(0);
 });

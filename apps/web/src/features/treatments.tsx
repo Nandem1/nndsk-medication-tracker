@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { quantityLabel } from "../lib/inventory";
 import { z } from "zod";
 import { useSession } from "../app/session";
 import { useRefresh } from "../lib/queries";
@@ -175,7 +176,7 @@ export function Treatments({
             {item.schedule.slots
               .map(
                 (s) =>
-                  s.time + " · " + s.quantity + " " + unitLabels[item.unit],
+                  s.time + " · " + quantityLabel(s.quantity) + " " + unitLabels[item.unit],
               )
               .join(" / ")}{" "}
             · {item.schedule.timezone}
