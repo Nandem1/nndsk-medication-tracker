@@ -49,8 +49,8 @@
   --mt-size-patient-action: 64px;
   --mt-size-patient-icon: 64px;
   --mt-size-border-width: 2px;
-  --mt-font-sans: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mt-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mt-font-sans: "Geist Variable", Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mt-font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --mt-type-patient-display-size: 2.125rem;
   --mt-type-patient-display-line: 1.176;
   --mt-type-patient-display-weight: 800;

@@ -28,10 +28,23 @@ type API struct {
 	verifier    auth.Verifier
 	logger      *slog.Logger
 	exportSlots chan struct{}
+	rateLimit   int
 }
 
-func NewAPI(ping func(context.Context) error, service *application.Service, verifier auth.Verifier, logger *slog.Logger) http.Handler {
-	a := &API{service: service, verifier: verifier, logger: logger, exportSlots: make(chan struct{}, 2)}
+// DefaultRateLimit es el máximo de solicitudes por minuto de cada persona.
+const DefaultRateLimit = 120
+
+type Option func(*API)
+
+// WithRateLimit cambia el límite por minuto. Sólo el servidor E2E lo sube: sus pruebas
+// simulan varias personas desde una misma identidad de prueba en pocos segundos.
+func WithRateLimit(perMinute int) Option { return func(a *API) { a.rateLimit = perMinute } }
+
+func NewAPI(ping func(context.Context) error, service *application.Service, verifier auth.Verifier, logger *slog.Logger, options ...Option) http.Handler {
+	a := &API{service: service, verifier: verifier, logger: logger, exportSlots: make(chan struct{}, 2), rateLimit: DefaultRateLimit}
+	for _, option := range options {
+		option(a)
+	}
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", NewHandler(ping))
 	mux.Handle("GET /readyz", NewHandler(ping))

@@ -19,6 +19,7 @@ type rateWindow struct {
 type limiter struct {
 	mu      sync.Mutex
 	windows map[string]rateWindow
+	max     int
 }
 
 func (l *limiter) allow(key string, now time.Time) bool {
@@ -38,7 +39,7 @@ func (l *limiter) allow(key string, now time.Time) bool {
 		}
 		window = rateWindow{starts: now}
 	}
-	if window.count >= 120 {
+	if window.count >= l.max {
 		return false
 	}
 	window.count++
@@ -64,7 +65,7 @@ func (w *statusWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 func (a *API) middleware(next http.Handler) http.Handler {
-	limits := &limiter{windows: map[string]rateWindow{}}
+	limits := &limiter{windows: map[string]rateWindow{}, max: a.rateLimit}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := domain.NewID()
 		ctx, cancel := context.WithTimeout(context.WithValue(r.Context(), requestKey, id), 8*time.Second)

@@ -59,11 +59,10 @@ describe("coverage from the server projection", () => {
 });
 
 describe("inventario compartido", () => {
-  const member = (name: string | null, current: boolean, status: "pending" | "accepted" = "accepted") => ({ patient_display_name: name, you: false, current, status });
+  const member = (name: string | null, current: boolean) => ({ patient_display_name: name, you: false, current, status: "accepted" as const });
   it("nombra sólo a los demás miembros", () => {
-    const pool = { pool_id: "p", status: "active" as const, members: [member("Mamá", true), member("Papá", false), member(null, false, "pending")] };
+    const pool = { pool_id: "p", status: "active" as const, members: [member("Mamá", true), member("Papá", false), member(null, false)] };
     expect(poolOthers(pool)).toBe("Papá, Paciente sin nombre");
-    expect(poolOthers(pool, "pending")).toBe("Paciente sin nombre");
   });
   it("muestra la actividad ajena sólo con fecha y sin cambiar de día", () => {
     expect(movementDate({ created_at: "2026-11-02T00:00:00Z", reason: "shared_activity" })).toBe("02-11-2026");

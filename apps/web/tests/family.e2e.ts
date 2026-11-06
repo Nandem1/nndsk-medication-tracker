@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { e2eApiURL } from "../e2e-ports";
 import { invitationMessage } from "../src/lib/invitations";
+import { createFamily, joinFamily } from "./families";
 
-test("create account, complete profile, invite with name and see names on both sides", async ({ browser }) => {
+test("create account, create a family, invite with link and see names on both sides", async ({ browser }) => {
   const suffix = Date.now();
   const caregiver = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
   const patient = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -22,26 +23,33 @@ test("create account, complete profile, invite with name and see names on both s
     await page.getByRole("button", { name: "Continuar", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Personas a tu cuidado" })).toBeVisible();
   }
-  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
-  await cp.getByLabel("¿Cómo se llama?").fill("Mamá");
-  await expect(cp.getByLabel("Administrar todo", { exact: true })).toBeChecked();
+  await cp.getByRole("link", { name: "Invitar a la familia" }).click();
+  await cp.getByLabel("Nombre de la familia").fill("Familia Vicente");
+  await cp.getByRole("button", { name: "Crear familia", exact: true }).click();
+  await expect(cp.getByRole("heading", { name: "Familia Vicente" })).toBeVisible();
+  await expect(cp.getByLabel("Paciente", { exact: true })).toBeChecked();
+  await cp.getByLabel("¿Cómo se llama? (opcional)").fill("Mamá");
   await cp.getByRole("button", { name: "Crear invitación", exact: true }).click();
+  await expect(cp.getByRole("img", { name: "QR para unirse a Familia Vicente" })).toBeVisible();
   const token = await cp.getByLabel("Código de invitación").inputValue();
   await cp.getByRole("button", { name: "Copiar mensaje", exact: true }).click();
   await expect(cp.getByText("Mensaje copiado.", { exact: true })).toBeVisible();
   const message = await cp.evaluate(() => navigator.clipboard.readText());
-  expect(message).toBe(invitationMessage(token));
+  expect(message).toBe(invitationMessage(token, "Familia Vicente"));
+  expect(message).toContain("mistomas://unirse#" + token);
   await cp.screenshot({ path: test.info().outputPath("familia-p2-invitation.png"), fullPage: true });
-  await pp.getByRole("link", { name: "Accesos", exact: true }).click();
+  await pp.getByRole("link", { name: "Familia", exact: true }).click();
+  await pp.getByRole("link", { name: "Únete con un código" }).click();
   await pp.evaluate((text) => navigator.clipboard.writeText(text), message);
   await pp.getByRole("button", { name: "Pegar código", exact: true }).click();
-  await expect(pp.getByRole("heading", { name: "Revisa antes de aceptar" })).toBeVisible();
-  await pp.screenshot({ path: test.info().outputPath("familia-ux-consent.png"), fullPage: true });
-  await expect(pp.getByText("Hermana", { exact: true })).toBeVisible();
+  await expect(pp.getByRole("heading", { name: "Familia Vicente" })).toBeVisible();
   await expect(pp.getByText("Nombre sugerido: Mamá", { exact: true })).toBeVisible();
-  await pp.getByLabel("Entiendo los permisos").check();
-  await pp.getByRole("button", { name: "Acepto y autorizo el acceso" }).click();
-  await expect(pp.getByText("Cuidador: Hermana", { exact: true })).toBeVisible();
+  await expect(pp.locator(".member-name").filter({ hasText: "Hermana" })).toBeVisible();
+  await pp.screenshot({ path: test.info().outputPath("familia-ux-consent.png"), fullPage: true });
+  await pp.getByLabel("Entiendo quiénes podrán ver mi información.").check();
+  await pp.getByRole("button", { name: "Unirme a la familia" }).click();
+  await expect(pp.getByRole("heading", { name: "Familia Vicente" })).toBeVisible();
+  await expect(pp.locator(".member").filter({ hasText: "Hermana" }).getByText("Nuevo", { exact: true })).toBeVisible();
   await cp.getByRole("link", { name: "Pacientes", exact: true }).click();
   await expect(cp.getByRole("heading", { name: "Mamá", exact: true })).toBeVisible();
   await expect(cp.getByText("0 de 0 registradas", { exact: true })).toHaveCount(2);
@@ -60,10 +68,10 @@ test("create account, complete profile, invite with name and see names on both s
   await cp.screenshot({ path: test.info().outputPath("familia-p2-patients-mobile.png"), fullPage: true });
   await cp.emulateMedia({ colorScheme: "dark" });
   await cp.screenshot({ path: test.info().outputPath("familia-ux-patients-dark.png"), fullPage: true });
-  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
+  await cp.getByRole("link", { name: "Familia", exact: true }).click();
   await cp.addStyleTag({ content: ":root { font-size: 200% !important; }" });
   expect(await cp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await cp.screenshot({ path: test.info().outputPath("familia-ux-invite-dark-large.png"), fullPage: true });
+  await cp.screenshot({ path: test.info().outputPath("familia-ux-family-dark-large.png"), fullPage: true });
   await caregiver.close(); await patient.close();
 });
 
@@ -138,7 +146,8 @@ test("onboarding can close a failed session and reload a concurrent profile", as
 test("delete account asks to confirm, closes the session and removes caregiver access", async ({ page, request }) => {
   const suffix = Date.now();
   const name = "borrar-" + suffix;
-  const caregiver = { Authorization: "Bearer synthetic-cuida-" + suffix };
+  const caregiverName = "cuida-" + suffix;
+  const caregiver = { Authorization: "Bearer synthetic-" + caregiverName };
   await page.goto("/");
   await page.getByLabel("Correo electrónico").fill(name + "@example.test");
   await page.getByLabel("Contraseña").fill("test-only");
@@ -148,8 +157,7 @@ test("delete account asks to confirm, closes the session and removes caregiver a
   await expect(page.getByRole("heading", { name: "Personas a tu cuidado" })).toBeVisible();
   const headers = { Authorization: "Bearer synthetic-" + name };
   const me = await (await request.get(e2eApiURL + "/v1/me", { headers })).json();
-  const invitation = await (await request.post(e2eApiURL + "/v1/invitations", { headers: caregiver, data: { client_operation_id: crypto.randomUUID(), scopes: ["read"] } })).json();
-  expect((await request.post(e2eApiURL + "/v1/invitations/accept", { headers, data: { client_operation_id: crypto.randomUUID(), token: invitation.token } })).status()).toBe(200);
+  await joinFamily(request, caregiverName, name, await createFamily(request, caregiverName), "patient");
   expect((await request.get(e2eApiURL + "/v1/patients/" + me.user_id + "/inventory", { headers: caregiver })).status()).toBe(200);
 
   await page.getByRole("link", { name: "Mi perfil", exact: true }).click();

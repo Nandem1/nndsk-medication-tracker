@@ -13,6 +13,7 @@ import { shiftDate, patientDate } from "../lib/dashboard";
 import { QueryState } from "../components/query-state";
 import { StateChip, StateIcon } from "../components/state-chip";
 import { Button } from "../components/ui/button";
+import { Avatar } from "../components/avatar";
 
 const boxIcon = "M3 8l9-5 9 5v8l-9 5-9-5V8ZM3 8l9 5 9-5M12 13v8";
 
@@ -47,7 +48,7 @@ function PatientCard({ person }: { person: Patient }) {
         params={{ patientId: person.patient_id }}
         search={{ section: "dashboard" }}
       >
-        <h2>{patientLabel(person)}</h2>
+        <h2><Avatar name={person.display_name} seed={person.patient_id} />{patientLabel(person)}</h2>
       </Link>
       <QueryState query={summary}>
         {summary.data && (
@@ -88,13 +89,13 @@ export function Patients() {
       <h1>Personas a tu cuidado</h1>
       <p>Revisa los registros de hoy y las reposiciones pendientes.</p>
       <div className="page-actions">
-        <Button asChild><Link to="/invite">Invitar a alguien</Link></Button>
+        <Button asChild><Link to="/familia">Invitar a la familia</Link></Button>
       </div>
       <QueryState query={query}>
         {query.data?.length === 0 && (
           <section className="panel">
-            <p>No tienes pacientes vinculados. Invita a una persona y aparecerá aquí cuando autorice el acceso.</p>
-            <p><Link to="/consent">¿Te invitaron a ti? Pega tu código en Accesos.</Link></p>
+            <p>No tienes pacientes vinculados. Crea tu familia e invita a quienes toman los medicamentos: aparecerán aquí al unirse.</p>
+            <p><Link to="/unirse">¿Te invitaron a ti? Únete con un código.</Link></p>
           </section>
         )}
         <div className="patients">

@@ -69,6 +69,11 @@ func emulatorClient(ctx context.Context) *firebaseauth.Client {
 	}
 	return client
 }
+
+// e2eRateLimit deja que una suite completa comparta un servidor sin esperar ventanas de un
+// minuto. El límite productivo sigue cubierto por las pruebas de middleware.
+const e2eRateLimit = 100000
+
 func main() {
 	cfg, err := pgxpool.ParseConfig(os.Getenv("TEST_DATABASE_URL"))
 	if err != nil {
@@ -88,7 +93,7 @@ func main() {
 		log.Fatal(err)
 	}
 	go serveFaultProxy(proxyAddress, "http://"+address)
-	server := &http.Server{Addr: address, Handler: httpapi.NewAPI(pool.Ping, application.New(pool, nil), verifier{emulatorClient(context.Background())}, nil), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: address, Handler: httpapi.NewAPI(pool.Ping, application.New(pool, nil), verifier{emulatorClient(context.Background())}, nil, httpapi.WithRateLimit(e2eRateLimit)), ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(server.ListenAndServe())
 }
 

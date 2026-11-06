@@ -26,21 +26,19 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   const cp = await c.newPage();
   const pp = await p.newPage();
   await login(cp, caregiver);
-  await cp.getByRole("link", { name: "Invitar a alguien" }).click();
+  await cp.getByRole("link", { name: "Invitar a la familia" }).click();
+  await cp.getByRole("button", { name: "Crear familia" }).click();
   await cp.getByRole("button", { name: "Crear invitación" }).click();
   const code = await cp.getByLabel("Código de invitación").inputValue();
   await login(pp, patient);
-  await pp.getByRole("link", { name: "Accesos", exact: true }).click();
+  await pp.getByRole("link", { name: "Familia", exact: true }).click();
+  await pp.getByRole("link", { name: "Únete con un código" }).click();
   await pp.getByLabel("Código recibido").fill(code);
   await pp.getByRole("button", { name: "Revisar invitación" }).click();
-  await expect(
-    pp.getByRole("heading", { name: "Revisa antes de aceptar" }),
-  ).toBeVisible();
-  await pp.getByLabel("Entiendo los permisos").check();
-  await pp.getByRole("button", { name: "Acepto y autorizo el acceso" }).click();
-  await expect(
-    pp.getByText("Acceso autorizado", { exact: false }),
-  ).toBeVisible();
+  await expect(pp.getByRole("heading", { name: "Mi familia" })).toBeVisible();
+  await pp.getByLabel("Entiendo quiénes podrán ver mi información.").check();
+  await pp.getByRole("button", { name: "Unirme a la familia" }).click();
+  await expect(pp.getByText("Tu rol: Paciente", { exact: false })).toBeVisible();
   await cp.getByRole("link", { name: "Pacientes", exact: true }).click();
   const patientCard = cp
     .getByRole("link")
@@ -140,8 +138,8 @@ test("caregiver consent, treatment, agenda, inventory, archive and revocation th
   await cp.getByRole("button", { name: "Confirmar archivo" }).click();
   await expect(cp.getByText("Archivado", { exact: true })).toBeVisible();
   pp.on("dialog", (d) => d.accept());
-  await pp.getByRole("button", { name: "Quitar acceso" }).click();
-  await expect(pp.getByText("Acceso quitado", { exact: false })).toBeVisible();
+  await pp.getByRole("button", { name: "Salir de la familia" }).click();
+  await expect(pp.getByRole("heading", { name: "Crea tu familia" })).toBeVisible();
   await cp.getByRole("link", { name: "Inventario", exact: true }).click();
   await expect(cp.getByRole("alert")).toContainText("No tienes permiso");
   await expect(
@@ -174,7 +172,7 @@ test("network loading, empty, error and permission states", async ({
   await page.route("**/v1/patients?**", (route) =>
     route.fulfill({ status: 500, json: {} }),
   );
-  await page.getByRole("link", { name: "Accesos", exact: true }).click();
+  await page.getByRole("link", { name: "Familia", exact: true }).click();
   await page.getByRole("link", { name: "Pacientes", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("No se pudo completar");
   await page.unroute("**/v1/patients?**");
@@ -189,9 +187,11 @@ test("a lost invitation response can be replaced by a new invitation", async ({
   page,
 }) => {
   await login(page, "lost-invitation-" + Date.now());
-  await page.getByRole("link", { name: "Invitar a alguien" }).click();
+  await page.getByRole("link", { name: "Invitar a la familia" }).click();
+  await page.getByRole("button", { name: "Crear familia" }).click();
+  await expect(page.getByRole("button", { name: "Crear invitación" })).toBeVisible();
   const operations: string[] = [];
-  await page.route("**/v1/invitations", async (route) => {
+  await page.route("**/v1/families/*/invitations", async (route) => {
     operations.push(route.request().postDataJSON().client_operation_id);
     if (operations.length === 1) {
       const response = await route.fetch();

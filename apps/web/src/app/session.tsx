@@ -49,6 +49,17 @@ function PatientTabs() {
     </nav>
   );
 }
+/** Marca: una cápsula dentro de un corazón, dibujada con los colores del tema. */
+export function BrandMark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="9" fill="var(--mt-color-accent-fill)" />
+      <path d="M16 24.5s-7.5-4.4-7.5-10.1A4.3 4.3 0 0 1 16 11.8a4.3 4.3 0 0 1 7.5 2.6c0 5.7-7.5 10.1-7.5 10.1Z" fill="var(--mt-color-on-accent)" opacity=".95" />
+      <path d="M13 17.5l6-6" stroke="var(--mt-color-accent-fill)" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function SessionBoundary({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session>({ status: "loading" });
   const [error, setError] = useState("");
@@ -103,9 +114,11 @@ export function SessionBoundary({ children }: { children: ReactNode }) {
     <Context.Provider value={session}>
       <ProfileGate>
         <div key={session.identity.uid}>
-        <header>
-          <Link to="/">Cuidados</Link>
-          <span>Portal del cuidador</span>
+        <header className="app-header">
+          <Link to="/" className="brand" aria-label="Cuidados, inicio">
+            <BrandMark />
+            <span className="brand-text">Cuidados<small>Portal familiar de Mis tomas</small></span>
+          </Link>
           <PatientTabs />
           <Button
             variant="outline"

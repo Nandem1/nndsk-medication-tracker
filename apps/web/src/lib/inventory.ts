@@ -63,9 +63,9 @@ export function coverageLabel(item: Pick<Projection, "from" | "through" | "first
 }
 
 /** Los demás miembros del inventario, sin la persona dueña de esta cuenta. */
-export function poolOthers(pool: Pool, status?: Pool["members"][number]["status"]) {
+export function poolOthers(pool: Pool) {
   const names = pool.members
-    .filter((member) => !member.current && (!status || member.status === status))
+    .filter((member) => !member.current)
     .map((member) => member.patient_display_name ?? "Paciente sin nombre");
   return [...new Set(names)].join(", ");
 }

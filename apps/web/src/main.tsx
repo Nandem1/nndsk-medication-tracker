@@ -13,16 +13,18 @@ import { SessionBoundary } from "./app/session";
 import { Patients } from "./features/patients";
 import { PatientDetail } from "./features/patient";
 import { MyProfile } from "./features/profile";
-import { Consent } from "./features/consent";
-import { Invite } from "./features/invite";
+import { FamilyPage } from "./features/family";
+import { JoinFamily } from "./features/join";
 import { parseSection } from "./lib/sections";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./style.css";
 const rootRoute = createRootRoute({
   component: () => (
     <SessionBoundary>
       <nav className="main-nav" aria-label="Navegación principal">
         <Link to="/">Pacientes</Link>
-        <Link to="/consent">Accesos</Link>
+        <Link to="/familia">Familia</Link>
         <Link to="/profile">Mi perfil</Link>
       </nav>
       <Outlet />
@@ -42,15 +44,15 @@ const profileRoute = createRoute({
   path: "/profile",
   component: MyProfile,
 });
-const consentRoute = createRoute({
+const familyRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/consent",
-  component: Consent,
+  path: "/familia",
+  component: FamilyPage,
 });
-const inviteRoute = createRoute({
+const joinRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/invite",
-  component: Invite,
+  path: "/unirse",
+  component: JoinFamily,
 });
 const patientRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -63,7 +65,7 @@ const patientRoute = createRoute({
   },
 });
 const router = createRouter({
-  routeTree: rootRoute.addChildren([patientsRoute, consentRoute, inviteRoute, patientRoute, profileRoute]),
+  routeTree: rootRoute.addChildren([patientsRoute, familyRoute, joinRoute, patientRoute, profileRoute]),
 });
 declare module "@tanstack/react-router" {
   interface Register {

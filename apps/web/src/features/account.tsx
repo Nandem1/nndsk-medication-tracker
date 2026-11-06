@@ -1,3 +1,4 @@
+import { BrandMark } from "../app/session";
 import { useState } from "react";
 import { login, register, resetPassword, configured } from "@identity";
 import { Field } from "../components/forms";
@@ -21,7 +22,8 @@ export function Account({ sessionError }: { sessionError: string }) {
   }
   return (
     <main className="login">
-      <p className="eyebrow">Cuidados · Portal del cuidador</p>
+      <BrandMark />
+      <p className="eyebrow">Cuidados · Portal familiar</p>
       <h1>{title}</h1>
       <p>Cada persona usa su propia cuenta. El acceso a un paciente requiere su consentimiento.</p>
       <form

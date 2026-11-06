@@ -54,60 +54,70 @@ function ProjectionBar({ item }: { item: Projection }) {
     </div>
   );
 }
-function SharedInventory({ item, canEdit }: { item: Projection; canEdit: boolean }) {
+function SharedInventory({ item, canEdit, unit }: { item: Projection; canEdit: boolean; unit: string }) {
   const { api } = useSession();
   const refresh = useRefresh();
   const [leaving, setLeaving] = useState(false);
+  const [partner, setPartner] = useState<{ account_id: string; name: string } | null>(null);
   const candidates = useList("/inventory/" + item.account_id + "/pool-candidates", poolCandidate, canEdit && !item.pool);
-  const leave = (label: string) => item.pool && (
-    <MutationForm
-      label={label}
-      variant="destructive"
-      prepare={() => ({ account_id: item.account_id })}
-      submit={(data) => api.request("/inventory-pools/" + item.pool?.pool_id + "/leave", poolResult, data)}
-      done={refresh}
-    />
-  );
-  if (item.pool?.status === "active") {
+  if (item.pool) {
     return (
       <div className="shared-inventory">
-        <p><span className="badge">Compartido con {poolOthers(item.pool)}</span></p>
-        <p className="hint">El saldo es común: suma lo que registra cada persona. Si recién empezaron a compartir, conviene hacer un conteo físico.</p>
+        <p><span className="badge">Misma caja que {poolOthers(item.pool)}</span></p>
+        <p className="hint">El saldo es común: suma lo que registra cada persona.</p>
         {canEdit && !leaving && <Button variant="outline" onClick={() => setLeaving(true)}>Dejar de compartir</Button>}
         {canEdit && leaving && (
           <div className="notice">
             <p>El saldo se queda con {poolOthers(item.pool)}. Esta cuenta quedará en 0: después registra el stock que tengas.</p>
-            {leave("Confirmar")}
+            <MutationForm
+              label="Confirmar"
+              variant="destructive"
+              prepare={() => ({ account_id: item.account_id })}
+              submit={(data) => api.request("/inventory-pools/" + item.pool?.pool_id + "/leave", poolResult, data)}
+              done={refresh}
+            />
             <Button variant="outline" onClick={() => setLeaving(false)}>Cancelar</Button>
           </div>
         )}
       </div>
     );
   }
-  if (item.pool) {
+  if (!canEdit || !candidates.data?.length) return null;
+  if (partner) {
     return (
-      <div className="shared-inventory">
-        <p><span className="badge">Esperando a {poolOthers(item.pool, "pending") || "otra persona"}</span></p>
-        <p className="hint">Cada paciente decide por sí mismo. Mientras tanto, los saldos siguen separados.</p>
-        {canEdit && leave("Retirar esta cuenta de la propuesta")}
+      <div className="shared-inventory notice-neutral">
+        <h4>Misma caja con {partner.name}</h4>
+        <p className="hint">Sumar dos saldos de una misma caja la contaría dos veces. El saldo común parte de lo que cuentes ahora.</p>
+        <MutationForm
+          label="Compartir la caja"
+          prepare={(f) => ({
+            account_ids: [item.account_id, partner.account_id],
+            counted_account_id: item.account_id,
+            counted_quantity: decimal(String(f.get("counted_quantity"))),
+          })}
+          submit={(data) => api.request("/inventory-pools", poolResult, data)}
+          done={refresh}
+        >
+          <Field label={"¿Cuántos " + unit + " hay en la caja?"} name="counted_quantity" />
+        </MutationForm>
+        <Button variant="outline" onClick={() => setPartner(null)}>Cancelar</Button>
       </div>
     );
   }
-  if (!canEdit || !candidates.data?.length) return null;
   return (
     <div className="shared-inventory">
-      <h4>Compartir con…</h4>
-      <p className="hint">Si usan físicamente la misma caja, pueden compartir el saldo. Cada paciente debe aceptar.</p>
-      {candidates.data.map((candidate) => (
-        <MutationForm
-          key={candidate.account_id}
-          label={"Compartir con " + (candidate.patient_display_name ?? "Paciente sin nombre")}
-          variant="outline"
-          prepare={() => ({ account_ids: [item.account_id, candidate.account_id] })}
-          submit={(data) => api.request("/inventory-pools", poolResult, data)}
-          done={refresh}
-        />
-      ))}
+      <h4>¿Usan la misma caja?</h4>
+      <p className="hint">Si la comparten físicamente, el saldo será uno solo para ambos.</p>
+      <div className="actions">
+        {candidates.data.map((candidate) => {
+          const name = candidate.patient_display_name ?? "Paciente sin nombre";
+          return (
+            <Button key={candidate.account_id} variant="outline" onClick={() => setPartner({ account_id: candidate.account_id, name })}>
+              Misma caja que {name}
+            </Button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -158,7 +168,7 @@ function Account({
           El saldo confirmado es negativo. Conviene revisar el conteo físico.
         </p>
       )}
-      <SharedInventory item={item} canEdit={canEdit} />
+      <SharedInventory item={item} canEdit={canEdit} unit={unit} />
       <ProjectionBar item={item} />
       {item.replenish_on ? (
         <p className={item.low_stock ? "notice" : "hint"}>

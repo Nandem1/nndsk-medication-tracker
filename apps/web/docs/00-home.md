@@ -8,13 +8,13 @@ flowchart TB
     Session --> Profile[Completar perfil antes de navegar]
     Profile --> Router[TanStack Router]
     Router --> Patients[Pacientes]
-    Router --> Invite[Invitar a alguien]
-    Router --> Consent[Accesos: aceptar y quitar]
+    Router --> Family[Familia: miembros, roles, invitación con enlace y QR]
+    Router --> Join[Unirse con código o enlace]
     Router --> Patient[Tratamientos, inventario y agenda]
     Patient --> Dashboard[Dashboard, historial y calendario de respuestas]
     Patients --> Query[TanStack Query en memoria]
-    Invite --> Query
-    Consent --> Query
+    Family --> Query
+    Join --> Query
     Patient --> Query
     Dashboard --> Query
     Query --> Adapter[Adaptador HTTP y esquemas Zod]
@@ -25,7 +25,7 @@ flowchart TB
 
 - [Entrada y rutas](../src/main.tsx) componen Router, Query y el límite de sesión. La selección de paciente pertenece a la ruta y la sección a su parámetro `section`. Las pestañas de paciente viven en el encabezado de [sesión](../src/app/session.tsx). La API entrega el nombre único de cada persona; [`sections.ts`](../src/lib/sections.ts) sólo aplica el texto alternativo para perfiles incompletos. No se muestran UUID como etiquetas.
 - [Sesión](../src/app/session.tsx) controla carga, acceso anónimo y acceso autenticado. El [adaptador Firebase](../src/app/firebase.ts) obtiene tokens y usa persistencia en memoria. Registro y recuperación llaman al SDK de Firebase. El resultado de recuperación no revela si existe la cuenta.
-- [Pantallas](../src/features/) contienen pacientes, invitación (`/invite`), accesos y consentimiento (`/consent`) y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
+- [Pantallas](../src/features/) contienen pacientes, familia (`/familia`), ingreso a una familia (`/unirse`, que lee el código del fragmento y lo borra de la barra) y las secciones de tratamiento, inventario y agenda. No duplican la autorización del backend.
 - [Cliente HTTP](../src/lib/api/client.ts) transmite tokens, recorre páginas y valida respuestas con los [esquemas](../src/lib/api/contracts.ts). Los datos clínicos no se guardan en almacenamiento persistente del navegador.
 - [Formularios](../src/components/forms.tsx) conservan la clave idempotente mientras se reintenta el mismo contenido. Las [validaciones](../src/lib/forms.ts) mantienen cantidades decimales como texto y comprueban horarios.
 - [Configuración Vite](../vite.config.ts) separa la identidad de pruebas de Firebase real. `make web-dev` sirve el portal local y dirige `/v1` a `API_PROXY_TARGET`, configurado en un archivo local ignorado. Sin configuración usa `http://127.0.0.1:8080`; PostgreSQL se accede sólo desde la API. El modo E2E mantiene su API local en el puerto 18083. Un despliegue del portal necesitaría servir web y API bajo el mismo origen.
@@ -34,7 +34,7 @@ flowchart TB
 
 Cambiar de identidad limpia la caché. Las respuestas 401, 403 y 404 cierran la sesión local y retiran toda la caché. No se mantienen colas offline de mutaciones en F3.
 
-Las invitaciones se muestran una sola vez al crearlas. Cada envío crea una nueva operación porque el token no se puede recuperar si se pierde la respuesta. La persona que acepta revisa los alcances antes de autorizar. Los tokens no forman parte de rutas ni parámetros de navegación.
+Las invitaciones son a una familia, con rol, y se muestran una sola vez al crearlas como código, enlace `mistomas://unirse#…` y QR. Quien se une como paciente consiente ante la familia; los vínculos de cuidado los deriva el backend. Cada envío crea una nueva operación porque el token no se puede recuperar si se pierde la respuesta. La persona que acepta revisa los alcances antes de autorizar. Los tokens no forman parte de rutas ni parámetros de navegación.
 
 Las cantidades viajan como cadenas y se muestran con `quantityLabel`, sin ceros finales y con coma decimal, sólo con operaciones de texto. El servidor calcula diferencias de inventario y decide si una versión o saldo esperado sigue vigente. Archivar conserva el historial y deja de generar dosis futuras.
 
@@ -50,7 +50,7 @@ La sección Seguimiento permite elegir semana, mes o rango y filtrar un tratamie
 
 El historial usa el mismo filtro y ordena las dosis por instante programado. Los días del calendario conservan la fecha local original de la pauta. Los rangos admiten hasta 366 días, mientras que inventario conserva su proyección de 30 días.
 
-El detalle de cuenta propone compartir, muestra «Esperando a» o «Compartido con» y permite dejar de compartir con confirmación. El portal no decide por el paciente; esa tarjeta vive en las apps móviles. La actividad neutra de otro miembro muestra sólo la fecha que entrega el servidor.
+El detalle de cuenta ofrece «Misma caja que…», pide contar la caja antes de compartir, muestra «Misma caja que» y permite dejar de compartir con confirmación. Ya no hay propuestas pendientes; esa tarjeta vivía en las apps móviles. La actividad neutra de otro miembro muestra sólo la fecha que entrega el servidor.
 
 La antelación de reposición se edita en Inventario con permiso `inventory`. El formulario conserva la operación al reintentar y envía el umbral previo esperado para detectar una edición concurrente. La fecha orientativa y la zona horaria provienen de la API. Guardar antelación no activa push.
 
@@ -73,3 +73,5 @@ Las invitaciones ofrecen tres conjuntos explícitos de permisos y un nombre suge
 `make test-web-e2e` usa [el ejecutor de pruebas](../scripts/e2e.mjs) para iniciar API y Vite por caso. Esto evita que el límite por IP de un caso se consuma con las peticiones de los anteriores. El límite productivo permanece intacto. Los E2E usan identidad sintética, HTTP, PostgreSQL y navegador reales; no prueban entrega de correo ni creación de cuentas en Firebase remoto.
 
 Mi perfil permite eliminar la cuenta escribiendo BORRAR. La sesión se cierra cuando el servidor confirma que quitó la identidad.
+
+La interfaz usa Geist y Geist Mono empaquetadas con Fontsource, sin CDN. La suite E2E levanta una sola API y un solo Vite y corre en paralelo: el servidor E2E sube el límite de solicitudes.

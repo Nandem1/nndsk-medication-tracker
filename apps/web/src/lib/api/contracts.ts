@@ -40,12 +40,12 @@ export const treatment = z.object({
 });
 export const pool = z.object({
   pool_id: z.string(),
-  status: z.enum(["pending", "active"]),
+  status: z.literal("active"),
   members: z.array(z.object({
     patient_display_name: z.string().nullable(),
     you: z.boolean(),
     current: z.boolean(),
-    status: z.enum(["pending", "accepted"]),
+    status: z.literal("accepted"),
   })),
 });
 export const poolCandidate = z.object({
@@ -55,7 +55,7 @@ export const poolCandidate = z.object({
   patient_display_name: z.string().nullable(),
   you: z.boolean(),
 });
-export const poolResult = z.object({ pool_id: z.string(), status: z.enum(["pending", "active", "dissolved"]) });
+export const poolResult = z.object({ pool_id: z.string(), status: z.enum(["active", "dissolved"]) });
 export const projection = z.object({
   account_id: z.string(),
   treatment_id: z.string(),
@@ -97,22 +97,31 @@ export const invitation = z.object({
   token: z.string(),
   expires_at: z.string(),
 });
-export const preview = z.object({
-  caregiver_display_name: z.string().nullable(),
+export const familyRole = z.enum(["admin", "caregiver", "observer", "patient"]);
+export const familyMember = z.object({
+  user_id: z.string(),
+  display_name: z.string().nullable(),
+  role: familyRole,
+  joined_at: z.string(),
+  you: z.boolean(),
+});
+export const family = z.object({
+  family_id: z.string(),
+  name: z.string(),
+  role: familyRole,
+  members: z.array(familyMember),
+});
+export const familyPreview = z.object({
+  family_name: z.string(),
+  inviter_display_name: z.string().nullable(),
+  role: familyRole,
   patient_name_hint: z.string().nullable(),
-  caregiver_id: z.string(),
-  scopes: z.array(scope),
+  members: z.array(familyMember),
   expires_at: z.string(),
 });
-export const link = z.object({
-  patient_display_name: z.string().nullable(),
-  caregiver_display_name: z.string().nullable(),
-  link_id: z.string(),
-  patient_id: z.string(),
-  caregiver_id: z.string(),
-  scopes: z.array(scope),
-  status: z.string(),
-});
+export type FamilyRole = z.infer<typeof familyRole>;
+export type Family = z.infer<typeof family>;
+export type FamilyMember = z.infer<typeof familyMember>;
 export type Treatment = z.infer<typeof treatment>;
 export type Patient = z.infer<typeof patient>;
 export type Projection = z.infer<typeof projection>;

@@ -3,8 +3,8 @@ import { e2eApiURL, e2eWebURL } from "./e2e-ports.ts";
 export default defineConfig({
   testDir: "tests",
   testMatch: "**/*.e2e.ts",
-  fullyParallel: false,
-  workers: 1,
+  fullyParallel: true,
+  workers: 4,
   timeout: 45000,
   use: {
     baseURL: e2eWebURL,

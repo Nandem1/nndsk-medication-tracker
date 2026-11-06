@@ -1,4 +1,5 @@
 import { e2eApiURL } from "../e2e-ports";
+import { call, createFamily, joinFamily } from "./families";
 import { test, expect } from "@playwright/test";
 import { localDate } from "../src/lib/forms";
 import { shiftDate } from "../src/lib/dashboard";
@@ -96,11 +97,12 @@ test("F7 read-only caregiver can view dashboard but cannot configure stock", asy
   const patient = "f7-owner-" + suffix;
   const c = { Authorization: "Bearer synthetic-" + caregiver };
   const p = { Authorization: "Bearer synthetic-" + patient };
-  const invitation = await request.post(base + "/invitations", { headers: c, data: { client_operation_id: crypto.randomUUID(), scopes: ["read"] } });
-  expect(invitation.status()).toBe(201);
-  const accept = await request.post(base + "/invitations/accept", { headers: p, data: { client_operation_id: crypto.randomUUID(), token: (await invitation.json()).token } });
-  expect(accept.status()).toBe(200);
-  const link = await accept.json();
+  // Otra persona administra la familia: quien cuida aquí sólo mira.
+  const organizer = "f7-admin-" + suffix;
+  const family = await createFamily(request, organizer);
+  await joinFamily(request, organizer, patient, family, "patient");
+  await joinFamily(request, organizer, caregiver, family, "observer");
+  const link = { patient_id: (await call(request, patient, "get", "/me")).user_id as string };
   const created = await request.post(base + "/patients/" + link.patient_id + "/treatments", {
     headers: p,
     data: {
@@ -124,8 +126,7 @@ test("F7 read-only caregiver can view dashboard but cannot configure stock", asy
   await expect(page.getByText("Tu acceso no permite cambiar el inventario.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Inventario sólo lectura F7", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Guardar antelación" })).toHaveCount(0);
-  const revoke = await request.delete(base + "/caregiver-links/" + link.link_id, { headers: p });
-  expect(revoke.status()).toBe(204);
+  await call(request, patient, "delete", "/families/" + family + "/members/" + link.patient_id);
   await page.getByRole("link", { name: "Seguimiento", exact: true }).click();
   await expect(page.getByLabel("Correo electrónico")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Seguimiento declarado" })).toHaveCount(0);

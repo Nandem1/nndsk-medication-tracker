@@ -71,7 +71,7 @@ func TestStrictJSON(t *testing.T) {
 	}
 }
 func TestLimiterBoundedAndExpiry(t *testing.T) {
-	l := &limiter{windows: map[string]rateWindow{}}
+	l := &limiter{windows: map[string]rateWindow{}, max: DefaultRateLimit}
 	now := time.Now()
 	for i := 0; i < 1024; i++ {
 		if !l.allow(string(rune(i)), now) {
