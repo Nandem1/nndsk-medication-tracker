@@ -1,6 +1,6 @@
 # PLAN-FAMILIA-2.md — La familia como modelo
 
-> **Estado al 2026-11-06:** fases 1 a 5 implementadas y verificadas en local en `feat/familia-v2`. Cierre de Git y staging en curso; instalación iPhone y APK pendientes de aviso al usuario. Decisión en [ADR 0010](docs/decisions/0010-familia-como-modelo.md).
+> **Estado al 2026-11-06:** fases 1 a 5 implementadas y verificadas en local en `feat/familia-v2`. Código integrado y subido a `main` y `feat/familia-v2`; staging migrado a v9 con API y worker verificados. Avisado el usuario antes de instalación iPhone y generación APK, que siguen pendientes. Decisión en [ADR 0010](docs/decisions/0010-familia-como-modelo.md).
 > **Origen:** el usuario pidió en esta sesión reemplazar los vínculos uno a uno por familias, y aprobó la recomendación completa.
 > **Regla de lectura:** este plan reabre, por decisión explícita del usuario, las decisiones D2, D4 y D7 de [`PLAN-FAMILIA.md`](PLAN-FAMILIA.md). El resto de `AGENTS.md`, `PLAN.md` y `PLAN-FAMILIA.md` sigue vigente.
 
@@ -88,3 +88,5 @@ Tests run: 4,  Failures: 1
 ## Continuación Codex, 2026-11-06
 
 Verificación final PASS: iOS lint y 88 unitarias, E2E 12/12; Android unitarias, lint, dispositivo 8/8 y E2E 4/4 en emulador; web E2E 13/13; integración Go con race; tokens-check, test, lint y build. Se corrigió la espera de publicación del E2E Android y la migración iOS v1→v2 para conservar cola y propietario, retirando sólo links. Regresión roja antes y verde después; revisión independiente focal PASS. Evidencia en `docs/runbooks/familia-verification.md`.
+
+Git: commit `7f4bb8a`, merge fast-forward y push de ambas ramas completados. Staging: migración 9 aplicada en transacción con control previo de versión 8; clave SSH temporal retirada. API y worker SUCCESS; healthz/readyz 200 y me/families sin token 401. Producción no se tocó. Pendientes: paso 5, cierre físico y limpieza final del paso 6.

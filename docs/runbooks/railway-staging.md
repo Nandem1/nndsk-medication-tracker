@@ -69,3 +69,7 @@ La credencial es una cuenta de servicio con el rol «Firebase Authentication Adm
 ## Actualización a modo familia
 
 API y worker se actualizaron desde un paquete limpio de `git archive`. Las migraciones 6, 7 y 8 se aplicaron en una sola transacción mediante `railway ssh`, y se registraron en `goose_db_version`. El usuario autorizó usar su clave SSH existente, que se registró en Railway sólo durante la migración y se retiró al terminar. Producción no se tocó.
+
+## Actualización a familias v2, 2026-11-06
+
+Migración 9 aplicada en una transacción mediante SSH, comprobando primero versión 8 y registrando versión 9 en Goose. La clave temporal se retiró al terminar. API y worker desplegados desde `git archive` del commit `7f4bb8a`, ambos SUCCESS. `/healthz` y `/readyz` dieron 200; `/v1/me` y `/v1/families` sin token dieron 401. No se modificó producción. Detalles y límites en [verificación de familia](familia-verification.md#familia-como-modelo-cierre-en-curso).
