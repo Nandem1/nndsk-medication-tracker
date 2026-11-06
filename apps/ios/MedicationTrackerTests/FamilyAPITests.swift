@@ -28,9 +28,11 @@ import Testing
         #expect(await identity.uid == "owner-b")
     }
 
-    @Test func invitationAcceptsCompleteMessageAndRejectsLongerIdentifiers() throws {
+    @Test func invitationAcceptsCompleteMessageOrLinkAndRejectsLongerIdentifiers() throws {
         let token = String(repeating: "a", count: 43)
-        #expect(try FamilyText.token(FamilyText.invitation(token)) == token)
+        #expect(try FamilyText.token(FamilyText.invitation(token, family: "Familia")) == token)
+        #expect(try FamilyText.token(FamilyText.link(token)) == token)
+        #expect(FamilyText.link(token) == "mistomas://unirse#" + token)
         #expect(throws: APIError.invalid) { try FamilyText.token(token + "a") }
     }
 
@@ -81,14 +83,31 @@ private actor HeldProfileTransport: HTTPTransport {
     }
 }
 
+struct FamilyMemberTests {
+    @Test func initialsNeverShowAnIdentifier() {
+        #expect(FamilyText.initials("Mamá") == "M")
+        #expect(FamilyText.initials("  ana  maría   pérez ") == "AP")
+        #expect(FamilyText.initials(nil) == "?")
+    }
+    @Test func membersAreNewForAWeekExceptOneself() throws {
+        let now = try #require(Instant.parse("2026-11-10T12:00:00Z"))
+        #expect(FamilyMember(userID: "u", displayName: "Hermana", role: .caregiver, joinedAt: "2026-11-05T12:00:00Z").isNew(now: now))
+        #expect(!FamilyMember(userID: "u", displayName: "Hermana", role: .caregiver, joinedAt: "2026-11-02T12:00:00Z").isNew(now: now))
+        #expect(!FamilyMember(userID: "u", displayName: "Yo", role: .patient, joinedAt: "2026-11-09T12:00:00Z", you: true).isNew(now: now))
+    }
+    @Test func familiesDecodeFromTheAPI() throws {
+        let data = Data(#"{"family_id":"f","name":"Familia","role":"patient","members":[{"user_id":"u","display_name":null,"role":"admin","joined_at":"2026-11-05T12:00:00Z","you":false}]}"#.utf8)
+        let family = try JSONDecoder().decode(Family.self, from: data)
+        #expect(family.members.first?.name == "Persona sin nombre")
+        #expect(family.members.first?.role.label == "Administrar")
+    }
+}
+
 struct SharedInventoryTextTests {
     @Test func namesOnlyOtherMembersAndHidesForeignTime() throws {
         let data = Data(#"{"pool_id":"p","status":"active","members":[{"patient_display_name":"Mamá","you":false,"current":true,"status":"accepted"},{"patient_display_name":"Papá","you":false,"current":false,"status":"accepted"},{"patient_display_name":null,"you":false,"current":false,"status":"pending"}]}"#.utf8)
         let pool = try JSONDecoder().decode(InventoryPool.self, from: data)
         #expect(pool.others() == "Papá, Paciente sin nombre")
-        #expect(pool.others(status: "pending") == "Paciente sin nombre")
-        let pending = PendingPool(id: "p", proposer: "Hermana", medication: "Losartán", strength: "50 mg", others: ["Papá"])
-        #expect(pending.text == "Hermana propone compartir Losartán 50 mg con Papá. Compartirán el mismo saldo y podrán ver cuánto queda.")
         let shared = InventoryMovement(id: "m", quantity: "-0.500", reason: "shared_activity", createdAt: "2026-11-02T00:00:00Z")
         #expect(shared.sharedDate == "02-11-2026")
         #expect(shared.label == "Actividad compartida")

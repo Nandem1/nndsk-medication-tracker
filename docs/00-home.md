@@ -16,8 +16,9 @@ flowchart TB
     User --> UseCases[Autorización y casos de uso]
     UseCases --> Domain[Cantidades exactas y calendario local]
     UseCases --> DB[(PostgreSQL)]
-    UseCases --> Consent[Vínculos e invitaciones]
-    Consent --> DB
+    UseCases --> Families[Familias, roles e invitaciones]
+    Families --> Links[Vínculos derivados]
+    Links --> DB
     Probe[Cliente de diagnóstico] --> Health[healthz sin DB]
     Probe --> Ready[readyz con Ping]
     Ready --> DB
@@ -36,10 +37,10 @@ flowchart TB
 - [API](../services/api/cmd/api/main.go) compone configuración, pool, verificador y servidor. Las probes son públicas. `healthz` no consulta la base y `readyz` hace Ping.
 - [HTTP](../services/api/internal/http/api.go) verifica identidad, limita peticiones y adapta JSON. Usa cantidades decimales como texto y errores sin contenido médico. Los logs contienen metadatos de petición, sin tokens, cuerpos ni URLs.
 - [Aplicación](../services/api/internal/application/service.go) autoriza antes de consultar respuestas idempotentes. Resuelve el paciente desde el recurso y mantiene el bloqueo compartido del vínculo hasta terminar la transacción. El propio paciente puede operar sus datos. Los cuidadores necesitan consentimiento activo y el alcance correspondiente.
-- [Consentimiento](../services/api/internal/application/consent.go) emite invitaciones con hash de token, registra aceptación y revocación. Reactivar un vínculo requiere consentimiento nuevo.
+- [Familias](../services/api/internal/application/families.go) crean familias con roles (`admin`, `caregiver`, `observer`, `patient`) e invitaciones de un solo uso con hash de token. Unirse, salir o quitar a alguien recalcula en la misma transacción los vínculos de cada par paciente y cuidador (`syncLinks`); la autorización por vínculo no cambia. El paciente consiente una vez, al unirse. Ver [ADR 0010](decisions/0010-familia-como-modelo.md).
 - [Dominio](../services/api/internal/domain) conserva cantidades exactas y reglas de calendario de F1. La consulta de agenda y el worker materializan ocurrencias mediante el mismo generador.
 - [Operaciones del portal](../services/api/internal/application/portal.go) conservan auditoría de metadatos, archivo y conteos físicos. El archivo limita agenda y proyección. El conteo compara el saldo esperado, común si hay inventario compartido, bajo bloqueo de inventario y crea un ajuste exacto sólo si existe diferencia.
-- [Inventario compartido](../services/api/internal/application/pools.go) agrupa cuentas conservadas y calcula su saldo común desde los movimientos de todas. Exige el consentimiento de cada paciente y filtra en el servidor lo que ve un cuidador sin acceso al otro miembro. El orden de bloqueo es candado de membresía antes de cualquier fila, inventario y cuentas por identificador. Ver [ADR 0009](decisions/0009-modo-familia.md).
+- [Inventario compartido](../services/api/internal/application/pools.go) agrupa cuentas conservadas y calcula su saldo común desde los movimientos de todas. Se activa al marcar «misma caja» con un conteo físico obligatorio en la misma transacción; filtra en el servidor lo que ve un cuidador sin acceso al otro miembro. El orden de bloqueo es candado de membresía antes de cualquier fila, inventario y cuentas por identificador. Ver [ADR 0009](decisions/0009-modo-familia.md).
 - [Borrado de cuenta](../services/api/internal/application/account_deletion.go) elimina la historia propia en una transacción y conserva anonimizado al autor de historia ajena. Es la única excepción a los triggers append-only. Firebase se elimina después del commit y admite reintento.
 - [OpenAPI](../packages/contracts/openapi.yaml) es el contrato compartido. Los adaptadores son manuales y tipados. No hay clientes móviles o web generados.
 - [`cmd/e2e`](../services/api/cmd/e2e/main.go), sólo con la etiqueta `e2e`, acepta identidades sintéticas o del emulador de Firebase y añade un [proxy de fallos](../services/api/cmd/e2e/proxy.go). Exige una base local desechable. El ejecutable productivo sigue rechazando el emulador.
@@ -154,7 +155,7 @@ sequenceDiagram
 
 [UpdateProfile](../services/api/internal/application/profiles.go) permite editar al propio usuario o a un cuidador con vínculo activo y alcance `treatments`. Usa el mismo registro idempotente que las otras mutaciones. Un cuidador que sólo puede leer recibe 403; un extraño recibe 404. La autorización se repite antes de devolver una respuesta guardada.
 
-[AcceptInvitation](../services/api/internal/application/consent.go) aplica el nombre sugerido sólo al perfil incompleto, bajo bloqueo y dentro de la transacción de consentimiento. El cambio queda en `user_profile_changes`. La revocación continúa permitida al paciente y al cuidador del vínculo.
+[AcceptFamilyInvitation](../services/api/internal/application/families.go) aplica el nombre sugerido sólo al perfil incompleto, bajo bloqueo y dentro de la transacción de consentimiento. El cambio queda en `user_profile_changes`. Salir de una familia o quitar a un miembro recalcula los vínculos; los alcances derivados de otras familias en común se conservan.
 
 Los vínculos revocados conservan su referencia histórica, pero no revelan el nombre actual de la contraparte. Los nombres rechazan NUL y saltos de línea antes de llegar a PostgreSQL.
 

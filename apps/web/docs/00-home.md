@@ -68,9 +68,9 @@ Las pruebas web admiten `E2E_PORT_OFFSET` para levantar API, proxy de fallos y V
 
 La lista de pacientes consulta los conteos del informe de la API y todas las páginas del inventario. Cada tarjeta muestra fecha y zona IANA del perfil del paciente, confirmadas por `/patients`. La fecha se calcula en esa zona, no en la del navegador ni en la pauta del primer tratamiento. Los conteos representan dosis evaluables de hoy hasta el corte del servidor. No se suman páginas parciales de agenda.
 
-Las invitaciones ofrecen tres conjuntos explícitos de permisos y un nombre sugerido opcional. Copiar y pegar usan el portapapeles sólo al tocar un botón. Se acepta un único código o el mensaje completo y se muestran nombre, permisos y vencimiento antes del consentimiento. Los nombres de contrapartes revocadas llegan nulos y no se sustituyen por identificadores.
+Las invitaciones de familia ofrecen los roles paciente, cuidador, observador y administrador, con un nombre sugerido opcional para pacientes. Copiar y pegar usan el portapapeles sólo al tocar un botón. Se acepta un único código o el mensaje completo y se muestran la familia, sus miembros, el rol y el vencimiento antes del consentimiento. Los nombres de contrapartes revocadas llegan nulos y no se sustituyen por identificadores.
 
-`make test-web-e2e` usa [el ejecutor de pruebas](../scripts/e2e.mjs) para iniciar API y Vite por caso. Esto evita que el límite por IP de un caso se consuma con las peticiones de los anteriores. El límite productivo permanece intacto. Los E2E usan identidad sintética, HTTP, PostgreSQL y navegador reales; no prueban entrega de correo ni creación de cuentas en Firebase remoto.
+`make test-web-e2e` usa [el ejecutor de pruebas](../scripts/e2e.mjs) con una API y un Vite compartidos por la suite. Cada caso crea identidades propias; el límite de solicitudes se configura sólo en el servidor E2E. El límite productivo permanece intacto. Los E2E usan identidad sintética, HTTP, PostgreSQL y navegador reales; no prueban entrega de correo ni creación de cuentas en Firebase remoto.
 
 Mi perfil permite eliminar la cuenta escribiendo BORRAR. La sesión se cierra cuando el servidor confirma que quitó la identidad.
 

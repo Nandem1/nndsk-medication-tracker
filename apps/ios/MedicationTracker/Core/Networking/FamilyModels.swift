@@ -77,21 +77,6 @@ struct InventoryPool: Codable, Sendable, Equatable {
         return names.isEmpty ? "otra persona" : names.joined(separator: ", ")
     }
 }
-struct PendingPool: Decodable, Sendable, Equatable, Identifiable {
-    let id: String
-    let proposer: String?
-    let medication: String
-    let strength: String
-    let others: [String]
-    enum CodingKeys: String, CodingKey { case id = "pool_id", proposer = "proposer_display_name", medication = "medication_name", strength = "strength_label", others }
-    var text: String {
-        let label = [medication, strength].filter { !$0.isEmpty }.joined(separator: " ")
-        var names: [String] = []
-        for name in others where !names.contains(name) { names.append(name) }
-        let partner = names.isEmpty ? "entre tus tratamientos" : "con \(names.joined(separator: ", "))"
-        return "\(proposer ?? "Alguien") propone compartir \(label) \(partner). Compartirán el mismo saldo y podrán ver cuánto queda."
-    }
-}
 struct PoolCandidate: Decodable, Sendable, Identifiable {
     let accountID: String
     let name: String?
@@ -99,21 +84,49 @@ struct PoolCandidate: Decodable, Sendable, Identifiable {
     var id: String { accountID }
     enum CodingKeys: String, CodingKey { case accountID = "account_id", name = "patient_display_name", you }
 }
-enum InvitationPreset: String, CaseIterable, Identifiable {
-    case read = "Sólo mirar", record = "Ayudar a registrar", administer = "Administrar todo"
+struct FamilyMember: Codable, Sendable, Equatable, Identifiable {
+    let userID: String
+    let displayName: String?
+    let role: FamilyRole
+    let joinedAt: String
+    var you = false
+    var id: String { userID }
+    var name: String { displayName ?? "Persona sin nombre" }
+    /// Un miembro es nuevo durante su primera semana, para que el paciente sepa quién se unió.
+    func isNew(now: Date = .now) -> Bool {
+        guard !you, let joined = Instant.parse(joinedAt) else { return false }
+        return now.timeIntervalSince(joined) < 7 * 86_400
+    }
+    enum CodingKeys: String, CodingKey { case userID = "user_id", displayName = "display_name", role, joinedAt = "joined_at", you }
+}
+struct Family: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let role: FamilyRole
+    let members: [FamilyMember]
+    enum CodingKeys: String, CodingKey { case id = "family_id", name, role, members }
+}
+struct FamilyInvitationPreview: Codable, Sendable, Equatable {
+    let familyName: String
+    let inviterDisplayName: String?
+    let role: FamilyRole
+    let patientNameHint: String?
+    let members: [FamilyMember]
+    let expiresAt: String
+    enum CodingKeys: String, CodingKey { case familyName = "family_name", inviterDisplayName = "inviter_display_name", role, patientNameHint = "patient_name_hint", members, expiresAt = "expires_at" }
+}
+enum FamilyRole: String, Codable, Sendable, CaseIterable, Identifiable {
+    case patient, caregiver, observer, admin
     var id: String { rawValue }
-    var scopes: [String] {
-        switch self {
-        case .read: ["read"]
-        case .record: ["read", "doses"]
-        case .administer: ["read", "treatments", "doses", "inventory"]
-        }
+    var label: String {
+        switch self { case .patient: "Paciente"; case .caregiver: "Cuidar"; case .observer: "Sólo mirar"; case .admin: "Administrar" }
     }
     var summary: String {
         switch self {
-        case .read: "Ves su agenda, historial e inventario. No cambias nada."
-        case .record: "Además, registras y corriges sus tomas."
-        case .administer: "Además, administras sus tratamientos e inventario."
+        case .patient: "Registra sus propias tomas. Quienes cuidan en la familia verán su agenda."
+        case .caregiver: "Ve a cada paciente, registra tomas y repone stock."
+        case .observer: "Ve agendas, historial e inventario. No cambia nada."
+        case .admin: "Todo lo anterior, más tratamientos e invitar o quitar personas."
         }
     }
 }
@@ -132,8 +145,16 @@ enum FamilyText {
         guard let range = text.range(of: "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])", options: .regularExpression) else { throw APIError.invalid }
         return String(text[range])
     }
-    static func invitation(_ token: String) -> String {
-        "Hola, te invito a Mis tomas. Abre la app, entra en Ajustes › Acceso de cuidadores y pega este código: \(token). Vence en 24 horas."
+    /// El enlace abre la app. El token va en el fragmento: ningún servidor lo recibe por la URL.
+    static func link(_ token: String) -> String { "mistomas://unirse#\(token)" }
+    static func invitation(_ token: String, family: String) -> String {
+        "Hola, te invito a «\(family)» en Mis tomas. En tu teléfono, toca este enlace:\n\n\(link(token))\n\nSi no se abre, entra en la app, ve a Ajustes › Familia y pega este código: \(token)\n\nVence en 7 días."
+    }
+    static func initials(_ name: String?) -> String {
+        let words = (name ?? "").split(whereSeparator: \.isWhitespace)
+        guard let first = words.first?.first else { return "?" }
+        let last = words.count > 1 ? words.last?.first.map(String.init) ?? "" : ""
+        return (String(first) + last).uppercased()
     }
     static func declaration(_ value: Declaration) -> String {
         switch value { case .taken: "Se lo tomó"; case .takenLate: "Se lo tomó tarde"; case .skipped: "No se lo tomó" }

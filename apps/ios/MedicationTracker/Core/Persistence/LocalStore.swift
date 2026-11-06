@@ -33,7 +33,6 @@ struct LocalSnapshot: Sendable, Equatable {
     var doses: [Dose] = []
     var treatments: [Treatment] = []
     var inventory: [InventoryProjection] = []
-    var links: [CaregiverLink] = []
     var operations: [PendingOperation] = []
     var lastSyncAt: Date?
     var access: PatientAccess?
@@ -83,7 +82,6 @@ actor LocalStore {
         """)
         try database.execute("CREATE TABLE IF NOT EXISTS treatments(id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, payload BLOB NOT NULL)")
         try database.execute("CREATE TABLE IF NOT EXISTS inventory(id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, treatment_id TEXT NOT NULL, payload BLOB NOT NULL)")
-        try database.execute("CREATE TABLE IF NOT EXISTS links(id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, payload BLOB NOT NULL)")
         try database.execute("""
         CREATE TABLE IF NOT EXISTS operations(
           id TEXT PRIMARY KEY,
@@ -102,6 +100,12 @@ actor LocalStore {
           sequence INTEGER
         )
         """)
+        if version < 2 {
+            try database.transaction {
+                try database.execute("DROP TABLE IF EXISTS links")
+                try database.execute("PRAGMA user_version=2")
+            }
+        }
     }
 
     // MARK: Propietario
@@ -124,7 +128,7 @@ actor LocalStore {
     }
 
     private func wipeTables() throws {
-        for table in ["meta", "doses", "treatments", "inventory", "links", "operations", "patients"] {
+        for table in ["meta", "doses", "treatments", "inventory", "operations", "patients"] {
             try database.execute("DELETE FROM \(table)")
         }
     }
@@ -194,15 +198,6 @@ actor LocalStore {
         }
     }
 
-    func replaceLinks(_ links: [CaregiverLink], patient: String) throws {
-        try database.transaction {
-            try database.execute("DELETE FROM links WHERE patient_id=?", [.text(patient)])
-            for item in links {
-                try database.execute("INSERT INTO links(id,patient_id,payload) VALUES(?,?,?)", [.text(item.id), .text(patient), .blob(try JSONEncoder().encode(item))])
-            }
-        }
-    }
-
     func snapshot(patient: String) throws -> LocalSnapshot {
         let decoder = JSONDecoder()
         func decode<Item: Decodable>(_ sql: String) throws -> [Item] {
@@ -212,7 +207,6 @@ actor LocalStore {
             doses: try decode("SELECT payload FROM doses WHERE patient_id=? ORDER BY scheduled_at, id"),
             treatments: try decode("SELECT payload FROM treatments WHERE patient_id=? ORDER BY id"),
             inventory: try decode("SELECT payload FROM inventory WHERE patient_id=? ORDER BY id"),
-            links: try decode("SELECT payload FROM links WHERE patient_id=? ORDER BY id"),
             operations: try operations().filter { $0.patientID == patient },
             lastSyncAt: try metaValue("last_sync_at:\(patient)").flatMap(TimeInterval.init).map(Date.init(timeIntervalSince1970:)),
             access: try accesses().first { $0.patientID == patient },
@@ -308,7 +302,7 @@ actor LocalStore {
     }
     func deny(patient: String) throws {
         try database.transaction {
-            for table in ["doses", "treatments", "inventory", "links"] {
+            for table in ["doses", "treatments", "inventory"] {
                 try database.execute("DELETE FROM \(table) WHERE patient_id=?", [.text(patient)])
             }
             try database.execute("DELETE FROM patients WHERE id=?", [.text(patient)])

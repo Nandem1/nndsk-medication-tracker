@@ -28,7 +28,7 @@ Estas reglas aplican a todo modelo y persona que trabaje en este repositorio. La
 
 - **Nunca** incluyas secretos, datos reales de salud ni conexiones de producción en el repositorio, fixtures, logs o mensajes.
 - No registres URLs de conexión, tokens, cuerpos de petición ni información médica. No los imprimas en la salida de los comandos.
-- Tokens de invitación: sólo en el cuerpo de POST, nunca en URLs.
+- Tokens de invitación: se canjean sólo en el cuerpo de POST. Fuera de eso, únicamente en el fragmento del enlace `mistomas://unirse#…` o en su QR, que no llegan a ningún servidor; nunca en una ruta o consulta HTTP.
 - `.env`, `apps/web/.env.local` y `apps/ios/Config/Local.xcconfig` no se versionan. Verifica con `git check-ignore` antes de editarlos.
 
 ## Git, despliegue y acciones irreversibles

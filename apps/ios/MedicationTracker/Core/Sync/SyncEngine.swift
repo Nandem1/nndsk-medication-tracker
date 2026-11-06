@@ -99,7 +99,6 @@ actor SyncEngine {
                 try await store.deny(patient: saved.patientID)
                 denied = true
             }
-            let links = try await api.links()
             for access in accesses {
                 let patient = access.patientID
                 do {
@@ -115,7 +114,6 @@ actor SyncEngine {
                     try await store.replaceTreatments(treatments, patient: patient)
                     try await store.replaceAgenda(doses, from: from, to: to, at: now, patient: patient)
                     try await store.replaceInventory(inventory, patient: patient)
-                    try await store.replaceLinks(links.filter { $0.patientID == patient && $0.status == "active" }, patient: patient)
                     try await store.saveAccess(access, report: report)
                 } catch APIError.denied { try await store.deny(patient: patient); denied = true }
             }

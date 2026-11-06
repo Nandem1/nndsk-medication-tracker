@@ -93,17 +93,12 @@ import Testing
         #expect(try await store.operations().first?.status == .pending)
     }
 
-    @Test func refreshKeepsOnlyOwnCaregiverLinks() async throws {
-        let own = #"{"link_id":"00000000-0000-4000-8000-0000000000f1","patient_id":"\#(Fixture.patient)","caregiver_id":"00000000-0000-4000-8000-0000000000c1","scopes":["read"],"status":"active"}"#
-        let foreign = #"{"link_id":"00000000-0000-4000-8000-0000000000f2","patient_id":"00000000-0000-4000-8000-0000000000aa","caregiver_id":"\#(Fixture.patient)","scopes":["read"],"status":"active"}"#
+    /// Los vínculos salen de la familia, que la app lee aparte: la sincronización ya no los pide.
+    @Test func refreshNoLongerReadsCaregiverLinks() async throws {
         let (store, _) = try Fixture.temporaryStore()
         try await store.setPatientID(Fixture.patient)
-        let revoked = #"{"link_id":"00000000-0000-4000-8000-0000000000f3","patient_id":"\#(Fixture.patient)","caregiver_id":"00000000-0000-4000-8000-0000000000c2","scopes":["read"],"status":"revoked"}"#
-        let transport = RoutedTransport(linksBody: #"{"items":[\#(own),\#(foreign),\#(revoked)],"next_cursor":""}"#)
-        let engine = SyncEngine(api: APIClient(baseURL: URL(string: "http://127.0.0.1:1")!, transport: transport, tokens: FixedTokens()), store: store, now: { [now] in now })
-
+        let engine = SyncEngine(api: APIClient(baseURL: URL(string: "http://127.0.0.1:1")!, transport: RoutedTransport(), tokens: FixedTokens()), store: store, now: { [now] in now })
         #expect(await engine.sync() == .synced)
-        #expect(try await store.snapshot(patient: Fixture.patient).links.map(\.id) == ["00000000-0000-4000-8000-0000000000f1"])
     }
 
     @Test func windowStaysWithinTheContractLimit() {
@@ -116,12 +111,11 @@ import Testing
 }
 
 private struct RoutedTransport: HTTPTransport {
-    let linksBody: String
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let path = request.url!.path()
         let body: String
-        if path.hasSuffix("caregiver-links") { body = linksBody }
+        if path.hasSuffix("caregiver-links") { throw URLError(.unsupportedURL) }
         else if path.hasSuffix("/me") { body = #"{"user_id":"\#(Fixture.patient)","timezone":"America/Santiago"}"# }
         else if path.hasSuffix("/patients") { body = #"{"items":[{"patient_id":"\#(Fixture.patient)","scopes":["read"],"profile_version":1,"timezone":"America/Santiago"}],"next_cursor":""}"# }
         else if path.contains("adherence") { body = #"{"from":"2026-11-01","to":"2026-11-02","summary":{"confirmed":0,"evaluable":0,"unconfirmed":0}}"# }

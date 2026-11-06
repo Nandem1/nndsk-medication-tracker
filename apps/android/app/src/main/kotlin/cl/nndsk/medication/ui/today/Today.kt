@@ -41,14 +41,6 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
             Text("${plan.registeredCount} de ${plan.total} registradas", style = GraphiteTokens.Type.patientLabel)
             LinearProgressIndicator({ plan.registeredCount.toFloat() / plan.total }, Modifier.fillMaxWidth(), color = colors.action, trackColor = colors.border, drawStopIndicator = {})
         }
-        if (!state.caregiver) snapshot?.families.orEmpty().filter { it.role == "patient" }.forEach { family ->
-            val joined = family.members.filter { isNewMember(it) }
-            // El paciente consintió una vez: ve a cada persona nueva durante su primera semana.
-            if (joined.isNotEmpty() && openAccess != null) SectionCard("Nuevo en ${family.name}") {
-                Note(joined.joinToString { memberName(it) } + if (joined.size == 1) " se unió a tu familia." else " se unieron a tu familia.")
-                SecondaryAction("Ver familia") { openAccess() }
-            }
-        }
         if (plan.review.isNotEmpty()) {
             SectionTitle("Por revisar")
             plan.review.forEach { DoseRow(it, state, now, open = open) }
@@ -82,6 +74,15 @@ import cl.nndsk.medication.ui.detail.DeclarationActions
             StatusChip(Chip("Recordatorios desactivados", R.drawable.ic_notifications_off, colors.unconfirmedFg, colors.unconfirmedBg))
             Text("Este teléfono no te avisará de tus tomas. Puedes activarlos en los ajustes de notificaciones.")
             DoseAction("Abrir ajustes de notificaciones") { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
+        }
+        // Al final, como en iOS: no mueve la pantalla aceptada del paciente.
+        if (!state.caregiver) snapshot?.families.orEmpty().filter { it.role == "patient" }.forEach { family ->
+            val joined = family.members.filter { isNewMember(it) }
+            // El paciente consintió una vez: ve a cada persona nueva durante su primera semana.
+            if (joined.isNotEmpty() && openAccess != null) SectionCard("Nuevo en ${family.name}") {
+                Note(joined.joinToString { memberName(it) } + if (joined.size == 1) " se unió a tu familia." else " se unieron a tu familia.")
+                SecondaryAction("Ver familia") { openAccess() }
+            }
         }
         Spacer(Modifier.height(GraphiteTokens.Space.md))
     }

@@ -1,6 +1,6 @@
 # PLAN-FAMILIA-2.md — La familia como modelo
 
-> **Estado al 2026-11-05:** aprobado por el usuario e iniciado en la rama `feat/familia-v2`.
+> **Estado al 2026-11-06:** fases 1 a 5 implementadas y verificadas en local en `feat/familia-v2`. Cierre de Git y staging en curso; instalación iPhone y APK pendientes de aviso al usuario. Decisión en [ADR 0010](docs/decisions/0010-familia-como-modelo.md).
 > **Origen:** el usuario pidió en esta sesión reemplazar los vínculos uno a uno por familias, y aprobó la recomendación completa.
 > **Regla de lectura:** este plan reabre, por decisión explícita del usuario, las decisiones D2, D4 y D7 de [`PLAN-FAMILIA.md`](PLAN-FAMILIA.md). El resto de `AGENTS.md`, `PLAN.md` y `PLAN-FAMILIA.md` sigue vigente.
 
@@ -50,3 +50,41 @@ Crear familia; invitar con cada rol; sólo `admin` invita y quita; aceptar es id
 ## 6. Fuera de alcance
 
 Cambiar el rol de un miembro (se quita y se vuelve a invitar), permisos distintos por paciente dentro de una familia, enlaces universales con dominio propio y push real.
+
+## Traspaso a Codex (2026-11-05)
+
+Rama `feat/familia-v2`. Commits hechos: backend (`72c1602`), web (`4712735`), Android (`38e29eb`). **Sin commit todavía:** iOS completo (familia, unirse, QR, misma caja, pruebas), mover el aviso «Nuevo en…» al final de Hoy en iOS y Android, ADR 0010, mapas y la regla de tokens de `AGENTS.md`.
+
+Estado verificado en local: integración Go con `-race` PASS, web E2E 13/13, Android E2E 4/4 (antes del último cambio en Hoy), iOS unitarias PASS y E2E 11/12. El que faltaba, `testCaregiverCreatesPatientConfirmsOfflineAndStockDropsOnce`, debería pasar con el aviso movido al final.
+
+Pasos pendientes, en orden:
+1. Revisar `/private/tmp/claude-501/*/tasks/blm9rwm0c.output`, o repetir: `make lint-ios`, `make test-ios`, `make test-ios-e2e` (destino predeterminado, nunca `id=`), `make test-android`, `make lint-android`, `make test-android-e2e`. Bases desechables ya migradas a la versión 9: `medication_f4_familia_v2` (iOS), `medication_f4_android_familia_v2`, `medication_f3_familia_v2` (web) y `medication_f1_familia_v2` (integración). Usar `.tmp/familia-db-run.py` con `FAMILIA_TEST_DB`.
+2. Corregir lo que falle, sin cambiar la intención de las pruebas, y correr `make tokens-check test lint build`.
+3. Commit de iOS y docs, con la atribución del entorno. Merge a `main` (autorizado). Push de `main` y `feat/familia-v2` (autorizado por el usuario en esta fase).
+4. Staging (autorizado y destructivo si hace falta): aplicar la sección Up de `infrastructure/migrations/00009_families.sql` y registrar la versión 9 en `goose_db_version`. El Postgres de Railway no tiene URL pública: usar `railway ssh --service Postgres` con la llave `~/.ssh/id_ed25519.pub`, registrada sólo durante la migración (`railway ssh keys add` y luego `remove`). Después `railway up` de API y worker según `docs/runbooks/railway-staging.md`, y comprobar `/healthz`, `/readyz` y 401 sin token. No imprimir URLs ni secretos.
+5. Instalar en el iPhone: `IOS_DEVICE=00008160-0016796C1EA0000A make run-ios-device`. APK de staging para Android según la sección 11 de `PLAN-FAMILIA.md`.
+6. Registrar la evidencia en `docs/runbooks/familia-verification.md`, marcar el estado de este plan y cerrar con un informe: cambios, comandos, pruebas, pendientes (push real, prueba en teléfonos físicos y la familia sin conexión en iOS, que no se guarda en disco).
+
+Al terminar: apagar el emulador (`adb -s emulator-5554 emu kill`), el simulador y Colima si se iniciaron, y borrar las bases `*_familia_v2`.
+
+**Resultado de la verificación final (antes del commit):**
+
+```
+ios-lint=0
+ios-unit=0
+✔ Test run with 87 tests in 19 suites passed after 0.297 seconds.
+ios-e2e=0 secs=984
+passed=12 failed=0
+and-unit=0
+and-lint=0
+and-e2e=2 secs=165
+Tests run: 4,  Failures: 1
+
+
+
+[exited with code 0]
+```
+
+## Continuación Codex, 2026-11-06
+
+Verificación final PASS: iOS lint y 88 unitarias, E2E 12/12; Android unitarias, lint, dispositivo 8/8 y E2E 4/4 en emulador; web E2E 13/13; integración Go con race; tokens-check, test, lint y build. Se corrigió la espera de publicación del E2E Android y la migración iOS v1→v2 para conservar cola y propietario, retirando sólo links. Regresión roja antes y verde después; revisión independiente focal PASS. Evidencia en `docs/runbooks/familia-verification.md`.

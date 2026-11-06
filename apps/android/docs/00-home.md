@@ -64,7 +64,7 @@ Los fallos se muestran sin afirmar que todos los datos fueron borrados. La panta
 
 ## Inventario compartido
 
-El snapshot de cada paciente trae `pool` por cuenta, y el propio trae `pendingPools`. Room no cambia de esquema porque el snapshot se guarda como JSON. [`SharedInventory.kt`](../app/src/main/kotlin/cl/nndsk/medication/ui/caregiver/SharedInventory.kt) reúne la tarjeta de decisión de Hoy, el estado y la salida. Proponer, decidir y salir requieren red, no entran a la cola y conservan su operación para reintentar. El estimado local sigue restando sólo las declaraciones pendientes de este teléfono.
+El snapshot de cada paciente trae `pool` por cuenta. Room no cambia de esquema porque el snapshot se guarda como JSON. [`SharedInventory.kt`](../app/src/main/kotlin/cl/nndsk/medication/ui/caregiver/SharedInventory.kt) permite elegir otra cuenta, ingresar el conteo físico de la caja y compartirla de inmediato; también muestra el estado y permite salir. Ya no hay propuestas ni decisiones pendientes. Compartir y salir requieren red y no entran a la cola. El estimado local sigue restando sólo las declaraciones pendientes de este teléfono.
 
 ## Datos de la cuenta
 

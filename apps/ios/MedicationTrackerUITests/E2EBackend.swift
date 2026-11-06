@@ -77,14 +77,9 @@ struct E2EBackend {
         return try XCTUnwrap(body?["user_id"] as? String)
     }
 
+    /// Invitación de paciente a una familia nueva que administra quien cuida.
     static func invite(caregiver: Account) async throws -> String {
-        let (data, status) = try await call(caregiver.token, "POST", "/v1/invitations", body: [
-            "client_operation_id": UUID().uuidString.lowercased(),
-            "scopes": ["read", "treatments", "doses", "inventory"],
-        ])
-        XCTAssertEqual(status, 201)
-        let body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return try XCTUnwrap(body?["token"] as? String)
+        try await invitation(caregiver, scopes: ["read", "treatments", "doses", "inventory"], hint: nil)
     }
 
     /// Pauta de un solo día con un horario vencido y otro futuro. Usa una zona donde ambos caen en
@@ -172,39 +167,50 @@ extension E2EBackend {
         ])
         XCTAssertEqual(status, 200)
     }
-    static func invitation(_ caregiver: Account, scopes: [String], hint: String) async throws -> String {
-        let (data, status) = try await call(caregiver.token, "POST", "/v1/invitations", body: [
-            "client_operation_id": UUID().uuidString.lowercased(), "scopes": scopes, "patient_name_hint": hint,
-        ])
+    private static func json(_ data: Data) throws -> [String: Any] { try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]) }
+    static func family(_ admin: Account) async throws -> String {
+        let (data, status) = try await call(admin.token, "POST", "/v1/families", body: ["client_operation_id": UUID().uuidString.lowercased(), "name": "Familia sintética"])
         XCTAssertEqual(status, 201)
-        return try XCTUnwrap((JSONSerialization.jsonObject(with: data) as? [String: Any])?["token"] as? String)
+        return try XCTUnwrap(json(data)["family_id"] as? String)
     }
-    static func accept(_ patient: Account, token: String) async throws {
-        let (_, status) = try await call(patient.token, "POST", "/v1/invitations/accept", body: [
+    static func familyInvitation(_ admin: Account, family: String, role: String, hint: String?) async throws -> String {
+        var body: [String: Any] = ["client_operation_id": UUID().uuidString.lowercased(), "role": role]
+        if let hint { body["patient_name_hint"] = hint }
+        let (data, status) = try await call(admin.token, "POST", "/v1/families/\(family)/invitations", body: body)
+        XCTAssertEqual(status, 201)
+        return try XCTUnwrap(json(data)["token"] as? String)
+    }
+    /// Invitación de paciente que deja a quien cuida con el rol que cubre los alcances. Con todos,
+    /// quien cuida administra la familia; con menos, otra persona la administra y la suma con ese rol.
+    static func invitation(_ caregiver: Account, scopes: [String], hint: String?) async throws -> String {
+        let role = scopes.contains("treatments") ? "admin" : scopes.contains("doses") || scopes.contains("inventory") ? "caregiver" : "observer"
+        let admin = role == "admin" ? caregiver : try await signUp("familia-admin")
+        let id = try await family(admin)
+        if role != "admin" { try await accept(caregiver, token: familyInvitation(admin, family: id, role: role, hint: nil)) }
+        return try await familyInvitation(admin, family: id, role: "patient", hint: hint)
+    }
+    static func accept(_ member: Account, token: String) async throws {
+        let (_, status) = try await call(member.token, "POST", "/v1/family-invitations/accept", body: [
             "client_operation_id": UUID().uuidString.lowercased(), "token": token,
         ])
         XCTAssertEqual(status, 200)
     }
+    /// El paciente sale de cada familia que comparte con quien cuida: nadie de ahí lo sigue viendo.
     static func revoke(_ patient: Account, caregiver: Account) async throws {
         let caregiverID = try await userID(caregiver)
-        let (data, status) = try await call(patient.token, "GET", "/v1/caregiver-links")
+        let patientID = try await userID(patient)
+        let (data, status) = try await call(patient.token, "GET", "/v1/families")
         XCTAssertEqual(status, 200)
-        let body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let rows = body?["items"] as? [[String: Any]] ?? []
-        let link = try XCTUnwrap(rows.first { $0["caregiver_id"] as? String == caregiverID }?["link_id"] as? String)
-        let (_, revoked) = try await call(patient.token, "DELETE", "/v1/caregiver-links/\(link)")
-        XCTAssertEqual(revoked, 204)
+        let families = try json(data)["items"] as? [[String: Any]] ?? []
+        let shared = families.filter { (($0["members"] as? [[String: Any]]) ?? []).contains { $0["user_id"] as? String == caregiverID } }
+        XCTAssertFalse(shared.isEmpty)
+        for family in shared {
+            let (_, removed) = try await call(patient.token, "DELETE", "/v1/families/\(try XCTUnwrap(family["family_id"] as? String))/members/\(patientID)")
+            XCTAssertEqual(removed, 204)
+        }
     }
-    static func createPool(_ caregiver: Account, accounts: [String]) async throws {
-        let (_, status) = try await call(caregiver.token, "POST", "/v1/inventory-pools", body: ["client_operation_id": UUID().uuidString.lowercased(), "account_ids": accounts])
+    static func createPool(_ caregiver: Account, accounts: [String], counted: String) async throws {
+        let (_, status) = try await call(caregiver.token, "POST", "/v1/inventory-pools", body: ["client_operation_id": UUID().uuidString.lowercased(), "account_ids": accounts, "counted_account_id": accounts[0], "counted_quantity": counted])
         XCTAssertEqual(status, 200)
-    }
-    static func acceptPendingPool(_ patient: Account) async throws {
-        let (data, status) = try await call(patient.token, "GET", "/v1/inventory-pools/pending")
-        XCTAssertEqual(status, 200)
-        let rows = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["items"] as? [[String: Any]] ?? []
-        let id = try XCTUnwrap(rows.first?["pool_id"] as? String)
-        let (_, decided) = try await call(patient.token, "POST", "/v1/inventory-pools/\(id)/decision", body: ["client_operation_id": UUID().uuidString.lowercased(), "decision": "accept"])
-        XCTAssertEqual(decided, 200)
     }
 }

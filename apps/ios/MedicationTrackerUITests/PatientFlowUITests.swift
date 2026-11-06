@@ -170,12 +170,12 @@ final class PatientFlowUITests: XCTestCase {
     func testPatientRevokesCaregiverAndBackendDeniesAccess() async throws {
         let (caregiver, _, patientID, _) = try await prepareLinkedPatient()
         openTab("Ajustes")
-        tapScrolling("open-consent")
-        tapScrolling("revoke-link")
-        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Quitar acceso", "revoke-link")).firstMatch
+        tapScrolling("open-family")
+        tapScrolling("leave-family")
+        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Salir de la familia", "leave-family")).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: timeout))
         confirm.tap()
-        XCTAssertTrue(app.staticTexts["links-empty"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.buttons["create-family"].waitForExistence(timeout: timeout))
         do {
             _ = try await E2EBackend.doses(caregiver, patient: patientID)
             XCTFail("El cuidador revocado no debe consultar la agenda")
@@ -299,9 +299,9 @@ final class PatientFlowUITests: XCTestCase {
         }
         XCTAssertTrue(app.tabBars.buttons["Hoy"].waitForExistence(timeout: timeout))
         // iOS ofrece guardar la contraseña: una persona también debe responder esa hoja.
-        // Llega con retraso variable y bloquea toda la pantalla.
+        // Suele cerrarse antes, al tocar la elección de uso; esta espera es sólo un respaldo corto.
         let notNow = app.buttons["Ahora no"]
-        if notNow.waitForExistence(timeout: 60) { notNow.tap() }
+        if notNow.waitForExistence(timeout: 8) { notNow.tap() }
     }
 
     /// Tras cerrar el aviso de contraseña, XCTest informa un `isHittable` falso aunque UIKit ya entrega el toque.
@@ -370,7 +370,7 @@ final class PatientFlowUITests: XCTestCase {
     @MainActor
     private func acceptInvitation(_ token: String) {
         openTab("Ajustes")
-        tapScrolling("open-consent")
+        tapScrolling("open-family")
         let field = app.textFields["invitation-token"]
         XCTAssertTrue(scrollTo(field))
         field.tap()
@@ -379,7 +379,8 @@ final class PatientFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["invitation-accept"].waitForExistence(timeout: timeout))
         XCTAssertTrue(waitAbove(app.buttons["invitation-accept"], app.tabBars.firstMatch), "«Autorizar» no puede quedar bajo las pestañas")
         app.buttons["invitation-accept"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["link-row"].waitForExistence(timeout: timeout))
+        // Al unirse aparece la familia, con la opción de salir.
+        XCTAssertTrue(app.buttons["leave-family"].waitForExistence(timeout: timeout))
     }
 
     @MainActor

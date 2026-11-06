@@ -6,8 +6,6 @@ final class FamilyFlowUITests: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
-        // Cada escenario conserva el límite real de 120 solicitudes por minuto de la API.
-        try await Task.sleep(for: .seconds(61))
         try await E2EBackend.setFault("online")
         await MainActor.run {
             app = XCUIApplication()
@@ -25,13 +23,19 @@ final class FamilyFlowUITests: XCTestCase {
         completeOnboarding(name: "Cuidadora sintética", caregiver: true)
         XCTAssertTrue(app.navigationBars["Pacientes"].waitForExistence(timeout: timeout))
         capture("familia-pacientes-vacio")
-        app.buttons["open-invite"].tap()
+        scrollTap("open-family")
+        let create = app.buttons["create-family"]
+        XCTAssertTrue(create.waitForExistence(timeout: timeout)); create.tap()
+        let invite = app.buttons["open-invite"]
+        XCTAssertTrue(invite.waitForExistence(timeout: timeout))
+        capture("familia-creada")
+        invite.tap()
         let hint = app.textFields["invite-name"]
         XCTAssertTrue(hint.waitForExistence(timeout: timeout))
         hint.tap(); hint.typeText("Mamá sintética")
         dismissKeyboard()
         scrollTap("invite-create")
-        XCTAssertTrue(app.staticTexts["created-invitation-code"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.images["invitation-qr"].waitForExistence(timeout: timeout))
         capture("familia-invitacion-creada")
         app.buttons["share-invitation"].tap()
         let shareSheet = app.otherElements["ActivityListView"]
@@ -40,6 +44,7 @@ final class FamilyFlowUITests: XCTestCase {
         capture("familia-compartir-nativo")
         app.otherElements["PopoverDismissRegion"].tap()
         XCTAssertTrue(shareSheet.waitForNonExistence(timeout: timeout))
+        app.navigationBars.buttons.firstMatch.tap()
         app.navigationBars.buttons.firstMatch.tap()
         tab("Ajustes")
         scrollTap("open-profile")
@@ -61,7 +66,7 @@ final class FamilyFlowUITests: XCTestCase {
         let patient = try await E2EBackend.signUp("familia-acepta")
         _ = try await E2EBackend.userID(caregiver)
         try await E2EBackend.profile(caregiver, name: "Cuidador visible")
-        let token = try await E2EBackend.invitation(caregiver, scopes: ["read"], hint: "Nombre sugerido")
+        let token = try await E2EBackend.invitation(caregiver, scopes: ["read", "treatments", "doses", "inventory"], hint: "Nombre sugerido")
         login(patient, name: "Paciente visible", caregiver: false)
         let invited = app.buttons["today-invited"]
         XCTAssertTrue(invited.waitForExistence(timeout: timeout))
@@ -69,18 +74,20 @@ final class FamilyFlowUITests: XCTestCase {
         scrollTap("today-invited")
         let field = app.textFields["invitation-token"]
         scroll(field); field.tap()
-        field.typeText("Hola, te invito a Mis tomas. Abre la app, entra en Ajustes › Acceso de cuidadores y pega este código: \(token). Vence en 24 horas.")
+        field.typeText("Hola, te invito a «Familia sintética» en Mis tomas. En tu teléfono, toca este enlace: \(FamilyLink.link(token)) Si no se abre, pega este código: \(token). Vence en 7 días.")
         dismissKeyboard()
         scrollTap("invitation-review")
         XCTAssertTrue(app.buttons["invitation-accept"].waitForExistence(timeout: timeout))
-        XCTAssertTrue(app.staticTexts["Cuidador visible podrá:"].exists)
+        XCTAssertTrue(labeled("Cuidador visible te invita como Paciente").exists)
         capture("familia-consentimiento-nombres")
         app.buttons["invitation-accept"].tap()
-        XCTAssertTrue(app.staticTexts["Cuidador visible"].waitForExistence(timeout: timeout))
-        scrollTap("revoke-link")
-        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Quitar acceso", "revoke-link")).firstMatch
+        XCTAssertTrue(app.buttons["leave-family"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(labeled("Cuidador visible").exists)
+        capture("familia-miembros")
+        scrollTap("leave-family")
+        let confirm = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "Salir de la familia", "leave-family")).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: timeout)); confirm.tap()
-        XCTAssertTrue(app.staticTexts["links-empty"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.buttons["create-family"].waitForExistence(timeout: timeout))
     }
 
     @MainActor
@@ -140,7 +147,6 @@ final class FamilyFlowUITests: XCTestCase {
         refresh()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Necesita revisión")).firstMatch.waitForExistence(timeout: timeout))
         capture("familia-conflicto")
-        try await Task.sleep(for: .seconds(61))
         scrollTap("conflict-discard")
         app.navigationBars.buttons.firstMatch.tap()
         app.segmentedControls["patient-section"].buttons["Inventario"].tap()
@@ -213,29 +219,25 @@ final class FamilyFlowUITests: XCTestCase {
         XCTAssertTrue(propose.waitForExistence(timeout: timeout)); scroll(propose); propose.tap()
         let candidate = app.buttons["pool-candidate"]
         XCTAssertTrue(candidate.waitForExistence(timeout: timeout))
-        XCTAssertEqual(candidate.label, "Compartir con Papá sintético")
+        XCTAssertEqual(candidate.label, "Misma caja que Papá sintético")
         capture("familia-p5-candidatos")
         candidate.tap()
-        XCTAssertTrue(labeled("Esperando a Papá sintético").waitForExistence(timeout: timeout))
+        // Dos stocks de 10 eran la misma caja: al contarla quedan 10, no 20.
+        // El campo vive en una alerta: XCTest lo encuentra por la alerta, no por su identificador.
+        let count = app.alerts.textFields.firstMatch
+        XCTAssertTrue(count.waitForExistence(timeout: timeout)); count.typeText("10")
+        capture("familia-p5-conteo")
+        app.buttons["Compartir la caja"].tap()
+        XCTAssertTrue(labeled("Misma caja que Papá sintético").waitForExistence(timeout: timeout))
         capture("familia-p5-esperando")
-        let waiting = try await E2EBackend.inventory(mama, patient: mamaID)
-        XCTAssertEqual(waiting.first?.balance, "10.000", "Pendiente mantiene saldos separados")
+        let active = try await E2EBackend.inventory(mama, patient: mamaID)
+        XCTAssertEqual(active.first?.balance, "10.000", "El saldo común parte de lo contado")
         tab("Ajustes")
         if app.navigationBars.buttons.firstMatch.exists { app.navigationBars.buttons.firstMatch.tap() }
         logout()
 
-        try await Task.sleep(for: .seconds(61))
         if app.buttons["login-register"].label == "Volver a entrar" { app.buttons["login-register"].tap() }
         login(mama, name: nil, caregiver: false)
-        let proposal = app.staticTexts["pool-proposal"]
-        XCTAssertTrue(proposal.waitForExistence(timeout: timeout))
-        XCTAssertTrue(proposal.label.contains("Cuidadora sintética propone compartir Losartán 500 mg con Papá sintético"), proposal.label)
-        capture("familia-p5-propuesta")
-        scroll(app.buttons["pool-accept"]); app.buttons["pool-accept"].tap()
-        XCTAssertTrue(proposal.waitForNonExistence(timeout: timeout))
-        try await E2EBackend.acceptPendingPool(papa)
-        let active = try await E2EBackend.inventory(mama, patient: mamaID)
-        XCTAssertEqual(active.first?.balance, "20.000")
 
         // Cada paciente consume de su propia cuenta y el saldo común baja una vez por dosis.
         let ownDoses = try await E2EBackend.doses(mama, patient: mamaID)
@@ -243,14 +245,14 @@ final class FamilyFlowUITests: XCTestCase {
         let otherDoses = try await E2EBackend.doses(papa, patient: papaID)
         try await E2EBackend.declare(papa, dose: try XCTUnwrap(otherDoses.first { $0.state == "unconfirmed" }), type: "taken")
         let consumed = try await E2EBackend.inventory(papa, patient: papaID)
-        XCTAssertEqual(consumed.first?.balance, "19.000")
+        XCTAssertEqual(consumed.first?.balance, "9.000")
 
         tab("Hoy"); refresh()
         tab("Ajustes"); refresh()
         let leave = app.buttons["pool-leave"]
         scroll(leave)
-        XCTAssertTrue(labeled("Inventario compartido con Papá sintético").exists)
-        XCTAssertTrue(labeled("Saldo confirmado: 19 comprimidos").exists)
+        XCTAssertTrue(labeled("Misma caja que Papá sintético").exists)
+        XCTAssertTrue(labeled("Saldo confirmado: 9 comprimidos").exists)
         capture("familia-p5-compartido")
         leave.tap()
         XCTAssertTrue(labeled("El saldo se queda con Papá sintético").waitForExistence(timeout: timeout))
@@ -258,7 +260,7 @@ final class FamilyFlowUITests: XCTestCase {
         app.buttons["Confirmar"].tap()
         XCTAssertTrue(labeled("Saldo confirmado: 0 comprimidos").waitForExistence(timeout: timeout))
         let remaining = try await E2EBackend.inventory(papa, patient: papaID)
-        XCTAssertEqual(remaining.first?.balance, "19.000")
+        XCTAssertEqual(remaining.first?.balance, "9.000")
         let ledger = try await E2EBackend.movements(mama, inventory: try XCTUnwrap(active.first).account_id)
         XCTAssertEqual(ledger.filter { $0.reason == "pool_transfer" }.count, 1)
     }
@@ -413,4 +415,9 @@ final class FamilyFlowUITests: XCTestCase {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
+}
+
+/// El enlace de invitación, igual al de la app: las pruebas de UI no importan el módulo de la app.
+enum FamilyLink {
+    static func link(_ token: String) -> String { "mistomas://unirse#" + token }
 }

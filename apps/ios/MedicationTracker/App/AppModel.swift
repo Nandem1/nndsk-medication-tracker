@@ -25,7 +25,10 @@ final class AppModel {
     private(set) var snapshot = LocalSnapshot()
     private(set) var patients: [String: LocalSnapshot] = [:]
     private(set) var accesses: [PatientAccess] = []
-    private(set) var pendingPools: [PendingPool] = []
+    /// Se leen en línea en cada sincronización; nil mientras no hay respuesta.
+    private(set) var families: [Family]?
+    /// Código que llegó por un enlace mistomas://unirse#…, a la espera de una sesión.
+    var pendingJoinToken: String?
     private(set) var allOperations: [PendingOperation] = []
     private(set) var profile: Me?
     private(set) var email = ""
@@ -205,7 +208,7 @@ final class AppModel {
         phase = .signingOut
         sessionGeneration += 1
         snapshot = LocalSnapshot()
-        patients = [:]; accesses = []; pendingPools = []; allOperations = []; profile = nil; patientPath = []
+        patients = [:]; accesses = []; families = nil; allOperations = []; profile = nil; patientPath = []
         email = ""; caregiverPreference = nil
         retryTask?.cancel()
         await sync?.stop()
@@ -215,7 +218,7 @@ final class AppModel {
         do { try await store.wipe() } catch { cleanupFailed = true }
         if await identity.signOut() == false { cleanupFailed = true }
         snapshot = LocalSnapshot()
-        patients = [:]; accesses = []; pendingPools = []; allOperations = []; profile = nil; patientPath = []
+        patients = [:]; accesses = []; families = nil; allOperations = []; profile = nil; patientPath = []
         email = ""; caregiverPreference = nil
         isSyncing = false
         reminders = ReminderDiagnostic()
@@ -238,14 +241,14 @@ final class AppModel {
         isSyncing = false
         await handle(outcome)
         await refreshLocal()
-        await refreshPendingPools(generation: generation)
+        await refreshFamilies(generation: generation)
         await refreshPush()
     }
 
-    /// Decidir exige red, así que no se guarda en disco. Sin conexión se conserva lo ya leído.
-    private func refreshPendingPools(generation: Int) async {
-        guard let api, let pools = try? await api.pendingPools(), generation == sessionGeneration, phase == .signedIn else { return }
-        pendingPools = pools
+    /// La familia exige red para cambiar, así que no se guarda en disco. Sin conexión se conserva lo ya leído.
+    private func refreshFamilies(generation: Int) async {
+        guard let api, let loaded = try? await api.families(), generation == sessionGeneration, phase == .signedIn else { return }
+        families = loaded
     }
 
     private func refreshPush() async {
@@ -414,7 +417,7 @@ final class AppModel {
 
     // MARK: Consentimiento
 
-    func preview(invitation token: String) async throws -> InvitationPreview {
+    func preview(invitation token: String) async throws -> FamilyInvitationPreview {
         guard phase == .signedIn, let api else { throw APIError.unauthenticated }
         return try await request { try await api.previewInvitation(token: FamilyText.token(token)) }
     }
@@ -425,9 +428,21 @@ final class AppModel {
         await syncNow()
     }
 
-    func revoke(_ link: CaregiverLink) async throws {
-        guard phase == .signedIn, let api else { throw APIError.unauthenticated }
-        try await request(patient: link.patientID) { try await api.revoke(link: link.id) }
+    func createFamily(name: String, operation: String) async throws {
+        guard let api else { throw APIError.unauthenticated }
+        _ = try await request { try await api.createFamily(name: name, operation: operation) }
+        await syncNow()
+    }
+
+    func invite(family: String, role: FamilyRole, hint: String) async throws -> CreatedInvitation {
+        guard let api else { throw APIError.unauthenticated }
+        return try await request { try await api.invite(family: family, role: role, hint: hint) }
+    }
+
+    /// Salir de la familia o, para quien administra, quitar a otra persona.
+    func removeMember(family: String, user: String) async throws {
+        guard let api else { throw APIError.unauthenticated }
+        try await request { try await api.removeMember(family: family, user: user) }
         await syncNow()
     }
 
@@ -444,10 +459,6 @@ final class AppModel {
         guard let api else { throw APIError.unauthenticated }
         try await request(patient: patient) { try await api.updateProfile(patient: patient == profile?.userID ? nil : patient, name: name, version: version, operation: operation) }
         await syncNow()
-    }
-    func createInvitation(preset: InvitationPreset, hint: String) async throws -> CreatedInvitation {
-        guard let api else { throw APIError.unauthenticated }
-        return try await request { try await api.createInvitation(preset: preset, hint: hint) }
     }
     func movements(patient: String, account: String) async throws -> [InventoryMovement] {
         guard let api else { throw APIError.unauthenticated }
@@ -473,24 +484,15 @@ final class AppModel {
         guard let api else { throw APIError.unauthenticated }
         return try await request { try await api.poolCandidates(account: account) }
     }
-    func proposePool(accounts: [String], operation: String) async throws {
+    /// El saldo común parte de lo contado: sumar dos saldos de una misma caja la contaría dos veces.
+    func sharePool(accounts: [String], counted account: String, quantity: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
-        try await request { try await api.createPool(accounts: accounts, operation: operation) }
-        await syncNow()
-    }
-    func decidePool(id: String, accept: Bool, operation: String) async throws {
-        guard let api else { throw APIError.unauthenticated }
-        try await request { try await api.decidePool(id: id, accept: accept, operation: operation) }
+        try await request { try await api.createPool(accounts: accounts, counted: account, quantity: quantity, operation: operation) }
         await syncNow()
     }
     func leavePool(id: String, account: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request { try await api.leavePool(id: id, account: account, operation: operation) }
-        await syncNow()
-    }
-    func leave(patient: String) async throws {
-        guard let link = accesses.first(where: { $0.patientID == patient })?.linkID, let api else { throw APIError.denied }
-        try await request(patient: patient) { try await api.revoke(link: link) }
         await syncNow()
     }
     private func request<T>(patient: String? = nil, _ body: () async throws -> T) async throws -> T {

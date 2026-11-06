@@ -25,15 +25,17 @@ enum ExactQuantity {
 
     static func withUnit(_ text: String, unit: String) -> String {
         let number = display(text)
-        let singular = number == "1"
-        let label = switch unit {
+        return "\(number) \(label(unit, singular: number == "1"))"
+    }
+
+    static func label(_ unit: String, singular: Bool = false) -> String {
+        switch unit {
         case "tablet": singular ? "comprimido" : "comprimidos"
         case "capsule": singular ? "cápsula" : "cápsulas"
         case "ml": "ml"
         case "dose": "dosis"
         default: singular ? "unidad" : "unidades"
         }
-        return "\(number) \(label)"
     }
 }
 

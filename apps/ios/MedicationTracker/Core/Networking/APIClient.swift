@@ -78,10 +78,18 @@ struct APIClient: Sendable {
         let body = try JSONSerialization.data(withJSONObject: ["display_name": name, "expected_version": version, "client_operation_id": operation])
         _ = try await send(patient.map { "/v1/patients/\($0)/profile" } ?? "/v1/me/profile", query: [], method: "PUT", body: body)
     }
-    func createInvitation(preset: InvitationPreset, hint: String) async throws -> CreatedInvitation {
-        var body: [String: Any] = ["client_operation_id": UUID().uuidString.lowercased(), "scopes": preset.scopes]
-        if !hint.isEmpty { body["patient_name_hint"] = hint }
-        return try await request("/v1/invitations", method: "POST", body: JSONSerialization.data(withJSONObject: body))
+    func families() async throws -> [Family] { try await all("/v1/families") }
+    func createFamily(name: String, operation: String) async throws -> Family {
+        try await request("/v1/families", method: "POST", body: JSONEncoder().encode(["client_operation_id": operation, "name": name]))
+    }
+    /// Cada envío crea otra invitación: el token no se puede recuperar si se pierde la respuesta.
+    func invite(family: String, role: FamilyRole, hint: String) async throws -> CreatedInvitation {
+        var body = ["client_operation_id": UUID().uuidString.lowercased(), "role": role.rawValue]
+        if role == .patient, !hint.isEmpty { body["patient_name_hint"] = hint }
+        return try await request("/v1/families/\(family)/invitations", method: "POST", body: JSONEncoder().encode(body))
+    }
+    func removeMember(family: String, user: String) async throws {
+        _ = try await send("/v1/families/\(family)/members/\(user)", query: [], method: "DELETE", body: nil)
     }
     func movements(account: String) async throws -> [InventoryMovement] { try await all("/v1/inventory/\(account)/movements") }
     func inventoryMutation(account: String, quantity: String, count: Bool, reason: String, expected: String, operation: String) async throws {
@@ -98,15 +106,10 @@ struct APIClient: Sendable {
         let result: Result = try await request("/v1/me", method: "DELETE", body: body)
         return result.identity_removed
     }
-    func pendingPools() async throws -> [PendingPool] { try await all("/v1/inventory-pools/pending") }
     func poolCandidates(account: String) async throws -> [PoolCandidate] { try await all("/v1/inventory/\(account)/pool-candidates") }
-    func createPool(accounts: [String], operation: String) async throws {
-        let body = try JSONSerialization.data(withJSONObject: ["client_operation_id": operation, "account_ids": accounts])
+    func createPool(accounts: [String], counted account: String, quantity: String, operation: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: ["client_operation_id": operation, "account_ids": accounts, "counted_account_id": account, "counted_quantity": quantity])
         _ = try await send("/v1/inventory-pools", query: [], method: "POST", body: body)
-    }
-    func decidePool(id: String, accept: Bool, operation: String) async throws {
-        let body = try JSONEncoder().encode(["client_operation_id": operation, "decision": accept ? "accept" : "decline"])
-        _ = try await send("/v1/inventory-pools/\(id)/decision", query: [], method: "POST", body: body)
     }
     func leavePool(id: String, account: String, operation: String) async throws {
         let body = try JSONEncoder().encode(["client_operation_id": operation, "account_id": account])
@@ -124,20 +127,12 @@ struct APIClient: Sendable {
         try await all("/v1/patients/\(patient)/inventory")
     }
 
-    func links() async throws -> [CaregiverLink] {
-        try await all("/v1/caregiver-links")
+    func previewInvitation(token: String) async throws -> FamilyInvitationPreview {
+        try await request("/v1/family-invitations/preview", method: "POST", body: JSONEncoder().encode(["token": token]))
     }
 
-    func previewInvitation(token: String) async throws -> InvitationPreview {
-        try await request("/v1/invitations/preview", method: "POST", body: JSONEncoder().encode(["token": token]))
-    }
-
-    func acceptInvitation(token: String, operationID: String) async throws -> CaregiverLink {
-        try await request("/v1/invitations/accept", method: "POST", body: JSONEncoder().encode(["token": token, "client_operation_id": operationID]))
-    }
-
-    func revoke(link: String) async throws {
-        _ = try await send("/v1/caregiver-links/\(link)", query: [], method: "DELETE", body: nil)
+    func acceptInvitation(token: String, operationID: String) async throws -> Family {
+        try await request("/v1/family-invitations/accept", method: "POST", body: JSONEncoder().encode(["token": token, "client_operation_id": operationID]))
     }
 
     /// El cuerpo llega ya serializado: un reintento debe enviar los mismos bytes.

@@ -30,7 +30,6 @@ struct TodayView: View {
                 TodayProgress(registered: plan.registeredCount, total: plan.total)
                     .plainTodayRow()
             }
-            ForEach(model.pendingPools) { PendingPoolCard(pool: $0) }
             if !plan.review.isEmpty {
                 Section {
                     ForEach(plan.review) { DoseRow(dose: $0, now: now) }
@@ -80,9 +79,19 @@ struct TodayView: View {
             }
             ReminderPrompt()
             // Al final, para no mover nada de la pantalla aceptada.
-            if plan.total == 0, !model.isSyncing, model.snapshot.links.isEmpty {
+            ForEach(model.families?.filter { $0.role == .patient } ?? []) { family in
+                let joined = family.members.filter { $0.isNew() }
+                // El paciente consintió una vez: ve a cada persona nueva durante su primera semana.
+                if !joined.isEmpty {
+                    Section("Nuevo en \(family.name)") {
+                        Text("\(joined.map(\.name).joined(separator: ", ")) \(joined.count == 1 ? "se unió" : "se unieron") a tu familia.")
+                        NavigationLink("Ver familia") { FamilyView() }.frame(minHeight: Tokens.Size.minTouchIos).accessibilityIdentifier("today-family")
+                    }
+                }
+            }
+            if plan.total == 0, !model.isSyncing, model.families?.isEmpty == true {
                 Section("¿Te invitó un cuidador?") {
-                    NavigationLink("Ingresar código") { ConsentView() }
+                    NavigationLink("Ingresar código") { FamilyView() }
                         .frame(minHeight: Tokens.Size.minTouchIos)
                         .accessibilityIdentifier("today-invited")
                 }

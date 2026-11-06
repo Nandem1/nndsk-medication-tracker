@@ -18,7 +18,7 @@ struct PatientsView: View {
                         }
                     }
                 }
-                Section { NavigationLink("Invitar a alguien") { InviteView() }.accessibilityIdentifier("open-invite") }
+                Section { NavigationLink("Invitar a la familia") { FamilyView() }.accessibilityIdentifier("open-family") }
                 Section { Text(FamilyText.selfReported).font(.footnote).foregroundStyle(Semantic.muted) }
             }.navigationTitle("Pacientes")
                 .navigationDestination(for: String.self) { CaregiverPatientView(patient: $0) }
@@ -59,7 +59,6 @@ struct CaregiverPatientView: View {
     let patient: String
     @Environment(AppModel.self) private var model
     @State private var section = "Hoy"
-    @State private var leave = false
     @State private var error: String?
     var body: some View {
         Group {
@@ -72,15 +71,15 @@ struct CaregiverPatientView: View {
                     else { CaregiverAgendaView(patient: patient, history: section == "Historial") }
                 }
                 .navigationTitle(access.name)
+                // Salir de la familia, y con eso dejar de seguir, se hace en Familia.
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            if model.permits("treatments", patient: patient) {
+                    if model.permits("treatments", patient: patient) {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Menu {
                                 NavigationLink("Cambiar nombre") { ProfileEditor(patient: patient, name: access.displayName ?? "", version: access.profileVersion) }
-                            }
-                            Button("Dejar de seguir", role: .destructive) { leave = true }
-                        } label: { Label("Opciones del paciente", systemImage: "ellipsis.circle") }
-                        .accessibilityIdentifier("patient-menu")
+                            } label: { Label("Opciones del paciente", systemImage: "ellipsis.circle") }
+                            .accessibilityIdentifier("patient-menu")
+                        }
                     }
                 }
             } else {
@@ -88,11 +87,6 @@ struct CaregiverPatientView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("¿Dejar de seguir a esta persona?", isPresented: $leave, titleVisibility: .visible) {
-            Button("Dejar de seguir", role: .destructive) {
-                Task { do { try await model.leave(patient: patient) } catch { self.error = (error as? APIError)?.message ?? APIError.server.message } }
-            }
-        } message: { Text("Perderás el acceso a su información. Necesitarás otra invitación y su autorización para volver a verla.") }
         .alert("No se pudo completar", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("Entendido", role: .cancel) {}
         } message: { Text(error ?? "") }

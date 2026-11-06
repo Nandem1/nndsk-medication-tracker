@@ -13,6 +13,7 @@ import cl.nndsk.medication.MainActivity
 import cl.nndsk.medication.MedicationApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -212,6 +213,7 @@ class AndroidE2ETest {
             val held = declaration(remaining, "skipped", null, null)
             val recording = launch(Dispatchers.Default) { app.repository.record(context, remaining.id, held) }
             withTimeout(5_000) { while (app.database.local().operations(context.ownerUid, context.patientId).none { it.id == held.id }) delay(50) }
+            withTimeout(5_000) { app.repository.state.first { state -> state.operations.any { it.id == held.id } } }
             assertTrue(app.repository.state.value.busy)
             assertEquals(held.id, app.repository.state.value.operations.single().id)
             fault("online")

@@ -258,3 +258,21 @@ Pedido por el usuario tras probar las apps. Implementado en la rama `feat/famili
 
 Architecture Impact: nueva ruta web `/invite`, nueva pantalla Android `ui/settings/Access.kt`. Sin cambios en backend, contratos ni datos. Mapas de las tres apps actualizados.
 
+
+## Familia como modelo, cierre en curso
+
+Verificación retomada por Codex el 2026-11-05 y continuada el 2026-11-06. Android E2E pasó 4/4 con API y PostgreSQL reales; las pruebas de dispositivo pasaron 8/8 en emulador. Unitarias y lint Android, `make tokens-check test lint build` y las 87 unitarias iOS con lint pasaron. No acredita teléfonos físicos.
+
+El E2E Android fallaba al consultar `StateFlow` inmediatamente después de observar la operación en Room. Se conserva la comprobación de persistencia y se espera hasta cinco segundos por el mismo ID en el estado observable, con la red todavía retenida. La intención de guardar antes de la red no cambia. La corrida aislada final pasó 4/4 en 116,291 segundos. Un intento concurrente de dos suites provocó una colisión de UiAutomation; se repitieron por separado y pasaron.
+
+La revisión independiente `living-architecture REVIEW`, del mismo modelo y antes del merge, encontró que la migración local iOS de v1 a v2 borraba la cola de operaciones y conservaba la tabla obsoleta `links`. Se bloqueó la publicación para corregirlo. También se actualizaron los mapas general, iOS, Android y web que todavía describían propuestas de inventario o permisos anteriores.
+
+La regresión SQLite falló antes de corregir la migración y pasó después. `make lint-ios test-ios` pasó con 88 pruebas en 19 suites. Una revisión focal independiente del mismo modelo confirmó PASS para ambos bloqueos. La migración v1→v2 conserva caché, propietario, cuerpos, IDs, estados e intentos de las operaciones; elimina sólo `links` en una transacción. El reset del esquema v0 es preexistente.
+
+La primera corrida iOS E2E pasó 12/12 en 977,180 segundos antes del arreglo de migración; la corrida sobre el código corregido pasó 12/12 en 983,556 segundos. Se revisaron capturas reales del simulador de miembros, consentimiento, invitación QR e inventario compartido. No sustituye VoiceOver ni teléfonos físicos.
+
+`make test-integration` pasó con `-race -p 1` sobre `medication_f1_familia_v2`. `make test-web-e2e` pasó 13/13 en 14,0 segundos, con `E2E_PORT_OFFSET=100` y `medication_f3_familia_v2`. `make tokens-check test lint build` volvió a pasar después de la corrección.
+
+Pendiente de este cierre: commit/merge/push, migración y despliegue de staging. El usuario pidió aviso al llegar a instalación iPhone y generación APK. La familia iOS sólo en memoria, push real y validación funcional en teléfonos físicos siguen pendientes.
+
+Architecture Impact: familias y roles sustituyen invitaciones individuales; los vínculos se derivan transaccionalmente. El inventario compartido se activa con conteo físico. iOS incorpora navegación por enlace, QR y migración local v2 conservando la cola. Contratos, ADR 0010 y mapas actualizados. Validación local completa; todavía sin despliegue de esta versión.

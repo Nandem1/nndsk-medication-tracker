@@ -18,6 +18,10 @@ struct MedicationTrackerApp: App {
                 .environment(model)
                 .environment(\.locale, Locale(identifier: "es_CL"))
                 .task { await model.start() }
+                // Enlace de invitación: el código viaja en el fragmento y nunca sale del teléfono.
+                .onOpenURL { url in
+                    if url.scheme == "mistomas", url.host == "unirse", let token = url.fragment, !token.isEmpty { model.pendingJoinToken = token }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await model.becameActive() } }
                 }
@@ -52,7 +56,12 @@ struct RootView: View {
             case .expired:
                 LoginView(notice: "La sesión venció. Tus registros pendientes siguen guardados en este dispositivo.")
             case .signedIn:
-                if model.needsOnboarding { OnboardingView() } else { MainTabs() }
+                if model.needsOnboarding { OnboardingView() } else {
+                    MainTabs()
+                        .sheet(item: Binding(get: { model.pendingJoinToken.map(JoinRequest.init) }, set: { model.pendingJoinToken = $0?.token })) { request in
+                            NavigationStack { FamilyView(incomingToken: request.token) }
+                        }
+                }
             }
         }
         .confirmationDialog("Se borrarán los datos de este dispositivo y los registros pendientes de sincronizar.", isPresented: $confirmClear, titleVisibility: .visible) {
@@ -88,4 +97,10 @@ struct MainTabs: View {
                 .tag(AppTab.settings)
         }
     }
+}
+
+/// Un enlace abierto se muestra en una hoja cuando ya hay sesión y perfil.
+struct JoinRequest: Identifiable {
+    let token: String
+    var id: String { token }
 }

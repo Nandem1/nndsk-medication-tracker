@@ -127,40 +127,6 @@ struct Me: Codable, Sendable, Equatable {
     }
 }
 
-struct CaregiverLink: Codable, Sendable, Identifiable, Equatable {
-    let id: String
-    let patientID: String
-    let caregiverID: String
-    let scopes: [String]
-    let status: String
-    var patientDisplayName: String? = nil
-    var caregiverDisplayName: String? = nil
-
-    enum CodingKeys: String, CodingKey {
-        case id = "link_id"
-        case patientID = "patient_id"
-        case caregiverID = "caregiver_id"
-        case scopes, status
-        case patientDisplayName = "patient_display_name"
-        case caregiverDisplayName = "caregiver_display_name"
-    }
-}
-
-struct InvitationPreview: Codable, Sendable, Equatable {
-    let caregiverID: String
-    let scopes: [String]
-    let expiresAt: String
-    var caregiverDisplayName: String? = nil
-    var patientNameHint: String? = nil
-
-    enum CodingKeys: String, CodingKey {
-        case caregiverID = "caregiver_id"
-        case scopes
-        case expiresAt = "expires_at"
-        case caregiverDisplayName = "caregiver_display_name"
-        case patientNameHint = "patient_name_hint"
-    }
-}
 
 struct Page<Item: Decodable & Sendable>: Decodable, Sendable {
     let items: [Item]

@@ -3,6 +3,35 @@ import Testing
 @testable import MedicationTracker
 
 @Suite struct FamilyStoreTests {
+    @Test func versionOneMigrationPreservesQueueAndOwnerAndRemovesLegacyLinks() async throws {
+        let (store, directory) = try Fixture.temporaryStore()
+        _ = try await store.claim(ownerUID: "owner")
+        let doses = [Fixture.dose(), Fixture.dose(id: "second-dose")]
+        try await store.replaceAgenda(doses, from: "2026-01-01", to: "2027-01-01", at: .now, patient: Fixture.patient)
+        try await store.replaceInventory([Fixture.account()], patient: Fixture.patient)
+        for dose in doses {
+            let operation = try OperationFactory.declaration(.taken, dose: dose, occurredAt: nil, now: .now, patient: Fixture.patient)
+            try await store.enqueue(operation)
+            try await store.markAttempt(operation.id)
+            if dose.id == "second-dose" { try await store.mark(operation.id, status: .conflict) }
+        }
+        let before = try await store.snapshot(patient: Fixture.patient)
+        let database = try SQLiteConnection(path: directory.appending(path: "store.sqlite").path())
+        try database.execute("CREATE TABLE links(id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, payload BLOB NOT NULL)")
+        try database.execute("INSERT INTO links VALUES('legacy', 'patient', X'00')")
+        try database.execute("PRAGMA user_version=1")
+
+        let migrated = try LocalStore(directory: directory)
+        #expect(try await migrated.snapshot(patient: Fixture.patient) == before)
+        #expect(try await migrated.claim(ownerUID: "other-owner") == .otherOwnerHasPending(2))
+        #expect(try database.query("SELECT name FROM sqlite_master WHERE type='table' AND name='links'").isEmpty)
+        #expect(try database.query("PRAGMA user_version").first?.int("user_version") == 2)
+        let reopened = try LocalStore(directory: directory)
+        #expect(try await reopened.snapshot(patient: Fixture.patient) == before)
+        try await reopened.wipe()
+        #expect(try await reopened.snapshot(patient: Fixture.patient) == LocalSnapshot())
+    }
+
     @Test func notificationsRejectAnotherPatientEvenWithFutureDoses() {
         let dose = Fixture.dose()
         #expect(ReminderPlanner.plan(patient: "other", actor: Fixture.patient, doses: [dose], operations: [], now: .distantPast).isEmpty)

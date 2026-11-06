@@ -25,9 +25,9 @@ struct SettingsView: View {
                         }
                     }
                 }
-                Section("Acceso de cuidadores") {
-                    NavigationLink("Cuidadores e invitaciones") { ConsentView() }
-                        .accessibilityIdentifier("open-consent")
+                Section("Familia") {
+                    NavigationLink("Familia y quién tiene acceso") { FamilyView() }
+                        .accessibilityIdentifier("open-family")
                 }
                 Section("Cuenta") {
                     Text(DoseText.selfReported)
