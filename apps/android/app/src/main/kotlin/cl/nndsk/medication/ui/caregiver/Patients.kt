@@ -35,16 +35,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 
-@Composable internal fun Patients(model: PatientViewModel, state: AppState, open: (String) -> Unit) {
-    var invite by remember { mutableStateOf(false) }
+@Composable internal fun Patients(state: AppState, openFamily: () -> Unit, open: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
-        if (state.patients.isEmpty()) SectionCard("Aún no sigues a ningún paciente") { Note("Invita a una persona. Su agenda aparecerá aquí cuando autorice el acceso.") }
+        if (state.patients.isEmpty()) SectionCard("Aún no sigues a ningún paciente") { Note("Crea tu familia e invita a quienes toman los medicamentos. Aparecerán aquí al unirse.") }
         state.patients.values.forEach { snapshot -> PatientCard(snapshot, state) { open(snapshot.context.patientId) } }
-        DoseAction("Invitar a alguien", prominent = true) { invite = true }
+        DoseAction("Invitar a la familia", prominent = true) { openFamily() }
         if (state.patients.isNotEmpty()) Note("Los registros son declaraciones. No demuestran que el medicamento se haya tomado.")
         Spacer(Modifier.height(GraphiteTokens.Space.sm))
     }
-    if (invite) InviteSheet(model) { invite = false }
 }
 
 /** Toda la tarjeta abre al paciente. Cada aviso aparece sólo si hay algo que revisar. */
@@ -72,18 +70,17 @@ import java.util.UUID
     }
 }
 
-/** Acciones sobre el vínculo, separadas de la navegación entre secciones. */
+/** Cambiar el nombre del paciente, separado de la navegación entre secciones. Salir se hace en Familia. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun PatientMenu(model: PatientViewModel, state: AppState, id: String) {
     val snapshot = state.patients[id] ?: return
+    if (!state.screen(id).permits("treatments")) return
     var open by remember { mutableStateOf(false) }
-    var leave by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(painterResource(R.drawable.ic_more), contentDescription = "Opciones del paciente") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (state.screen(id).permits("treatments")) DropdownMenuItem(text = { Text("Cambiar nombre") }, onClick = { open = false; rename = true })
-            DropdownMenuItem(text = { Text("Dejar de seguir") }, onClick = { open = false; leave = true })
+            DropdownMenuItem(text = { Text("Cambiar nombre") }, onClick = { open = false; rename = true })
         }
     }
     if (rename) ModalBottomSheet(onDismissRequest = { rename = false }) {
@@ -92,10 +89,6 @@ import java.util.UUID
             SecondaryAction("Cerrar") { rename = false }
         }
     }
-    if (leave) AlertDialog(onDismissRequest = { leave = false }, title = { Text("Dejar de seguir a ${patientName(snapshot.access)}") },
-        text = { Text("Perderás el acceso a su información. Para volver necesitarás una nueva autorización.") },
-        confirmButton = { TextButton(onClick = { leave = false; snapshot.access?.linkId?.let { model.run { model.repository.revoke(it) } } }) { Text("Dejar de seguir") } },
-        dismissButton = { TextButton(onClick = { leave = false }) { Text("Volver") } })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

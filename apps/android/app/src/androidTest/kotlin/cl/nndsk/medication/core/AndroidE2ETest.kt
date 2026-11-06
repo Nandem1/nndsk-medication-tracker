@@ -71,16 +71,12 @@ class AndroidE2ETest {
         assertEquals("e2e", BuildConfig.BUILD_TYPE)
         app.repository.logout()
         fault("online")
-        // El orden de JUnit no está garantizado: cada caso respeta el límite real de 120 solicitudes por minuto.
-        delay(61_000)
+
         try {
             val patient = signup("patient")
             val caregiver = signup("caregiver")
             val patientId = call("/v1/me", patient.second).getValue("user_id").jsonPrimitive.content
-            val invitation = call("/v1/invitations", caregiver.second, buildJsonObject {
-                put("client_operation_id", UUID.randomUUID().toString())
-                put("scopes", JsonArray(listOf("read", "treatments", "doses", "inventory").map(::JsonPrimitive)))
-            }).getValue("token").jsonPrimitive.content
+            val invitation = invite(caregiver.second, family(caregiver.second), "patient")
             compose.onNodeWithText("Correo").performTextInput(patient.first)
             compose.onNodeWithText("Contraseña").performTextInput("synthetic-wrong-password")
             compose.onNodeWithText("Entrar").performClick()
@@ -98,12 +94,12 @@ class AndroidE2ETest {
             app.repository.login(patient.first, password)
             assertEquals(consentOperation, app.identity.invitationOperation(invitation))
             compose.onNodeWithText("Ajustes").performClick()
-            compose.onNodeWithText("Pegar código o revisar accesos").performScrollTo().performClick()
+            compose.onNodeWithText("Abrir familia").performScrollTo().performClick()
             compose.onNodeWithText("Código de invitación").performScrollTo().performTextInput(invitation)
             compose.onNodeWithText("Revisar invitación").performScrollTo().performClick()
-            compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Autorizar estos permisos").performScrollTo().performClick()
-            waitFor { app.repository.state.value.own?.links?.size == 1 }
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Unirme a la familia").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Unirme a la familia").performScrollTo().performClick()
+            waitFor { app.repository.state.value.own?.families?.size == 1 }
             shell("screencap -p /data/local/tmp/e2e-settings.png")
             val now = Instant.now()
             val zone = listOf("America/Santiago", "UTC", "Asia/Tokyo", "Pacific/Auckland").map(ZoneId::of).first {
@@ -249,18 +245,27 @@ class AndroidE2ETest {
             }
         })
     }
+    private fun family(admin: String): String = call("/v1/families", admin, buildJsonObject {
+        put("client_operation_id", UUID.randomUUID().toString()); put("name", "Familia sintética")
+    }).getValue("family_id").jsonPrimitive.content
+    private fun invite(admin: String, family: String, role: String): String = call("/v1/families/$family/invitations", admin, buildJsonObject {
+        put("client_operation_id", UUID.randomUUID().toString()); put("role", role)
+    }).getValue("token").jsonPrimitive.content
+    private fun join(member: String, token: String) {
+        call("/v1/family-invitations/accept", member, buildJsonObject { put("client_operation_id", UUID.randomUUID().toString()); put("token", token) })
+    }
+    /** Une a quien cuida con el paciente en una familia, con el rol que cubre los alcances. Devuelve la familia. */
     private fun link(caregiver: String, patient: String, scopes: List<String>): String {
-        val token = call("/v1/invitations", caregiver, buildJsonObject {
-            put("client_operation_id", UUID.randomUUID().toString()); put("scopes", JsonArray(scopes.map(::JsonPrimitive)))
-        }).getValue("token").jsonPrimitive.content
-        return call("/v1/invitations/accept", patient, buildJsonObject {
-            put("client_operation_id", UUID.randomUUID().toString()); put("token", token)
-        }).getValue("link_id").jsonPrimitive.content
+        val role = when { "treatments" in scopes -> "admin"; "doses" in scopes || "inventory" in scopes -> "caregiver"; else -> "observer" }
+        val admin = if (role == "admin") caregiver else signup("family-admin").second
+        val id = family(admin)
+        join(patient, invite(admin, id, "patient"))
+        if (role != "admin") join(caregiver, invite(admin, id, role))
+        return id
     }
     @Test fun familyAccountsConsentScopesTwoPatientsAndRevocation(): Unit = runBlocking {
         app.repository.logout(); fault("online")
-        // Cada bloque respeta el límite real de 120 solicitudes por minuto de la API.
-        delay(61_000)
+
         try {
             val caregiverEmail = "family-${UUID.randomUUID()}@example.test"
             compose.onNodeWithText("Crear una cuenta").performClick()
@@ -274,7 +279,13 @@ class AndroidE2ETest {
             waitFor { app.repository.state.value.own?.profile?.profileComplete == true }
             compose.onNodeWithText("Cuido a alguien").performClick()
             waitFor { app.repository.state.value.caregiverPreference == true }
-            compose.onNodeWithText("Invitar a alguien").performScrollTo().performClick()
+            compose.onNodeWithText("Invitar a la familia").performScrollTo().performClick()
+            compose.onNodeWithText("Nombre de la familia").performTextClearance()
+            compose.onNodeWithText("Nombre de la familia").performTextInput("Familia Vicente")
+            compose.onNodeWithText("Crear familia").performScrollTo().performClick()
+            waitFor { app.repository.state.value.own?.families?.singleOrNull()?.name == "Familia Vicente" }
+            capture("family-created")
+            compose.onNodeWithText("Invitar a la familia").performScrollTo().performClick()
             compose.onNodeWithText("¿Cómo se llama? (opcional)").performTextInput("Mamá sintética")
             capture("family-invite")
             compose.onNodeWithText("Crear invitación").performScrollTo().performClick()
@@ -284,8 +295,10 @@ class AndroidE2ETest {
             val clipboard = app.getSystemService(android.content.ClipboardManager::class.java)
             val message = clipboard.primaryClip!!.getItemAt(0).text.toString()
             assertEquals(43, invitationToken(message).length)
+            assertTrue(message.contains(invitationLink(invitationToken(message))))
             compose.onNodeWithText("Cerrar").performScrollTo().performClick()
             val caregiverToken = app.identity.token()
+            val caregiverFamily = app.repository.state.value.own!!.families.single().id
             app.repository.logout()
             val patient = signup("family-patient")
             val second = signup("family-second")
@@ -299,18 +312,25 @@ class AndroidE2ETest {
             capture("family-today-invited")
             compose.onNodeWithText("Ingresar código").performScrollTo().performClick()
             compose.onNodeWithText("Pegar código").performScrollTo().performClick()
-            compose.waitUntil(20_000) { compose.onAllNodesWithText("Autorizar estos permisos").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Cuidador sintético podrá:").performScrollTo().assertExists()
-            compose.onNodeWithText("Autorizar estos permisos").performScrollTo()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Unirme a la familia").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Familia Vicente").performScrollTo().assertExists()
+            compose.onNodeWithText("Cuidador sintético te invita como Paciente").performScrollTo().assertExists()
+            compose.onNodeWithText("Unirme a la familia").performScrollTo()
             capture("family-consent")
-            compose.onNodeWithText("Autorizar estos permisos").performScrollTo().performClick()
-            waitFor { app.repository.state.value.own?.links?.size == 1 }
-            val firstLink = app.repository.state.value.own!!.links.single().id
-            link(caregiverToken, second.second, listOf("read", "doses", "inventory", "treatments"))
-            link(reader.second, patient.second, listOf("read"))
+            compose.onNodeWithText("Unirme a la familia").performScrollTo().performClick()
+            waitFor { app.repository.state.value.own?.families?.singleOrNull()?.role == "patient" }
+            // Las demás personas se unen a la misma familia: nadie vuelve a pegar códigos por cada paciente.
+            join(second.second, invite(caregiverToken, caregiverFamily, "patient"))
+            join(reader.second, invite(caregiverToken, caregiverFamily, "observer"))
+            app.repository.sync()
+            waitFor { app.repository.state.value.own?.families?.single()?.members?.size == 4 }
+            compose.onNodeWithText("Hoy").performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Nuevo en Familia Vicente").fetchSemanticsNodes().isNotEmpty() }
+            capture("family-new-members")
             treatment(patient.second, patientId); treatment(second.second, secondId)
             app.repository.logout(); app.repository.login(reader.first, password); app.repository.setUse(true)
-            waitFor { app.repository.state.value.patients.size == 1 }
+            // Quien sólo mira hereda a todos los pacientes de la familia sin otra aprobación.
+            waitFor { app.repository.state.value.patients.size == 2 }
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
             compose.onNodeWithText("Paciente uno sintético").performScrollTo().performClick()
             compose.onNodeWithText("Tu acceso permite sólo mirar").assertExists()
@@ -318,7 +338,6 @@ class AndroidE2ETest {
             capture("family-read-only")
             app.repository.logout(); app.repository.login(caregiverEmail, password); app.repository.setUse(true)
             waitFor { app.repository.state.value.patients.size == 2 }
-            delay(61_000)
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
             capture("family-patients")
             compose.onNode(hasText("Pacientes") and hasClickAction()).performClick()
@@ -364,7 +383,6 @@ class AndroidE2ETest {
             val ledger = call("/v1/inventory/$account/movements", patient.second).getValue("items").jsonArray
             assertEquals(2, ledger.count { it.jsonObject.getValue("reason").jsonPrimitive.content == "replenishment" })
             assertEquals(2, ledger.count { it.jsonObject.getValue("reason").jsonPrimitive.content == "manual_adjustment" })
-            delay(61_000)
             val first = app.repository.state.value.patients.getValue(patientId)
             val taken = first.doses.single { it.state == "taken" }
             val reviewed = declaration(taken, "skipped", null, "Corrección sintética revisada")
@@ -384,7 +402,7 @@ class AndroidE2ETest {
             val recordTwo = launch(Dispatchers.Default) { app.repository.record(secondSnapshot.context, secondDose.id, two) }
             withTimeout(5_000) { while (app.database.local().allOperations(first.context.ownerUid).size != 2) delay(25) }
             assertTrue("Network stays stalled while both records reach disk", app.repository.state.value.busy)
-            call("/v1/caregiver-links/$firstLink", patient.second, method = "DELETE")
+            call("/v1/families/$caregiverFamily/members/$patientId", patient.second, method = "DELETE")
             fault("online"); syncing.join(); recordOne.join(); recordTwo.join()
             assertFalse(app.repository.state.value.patients.containsKey(patientId))
             assertTrue(app.repository.state.value.patients.containsKey(secondId))
@@ -410,10 +428,9 @@ class AndroidE2ETest {
         finally { fault("online"); app.repository.logout() }
     }
 
-    /** Quien propone es un cuidador; el paciente decide en este teléfono. Consumo y salida con API y PostgreSQL reales. */
-    @Test fun sharedInventoryConsentConsumptionAndLeave(): Unit = runBlocking {
+    /** Quien cuida marca la misma caja contándola. Consumo y salida con API y PostgreSQL reales. */
+    @Test fun sharedBoxCountConsumptionAndLeave(): Unit = runBlocking {
         app.repository.logout(); fault("online")
-        delay(61_000)
         try {
             val mama = signup("pool-mama"); val papa = signup("pool-papa"); val caregiver = signup("pool-care")
             val mamaId = call("/v1/me", mama.second).getValue("user_id").jsonPrimitive.content
@@ -429,30 +446,24 @@ class AndroidE2ETest {
             waitFor { app.repository.state.value.patients.size == 2 }
             compose.onNodeWithText("Mamá sintética").performScrollTo().performClick()
             compose.onNodeWithText("Inventario").performClick()
-            compose.onNodeWithText("Compartir con…").performScrollTo().performClick()
-            compose.waitUntil(20_000) { compose.onAllNodesWithText("Papá sintético").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("¿Usan la misma caja?").performScrollTo().performClick()
+            compose.waitUntil(20_000) { compose.onAllNodesWithText("Misma caja que Papá sintético").fetchSemanticsNodes().isNotEmpty() }
             capture("pool-candidates")
-            compose.onNodeWithText("Papá sintético").performClick()
-            waitFor { app.repository.state.value.patients.getValue(mamaId).inventory.single().pool?.status == "pending" }
-            compose.onNodeWithText("Esperando a Papá sintético", substring = true).performScrollTo().assertExists()
-            capture("pool-waiting")
+            compose.onNodeWithText("Misma caja que Papá sintético").performClick()
+            // Dos stocks de 10 eran la misma caja: al contarla quedan 10, no 20.
+            compose.onNodeWithText("¿Cuántos comprimidos hay en la caja?").performTextInput("10")
+            capture("pool-count")
+            compose.onNodeWithText("Compartir la caja").performClick()
+            waitFor { app.repository.state.value.patients.getValue(mamaId).inventory.single().pool?.status == "active" }
+            compose.onNodeWithText("Misma caja que Papá sintético", substring = true).performScrollTo().assertExists()
+            capture("pool-active")
             assertEquals("10.000", balance(caregiver.second, mamaId))
+            assertEquals("10.000", balance(papa.second, papaId))
             app.repository.logout()
 
             app.repository.login(mama.first, password); app.repository.setUse(false)
-            waitFor { app.repository.state.value.own?.pendingPools?.size == 1 }
-            compose.onNodeWithText("Cuidadora sintética propone compartir", substring = true).performScrollTo().assertExists()
-            capture("pool-proposal")
-            compose.onNodeWithText("Aceptar").performScrollTo().performClick()
-            waitFor { app.repository.state.value.own?.pendingPools?.isEmpty() == true }
-            val pending = call("/v1/inventory-pools/pending", papa.second).getValue("items").jsonArray.single().jsonObject
-            val poolId = pending.getValue("pool_id").jsonPrimitive.content
-            call("/v1/inventory-pools/$poolId/decision", papa.second, buildJsonObject {
-                put("client_operation_id", UUID.randomUUID().toString()); put("decision", "accept")
-            })
-            app.repository.sync()
             waitFor { app.repository.state.value.own?.inventory?.single()?.pool?.status == "active" }
-            assertEquals("20.000", app.repository.state.value.own!!.inventory.single().balance)
+            assertEquals("10.000", app.repository.state.value.own!!.inventory.single().balance)
 
             // Cada paciente consume de su propia cuenta y el saldo común baja una vez por dosis.
             val own = app.repository.state.value.own!!
@@ -464,11 +475,11 @@ class AndroidE2ETest {
                 put("client_operation_id", UUID.randomUUID().toString()); put("event_type", "taken"); put("expected_version", papaDose.getValue("version").jsonPrimitive.int)
             })
             app.repository.sync()
-            waitFor { app.repository.state.value.own?.inventory?.single()?.balance == "19.000" }
-            assertEquals("19.000", balance(papa.second, papaId))
+            waitFor { app.repository.state.value.own?.inventory?.single()?.balance == "9.000" }
+            assertEquals("9.000", balance(papa.second, papaId))
 
             compose.onNodeWithText("Ajustes").performClick()
-            compose.onNodeWithText("Inventario compartido con Papá sintético", substring = true).performScrollTo().assertExists()
+            compose.onNodeWithText("Misma caja que Papá sintético", substring = true).performScrollTo().assertExists()
             capture("pool-settings")
             compose.onNodeWithText("Dejar de compartir").performScrollTo().performClick()
             compose.onNodeWithText("El saldo se queda con Papá sintético", substring = true).assertExists()
@@ -476,7 +487,7 @@ class AndroidE2ETest {
             compose.onNodeWithText("Confirmar").performClick()
             waitFor { app.repository.state.value.own?.inventory?.single()?.pool == null }
             assertEquals("0.000", app.repository.state.value.own!!.inventory.single().balance)
-            assertEquals("19.000", balance(papa.second, papaId))
+            assertEquals("9.000", balance(papa.second, papaId))
             val reasons = call("/v1/inventory/$mamaAccount/movements", mama.second).getValue("items").jsonArray.map { it.jsonObject.getValue("reason").jsonPrimitive.content }
             assertEquals(1, reasons.count { it == "pool_transfer" })
             assertEquals(1, call("/v1/inventory/$papaAccount/movements", papa.second).getValue("items").jsonArray.count { it.jsonObject.getValue("reason").jsonPrimitive.content == "pool_transfer" })
@@ -487,7 +498,6 @@ class AndroidE2ETest {
     /** Exporta con el selector nativo y elimina la cuenta: la historia del otro paciente queda intacta. */
     @Test fun exportAndDeleteAccountKeepOtherHistory(): Unit = runBlocking {
         app.repository.logout(); fault("online")
-        delay(61_000)
         try {
             val patient = signup("delete-patient"); val caregiver = signup("delete-care"); val other = signup("delete-other")
             val patientId = call("/v1/me", patient.second).getValue("user_id").jsonPrimitive.content

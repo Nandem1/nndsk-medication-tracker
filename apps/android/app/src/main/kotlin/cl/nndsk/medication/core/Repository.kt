@@ -115,7 +115,7 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         val accesses = api.pages<PatientAccess>("v1/patients")
         val allowed = accesses.map { it.patientId }.toSet()
         for (stored in dao.snapshots(uid)) if (stored.patient !in allowed) deny(uid, stored.patient)
-        val links = api.pages<Link>("v1/caregiver-links").filter { it.status == "active" }
+        val families = api.pages<Family>("v1/families")
         for (access in accesses) {
             val c = PatientContext(uid, me.userId, access.patientId)
             try {
@@ -125,11 +125,10 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
                 val doses = api.pages<Dose>("$base/doses", mapOf("from" to day.minusDays(7).toString(), "to" to day.plusDays(21).toString()))
                 val inventory = api.pages<Inventory>("$base/inventory")
                 val report = api.get<DailyReport>("$base/adherence", mapOf("from" to day.toString(), "to" to day.plusDays(1).toString()))
-                val pools = if (c.patientId == me.userId) api.pages<PendingPool>("v1/inventory-pools/pending") else emptyList()
                 val old = mutable.value.patient(c.patientId)?.doses.orEmpty().associateBy { it.id }
                 save(Snapshot(c, doses.map { old[it.id]?.takeIf { previous -> previous.version > it.version } ?: it },
-                    treatments, inventory, links.filter { it.patientId == c.patientId }, Instant.now().toString(), access,
-                    if (c.patientId == me.userId) me else null, report, pools))
+                    treatments, inventory, if (c.patientId == me.userId) families else emptyList(), Instant.now().toString(), access,
+                    if (c.patientId == me.userId) me else null, report))
             } catch (e: ApiFailure) {
                 if (e.status == 403 || e.status == 404) deny(uid, c.patientId) else throw e
             }
@@ -160,23 +159,34 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         dao.remove(uid, op.patient, id)
         publish()
     }
-    suspend fun preview(text: String): Invitation = requestResult {
-        wireJson.decodeFromString(api.request("v1/invitations/preview", wireJson.encodeToString(mapOf("token" to invitationToken(text)))))
+    suspend fun preview(text: String): FamilyInvitationPreview = requestResult {
+        wireJson.decodeFromString(api.request("v1/family-invitations/preview", wireJson.encodeToString(mapOf("token" to invitationToken(text)))))
     }
+    /** La operación se conserva por token: un reintento tras perder la respuesta es la misma aceptación. */
     suspend fun accept(text: String) = action {
         val token = invitationToken(text)
         val operationId = identity.invitationOperation(token)
-        api.request("v1/invitations/accept", wireJson.encodeToString(mapOf("token" to token, "client_operation_id" to operationId)))
+        api.request("v1/family-invitations/accept", wireJson.encodeToString(mapOf("token" to token, "client_operation_id" to operationId)))
         identity.clearInvitation()
         syncLocked()
     }
-    suspend fun createInvitation(scopes: List<String>, hint: String): CreatedInvitation = requestResult {
+    suspend fun createFamily(name: String, operationId: String) = action {
+        api.request("v1/families", buildJsonObject { put("client_operation_id", operationId); put("name", name.trim()) }.toString())
+        syncLocked()
+    }
+    /** Cada envío crea otra invitación: el token no se puede recuperar si se pierde la respuesta. */
+    suspend fun invite(familyId: String, role: String, hint: String): CreatedInvitation = requestResult {
         val body = buildJsonObject {
             put("client_operation_id", UUID.randomUUID().toString())
-            put("scopes", JsonArray(scopes.map(::JsonPrimitive)))
-            if (hint.isNotBlank()) put("patient_name_hint", hint.trim())
+            put("role", role)
+            if (role == "patient" && hint.isNotBlank()) put("patient_name_hint", hint.trim())
         }
-        wireJson.decodeFromString(api.request("v1/invitations", body.toString()))
+        wireJson.decodeFromString(api.request("v1/families/$familyId/invitations", body.toString()))
+    }
+    /** Salir de la familia o, para quien administra, quitar a otra persona. */
+    suspend fun removeMember(familyId: String, userId: String) = action {
+        api.request("v1/families/$familyId/members/$userId", delete = true)
+        syncLocked()
     }
     suspend fun updateProfile(patientId: String, name: String, version: Int, operationId: String) = action(patientId) {
         val own = mutable.value.own?.context?.patientId == patientId
@@ -195,15 +205,11 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         syncLocked()
     }
     suspend fun poolCandidates(accountId: String): List<PoolCandidate> = requestResult { api.pages("v1/inventory/$accountId/pool-candidates") }
-    suspend fun proposePool(accounts: List<String>, operationId: String) = action {
+    /** Marca la misma caja: el saldo común parte de lo contado en la cuenta indicada. */
+    suspend fun sharePool(accounts: List<String>, countedAccount: String, counted: String, operationId: String) = action {
         api.request("v1/inventory-pools", buildJsonObject {
             put("client_operation_id", operationId); put("account_ids", JsonArray(accounts.map(::JsonPrimitive)))
-        }.toString())
-        syncLocked()
-    }
-    suspend fun decidePool(poolId: String, accept: Boolean, operationId: String) = action {
-        api.request("v1/inventory-pools/$poolId/decision", buildJsonObject {
-            put("client_operation_id", operationId); put("decision", if (accept) "accept" else "decline")
+            put("counted_account_id", countedAccount); put("counted_quantity", counted)
         }.toString())
         syncLocked()
     }
@@ -223,10 +229,6 @@ class Repository(val identity: Identity, private val api: Api, private val db: L
         }
         if (removed) logout()
         return removed
-    }
-    suspend fun revoke(id: String) = action {
-        api.request("v1/caregiver-links/$id", delete = true)
-        syncLocked()
     }
     suspend fun logout() = mutex.withLock { withContext(NonCancellable) {
         mutable.value = AppState(busy = true)

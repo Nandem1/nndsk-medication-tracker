@@ -47,10 +47,10 @@ import cl.nndsk.medication.ui.components.*
     var discard by remember { mutableStateOf<PendingOperation?>(null) }
     val notificationSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(GraphiteTokens.Space.md)) {
-        SectionCard("Acceso de cuidadores") {
-            val links = state.own?.links.orEmpty()
-            Note(when (links.size) { 0 -> "Ningún cuidador tiene acceso."; 1 -> "1 cuidador tiene acceso."; else -> "${links.size} cuidadores tienen acceso." })
-            SecondaryAction("Pegar código o revisar accesos") { openAccess() }
+        SectionCard("Familia") {
+            val families = state.own?.families.orEmpty()
+            Note(if (families.isEmpty()) "Todavía no estás en una familia." else families.joinToString { "${it.name}: ${if (it.members.size == 1) "1 persona" else "${it.members.size} personas"}" })
+            SecondaryAction("Abrir familia") { openAccess() }
         }
         SectionCard("Uso de la app") {
             Note("Organiza las pantallas. No cambia ningún permiso.")

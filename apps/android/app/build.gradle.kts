@@ -109,6 +109,8 @@ dependencies {
   ksp("androidx.room:room-compiler:2.8.5")
   implementation("com.squareup.retrofit2:retrofit:3.0.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+  // Sólo el codificador de QR: sin cámara ni permisos.
+  implementation("com.google.zxing:core:3.5.3")
 }
 
 dependencyLocking { lockAllConfigurations() }

@@ -33,7 +33,7 @@ import cl.nndsk.medication.ui.caregiver.PatientMenu
 import cl.nndsk.medication.ui.today.Today
 import cl.nndsk.medication.ui.today.History
 import cl.nndsk.medication.ui.detail.DoseDetail
-import cl.nndsk.medication.ui.settings.CaregiverAccess
+import cl.nndsk.medication.ui.family.FamilyScreen
 import cl.nndsk.medication.ui.settings.PatientSettings
 import cl.nndsk.medication.ui.components.StatusBanner
 
@@ -55,7 +55,24 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     LaunchedEffect(state.session) {
         if (state.session == Session.SignedOut) { stack.clear(); stack.add(Tab("Hoy")) }
     }
+    // Otra cuenta en el mismo teléfono no hereda la navegación de la anterior, aunque el cambio sea rápido.
+    var lastOwner by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.own?.context?.ownerUid) {
+        val owner = state.own?.context?.ownerUid ?: return@LaunchedEffect
+        if (lastOwner != null && lastOwner != owner) { stack.clear(); stack.add(Tab(tabs.first())) }
+        lastOwner = owner
+    }
+    // Un enlace de invitación espera a que haya sesión y perfil; después abre Familia con el código.
+    var joinToken by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(requested, state.session, onboarding) {
+        val uri = requested ?: return@LaunchedEffect
+        if (uri.scheme == "mistomas" && uri.host == "unirse" && state.session == Session.Active && !onboarding) {
+            joinToken = uri.fragment
+            stack.clear(); stack.add(Tab(tabs.last())); stack.add(Access)
+        }
+    }
     LaunchedEffect(requested, state.own?.context) {
+        if (requested?.scheme == "mistomas") return@LaunchedEffect
         val parts = requested?.pathSegments.orEmpty()
         val c = state.own?.context
         if (parts.size == 3 && c != null && parts[0] == c.ownerUid && parts[1] == c.patientId && state.own?.doses?.any { it.id == parts[2] } == true) {
@@ -94,11 +111,11 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
                     entry<Tab> { tab -> when (tab.name) {
                         "Hoy" -> Today(model, state.screen(), now, openAccess = { stack.add(Access) }) { stack.add(Detail(it)) }
                         "Historial" -> History(state.screen(), now) { stack.add(Detail(it)) }
-                        "Pacientes" -> Patients(model, state) { stack.add(PatientDetail(it)) }
+                        "Pacientes" -> Patients(state, openFamily = { stack.add(Access) }) { stack.add(PatientDetail(it)) }
                         else -> PatientSettings(model, state, openAccess = { stack.add(Access) }) { dose, patient -> stack.add(Detail(dose, patient.takeUnless { it == state.own?.context?.patientId })) }
                     } }
                     entry<PatientDetail> { patient -> Patient(model, state, patient.id, now) { stack.add(Detail(it, patient.id)) } }
-                    entry<Access> { CaregiverAccess(model, state) }
+                    entry<Access> { FamilyScreen(model, state, joinToken) }
                     entry<Detail> { detail -> DoseDetail(model, state.screen(detail.patient ?: state.own?.context?.patientId), detail.id) }
                 })
             }
@@ -116,7 +133,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     val detail = current is Detail || current is PatientDetail || current is Access
     TopAppBar(
         title = {
-            Text(title ?: if (current is Access) "Acceso de cuidadores" else if (detail) "Detalle de la toma" else (current as? Tab)?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(title ?: if (current is Access) "Familia" else if (detail) "Detalle de la toma" else (current as? Tab)?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 style = if (detail && title == null) GraphiteTokens.Type.patientLabel else GraphiteTokens.Type.patientTitle)
         },
         navigationIcon = {

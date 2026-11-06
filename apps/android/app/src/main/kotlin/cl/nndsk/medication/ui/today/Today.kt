@@ -25,7 +25,6 @@ import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import java.time.*
 import cl.nndsk.medication.ui.components.*
 import cl.nndsk.medication.ui.detail.DeclarationActions
-import cl.nndsk.medication.ui.caregiver.PendingPoolCard
 
 /** Cuenta registros, no tomas: una omisión también suma. Sin rachas ni metas. */
 @Composable internal fun Today(model: PatientViewModel, state: PatientScreen, now: Instant, openAccess: (() -> Unit)? = null, open: (String) -> Unit) {
@@ -42,7 +41,14 @@ import cl.nndsk.medication.ui.caregiver.PendingPoolCard
             Text("${plan.registeredCount} de ${plan.total} registradas", style = GraphiteTokens.Type.patientLabel)
             LinearProgressIndicator({ plan.registeredCount.toFloat() / plan.total }, Modifier.fillMaxWidth(), color = colors.action, trackColor = colors.border, drawStopIndicator = {})
         }
-        if (!state.caregiver) snapshot?.pendingPools.orEmpty().forEach { PendingPoolCard(model, it, state.busy || state.offline) }
+        if (!state.caregiver) snapshot?.families.orEmpty().filter { it.role == "patient" }.forEach { family ->
+            val joined = family.members.filter { isNewMember(it) }
+            // El paciente consintió una vez: ve a cada persona nueva durante su primera semana.
+            if (joined.isNotEmpty() && openAccess != null) SectionCard("Nuevo en ${family.name}") {
+                Note(joined.joinToString { memberName(it) } + if (joined.size == 1) " se unió a tu familia." else " se unieron a tu familia.")
+                SecondaryAction("Ver familia") { openAccess() }
+            }
+        }
         if (plan.review.isNotEmpty()) {
             SectionTitle("Por revisar")
             plan.review.forEach { DoseRow(it, state, now, open = open) }
@@ -55,7 +61,7 @@ import cl.nndsk.medication.ui.caregiver.PendingPoolCard
             }, style = GraphiteTokens.Type.patientBody)
             else if (plan.later.isEmpty() && plan.overdue.isEmpty()) Text("No quedan tomas por registrar hoy.", style = GraphiteTokens.Type.patientBody)
         }
-        if (openAccess != null && plan.total == 0 && snapshot?.refreshedAt != null && snapshot.links.isEmpty()) SectionCard("¿Te invitó un cuidador?") {
+        if (openAccess != null && plan.total == 0 && snapshot?.refreshedAt != null && snapshot.families.isEmpty()) SectionCard("¿Te invitó un cuidador?") {
             Note("Pega el código que te enviaron para revisar qué podrá hacer antes de autorizarlo.")
             SecondaryAction("Ingresar código") { openAccess() }
         }

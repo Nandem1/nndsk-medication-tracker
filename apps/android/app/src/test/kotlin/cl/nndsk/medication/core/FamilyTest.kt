@@ -23,9 +23,11 @@ class FamilyTest {
         assertTrue(PatientScreen(own, emptyList()).permits("doses"))
         assertFalse(PatientScreen(null, emptyList()).permits("doses"))
     }
-    @Test fun acceptsFullInvitationMessage() {
+    @Test fun acceptsFullInvitationMessageAndLink() {
         val token = "a".repeat(41) + "_-"
-        assertEquals(token, invitationToken(invitationMessage(token)))
+        assertEquals(token, invitationToken(invitationMessage(token, "Familia")))
+        assertEquals(token, invitationToken(invitationLink(token)))
+        assertEquals("mistomas://unirse#$token", invitationLink(token))
         assertThrows(IllegalArgumentException::class.java) { invitationToken("mensaje sin código") }
     }
     @Test fun foreignFutureDosesNeverScheduleLocalReminders() {
@@ -36,11 +38,8 @@ class FamilyTest {
         assertEquals(listOf(dose), reminderDoses(own.copy(doses = listOf(dose)), emptyList(), now))
     }
     @Test fun sharedInventoryTextsNameOnlyOthersAndHideForeignTime() {
-        val pool = InventoryPool("p", "active", listOf(PoolMember("Mamá", current = true), PoolMember("Papá"), PoolMember(null, status = "pending")))
+        val pool = InventoryPool("p", "active", listOf(PoolMember("Mamá", current = true), PoolMember("Papá"), PoolMember(null)))
         assertEquals("Papá, Paciente sin nombre", poolOthers(pool))
-        assertEquals("Paciente sin nombre", poolOthers(pool, "pending"))
-        val proposal = poolProposal(PendingPool("p", "Hermana", "Losartán", "50 mg", listOf("Papá")))
-        assertEquals("Hermana propone compartir Losartán 50 mg con Papá. Compartirán el mismo saldo y podrán ver cuánto queda.", proposal)
         assertEquals("02-11-2026", sharedActivityDate("2026-11-02T00:00:00Z"))
         val decoded = wireJson.decodeFromString<Inventory>("""{"treatment_id":"t","balance":"20.000","unit":"tablet","pool":{"pool_id":"p","status":"active","members":[{"patient_display_name":"otra persona","you":false,"current":false,"status":"accepted"}]}}""")
         assertEquals("otra persona", poolOthers(decoded.pool!!))
@@ -55,5 +54,19 @@ class FamilyTest {
         assertEquals("10.500", normalizedQuantity("10.500"))
         assertEquals(null, normalizedQuantity("1,2345"))
         assertEquals(null, normalizedQuantity("1.000,5"))
+    }
+    @Test fun membersShowInitialsAndStayNewForAWeek() {
+        assertEquals("M", initials("Mamá"))
+        assertEquals("AP", initials("  ana  maría   pérez "))
+        assertEquals("?", initials(null))
+        val now = Instant.parse("2026-11-10T12:00:00Z")
+        assertTrue(isNewMember(FamilyMember("u", "Hermana", "caregiver", "2026-11-05T12:00:00Z"), now))
+        assertFalse(isNewMember(FamilyMember("u", "Hermana", "caregiver", "2026-11-02T12:00:00Z"), now))
+        assertFalse(isNewMember(FamilyMember("u", "Yo", "patient", "2026-11-09T12:00:00Z", you = true), now))
+    }
+    @Test fun familiesDecodeFromTheApi() {
+        val family = wireJson.decodeFromString<Family>("""{"family_id":"f","name":"Familia","role":"patient","members":[{"user_id":"u","display_name":null,"role":"admin","joined_at":"2026-11-05T12:00:00Z","you":false}]}""")
+        assertEquals("Persona sin nombre", memberName(family.members.single()))
+        assertEquals("Administrar", roleLabel(family.members.single().role))
     }
 }

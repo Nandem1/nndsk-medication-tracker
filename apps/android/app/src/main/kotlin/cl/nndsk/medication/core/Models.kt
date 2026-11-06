@@ -37,13 +37,15 @@ data class Treatment(@SerialName("treatment_id") val id: String, val name: Strin
 @Serializable
 data class Inventory(@SerialName("treatment_id") val treatmentId: String, val balance: String, val unit: String, @SerialName("account_id") val accountId: String = "", @SerialName("first_uncovered_at") val firstUncoveredAt: String? = null, @SerialName("replenish_on") val replenishOn: String? = null, @SerialName("low_stock") val lowStock: Boolean = false, val timezone: String = "America/Santiago", val from: String = "", val through: String = "", val pool: InventoryPool? = null)
 @Serializable
-data class Link(@SerialName("link_id") val id: String, @SerialName("patient_id") val patientId: String, @SerialName("caregiver_id") val caregiverId: String, val scopes: List<String>, val status: String, @SerialName("patient_display_name") val patientName: String? = null, @SerialName("caregiver_display_name") val caregiverName: String? = null)
+data class FamilyMember(@SerialName("user_id") val userId: String, @SerialName("display_name") val name: String? = null, val role: String, @SerialName("joined_at") val joinedAt: String, val you: Boolean = false)
 @Serializable
-data class Invitation(@SerialName("caregiver_id") val caregiverId: String, val scopes: List<String>, @SerialName("expires_at") val expiresAt: String, @SerialName("caregiver_display_name") val caregiverName: String? = null, @SerialName("patient_name_hint") val patientNameHint: String? = null)
+data class Family(@SerialName("family_id") val id: String, val name: String, val role: String, val members: List<FamilyMember> = emptyList())
+@Serializable
+data class FamilyInvitationPreview(@SerialName("family_name") val familyName: String, @SerialName("inviter_display_name") val inviterName: String? = null, val role: String, @SerialName("patient_name_hint") val patientNameHint: String? = null, val members: List<FamilyMember> = emptyList(), @SerialName("expires_at") val expiresAt: String)
 @Serializable
 data class DoseResult(@SerialName("dose_id") val doseId: String, @SerialName("event_id") val eventId: String, val version: Int, val state: String, val balance: String)
 @Serializable
-data class Snapshot(val context: PatientContext, val doses: List<Dose> = emptyList(), val treatments: List<Treatment> = emptyList(), val inventory: List<Inventory> = emptyList(), val links: List<Link> = emptyList(), val refreshedAt: String? = null, val access: PatientAccess? = null, val profile: Me? = null, val report: DailyReport? = null, val pendingPools: List<PendingPool> = emptyList())
+data class Snapshot(val context: PatientContext, val doses: List<Dose> = emptyList(), val treatments: List<Treatment> = emptyList(), val inventory: List<Inventory> = emptyList(), val families: List<Family> = emptyList(), val refreshedAt: String? = null, val access: PatientAccess? = null, val profile: Me? = null, val report: DailyReport? = null)
 @Serializable
 data class Command(
     @SerialName("client_operation_id") val id: String,
@@ -77,24 +79,36 @@ fun stateLabel(dose: Dose, now: Instant = Instant.now()): String = when (dose.st
 @Serializable data class Movement(@SerialName("quantity_delta") val quantity: String, val reason: String, @SerialName("created_at") val createdAt: String, val shared: Boolean = false, @SerialName("patient_display_name") val patientName: String? = null)
 @Serializable data class PoolMember(@SerialName("patient_display_name") val name: String? = null, val you: Boolean = false, val current: Boolean = false, val status: String = "accepted")
 @Serializable data class InventoryPool(@SerialName("pool_id") val id: String, val status: String, val members: List<PoolMember> = emptyList())
-@Serializable data class PendingPool(@SerialName("pool_id") val id: String, @SerialName("proposer_display_name") val proposer: String? = null, @SerialName("medication_name") val medication: String, @SerialName("strength_label") val strength: String = "", val others: List<String> = emptyList())
 @Serializable data class PoolCandidate(@SerialName("account_id") val accountId: String, @SerialName("patient_display_name") val name: String? = null, val you: Boolean = false)
 
 /** Los demás miembros del inventario, sin la persona dueña de esta cuenta. */
 fun poolOthers(pool: InventoryPool, status: String? = null) = pool.members.filter { !it.current && (status == null || it.status == status) }
     .map { it.name ?: "Paciente sin nombre" }.distinct().joinToString(", ").ifEmpty { "otra persona" }
-fun poolProposal(pool: PendingPool): String {
-    val medication = listOf(pool.medication, pool.strength).filter { it.isNotBlank() }.joinToString(" ")
-    val with = if (pool.others.isEmpty()) "entre tus tratamientos" else "con ${pool.others.distinct().joinToString(", ")}"
-    return "${pool.proposer ?: "Alguien"} propone compartir $medication $with. Compartirán el mismo saldo y podrán ver cuánto queda."
-}
 /** El servidor anula la hora de la actividad ajena: se muestra sólo la fecha, sin convertir de zona. */
 fun sharedActivityDate(createdAt: String) = createdAt.take(10).split("-").reversed().joinToString("-")
 
 fun patientName(access: PatientAccess?) = access?.displayName ?: "Paciente sin nombre"
 fun invitationToken(text: String): String = Regex("[A-Za-z0-9_-]{43}").find(text)?.value ?: throw IllegalArgumentException("Pega un código de invitación válido.")
-fun invitationMessage(token: String) = "Hola, te invito a Mis tomas. Abre la app, entra en Ajustes › Acceso de cuidadores y pega este código: $token. Vence en 24 horas."
-val invitationPresets = linkedMapOf("Sólo mirar" to listOf("read"), "Ayudar a registrar" to listOf("read", "doses"), "Administrar todo" to listOf("read", "treatments", "doses", "inventory"))
+/** El enlace abre la app. El token va en el fragmento: ningún servidor lo recibe por la URL. */
+fun invitationLink(token: String) = "mistomas://unirse#$token"
+fun invitationMessage(token: String, family: String) = "Hola, te invito a «$family» en Mis tomas. En tu teléfono, toca este enlace:\n\n${invitationLink(token)}\n\nSi no se abre, entra en la app, ve a Ajustes › Familia y pega este código: $token\n\nVence en 7 días."
+val familyRoles = linkedMapOf("patient" to "Paciente", "caregiver" to "Cuidar", "observer" to "Sólo mirar", "admin" to "Administrar")
+fun roleLabel(role: String) = familyRoles[role] ?: role
+fun roleDescription(role: String) = when (role) {
+    "patient" -> "Registra sus propias tomas. Quienes cuidan en la familia verán su agenda."
+    "caregiver" -> "Ve a cada paciente, registra tomas y repone stock."
+    "observer" -> "Ve agendas, historial e inventario. No cambia nada."
+    else -> "Todo lo anterior, más tratamientos e invitar o quitar personas."
+}
+fun memberName(member: FamilyMember) = member.name ?: "Persona sin nombre"
+fun initials(name: String?): String {
+    val words = name.orEmpty().trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (words.isEmpty()) return "?"
+    return (words.first().take(1) + if (words.size > 1) words.last().take(1) else "").uppercase()
+}
+/** Un miembro es nuevo durante su primera semana, para que el paciente sepa quién se unió. */
+fun isNewMember(member: FamilyMember, now: Instant = Instant.now()) =
+    !member.you && runCatching { java.time.Duration.between(Instant.parse(member.joinedAt), now) < java.time.Duration.ofDays(7) }.getOrDefault(false)
 fun appTabs(accesses: List<PatientAccess>, own: Snapshot?, caregiverPreference: Boolean): List<String> {
     val linked = accesses.any { it.linkId != null } || caregiverPreference
     return if (!linked) listOf("Hoy", "Historial", "Ajustes")
