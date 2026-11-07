@@ -1,6 +1,6 @@
 # Revisión y corrección de la sincronización móvil
 
-Estado al 2026-11-06: implementación A/B/C validada localmente. Correcciones publicadas en `origin/main` en `894c7ef`; se comprobó el worktree limpio y HEAD igual al remoto antes de este cierre documental. No se desplegó ni se instaló esta versión en teléfonos físicos.
+Estado al 2026-11-07: fase cerrada por aceptación del usuario; implementación A/B/C validada localmente. Correcciones publicadas en `origin/main` en `894c7ef`; se comprobó el worktree limpio y HEAD igual al remoto antes de este cierre documental. La entrega física y aceptación se registran abajo. No hubo despliegue de backend.
 
 El usuario autorizó contrastar el borrador con el código, consultar a Opus 5.5 y corregir los problemas confirmados. El seguimiento está en [PLAN.md](../../PLAN.md). Se conservan la [primera revisión de Opus](2026-11-06-sync-opus.md), la [segunda revisión sobre el código](2026-11-06-sync-opus-segunda.md) y el [registro de decisiones](sync-decisions.tsv). Ambas revisiones de Opus son estáticas, ejecutadas mediante Claude Code CLI con `claude-opus-5-5`.
 
@@ -77,7 +77,9 @@ No se ejecutaron `make test-integration`, build web ni E2E web: no cambian backe
 
 Las pruebas con transportes controlados demuestran coordinación y selección de peticiones, no latencia de red real. Los E2E usan simulador/emulador y bases locales desechables. No equivalen a teléfonos físicos ni a un benchmark de staging.
 
-La medición del cliente contra staging y la aceptación funcional en iPhone y Android físicos quedan para la instalación solicitada como siguiente paso. No se promete una sincronización inferior a un segundo ni una mejora porcentual sin esa medición.
+El 2026-11-07 se instaló la versión actual en el iPhone por Wi-Fi. El primer APK entregado al Xiaomi contenía valores de configuración de ejemplo y no permitía iniciar sesión; se recompiló con la API staging y la configuración Firebase del iPhone. Se verificaron esos valores dentro del APK y la integridad de la copia reemplazada en Descargas por USB.
+
+Después de esa corrección, el usuario confirmó que todo funciona correctamente, que el rendimiento mejoró bastante y dio por terminada la fase de optimización. Esta aceptación es cualitativa: no se midió una latencia ni un porcentaje de mejora, ni acredita los escenarios físicos específicos del runbook de release. No queda un benchmark como requisito para cerrar esta fase.
 
 ## Architecture Impact
 
