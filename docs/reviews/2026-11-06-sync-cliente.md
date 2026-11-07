@@ -1,6 +1,6 @@
 # Revisión y corrección de la sincronización móvil
 
-Estado al 2026-11-06: implementación A/B/C validada localmente. Cierre de Git en curso. No se desplegó ni se instaló esta versión en teléfonos físicos.
+Estado al 2026-11-06: implementación A/B/C validada localmente. Correcciones publicadas en `origin/main` en `894c7ef`; se comprobó el worktree limpio y HEAD igual al remoto antes de este cierre documental. No se desplegó ni se instaló esta versión en teléfonos físicos.
 
 El usuario autorizó contrastar el borrador con el código, consultar a Opus 5.5 y corregir los problemas confirmados. El seguimiento está en [PLAN.md](../../PLAN.md). Se conservan la [primera revisión de Opus](2026-11-06-sync-opus.md), la [segunda revisión sobre el código](2026-11-06-sync-opus-segunda.md) y el [registro de decisiones](sync-decisions.tsv). Ambas revisiones de Opus son estáticas, ejecutadas mediante Claude Code CLI con `claude-opus-5-5`.
 

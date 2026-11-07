@@ -23,7 +23,7 @@ El usuario autorizó revisar `docs/reviews`, contrastar el informe con el códig
 - [x] C: refrescar sólo los recursos afectados por declaraciones, perfil, familia e inventario; conservar saldo confirmado y resumen ajeno actuales.
 - [x] Ejecutar checks comunes y suites completas de ambas apps.
 - [x] Actualizar mapas locales y consolidar informe con evidencia y límites.
-- [ ] Revisar el diff completo, hacer commit y push y comprobar que el worktree queda limpio.
+- [x] Revisar el diff completo, hacer commit y push y comprobar que el worktree queda limpio. Evidencia: `894c7ef` publicado en `origin/main`, sin diferencias local/remoto ni cambios pendientes antes de este cierre documental.
 
 La agrupación no tiene un máximo global de dos ciclos: las solicitudes durante el segundo pueden necesitar un tercero. Tras vaciar declaraciones de varios pacientes, se renuevan los inventarios y los resúmenes ajenos de todos los afectados. Nunca se copia el saldo histórico del resultado idempotente al inventario.
 
