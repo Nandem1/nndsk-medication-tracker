@@ -114,7 +114,7 @@ lint-android:
 	sh scripts/android-gradle.sh :app:lintDebug :app:lintRelease
 
 test-android-device:
-	sh scripts/android-gradle.sh :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=cl.nndsk.medication.core.LocalDatabaseTest,cl.nndsk.medication.core.ReminderTest,cl.nndsk.medication.core.SessionCleanupTest
+	sh scripts/android-gradle.sh :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=cl.nndsk.medication.core.LocalDatabaseTest,cl.nndsk.medication.core.ReminderTest,cl.nndsk.medication.core.SessionCleanupTest,cl.nndsk.medication.core.RepositorySyncTest,cl.nndsk.medication.core.SelectiveSyncTest,cl.nndsk.medication.core.TokenRefreshTest
 
 test-android-e2e:
 	sh scripts/android-e2e.sh

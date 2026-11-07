@@ -51,7 +51,7 @@ fun PatientApp(model: PatientViewModel, incoming: StateFlow<Uri?>) {
     var confirmClearLocal by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) { while (true) { now = Instant.now(); delay(30_000) } }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.run { model.repository.sync() } }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.resumed() }
     LaunchedEffect(state.session) {
         if (state.session == Session.SignedOut) { stack.clear(); stack.add(Tab("Hoy")) }
     }

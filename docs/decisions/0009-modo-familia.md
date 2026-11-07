@@ -56,4 +56,4 @@ Las apps exportan a un archivo temporal privado que comparten y eliminan despué
 
 La ejecución sigue P0 a P7, con pruebas en verde antes de cada cierre y de avanzar. El usuario autoriza commits, merge y push en main y la rama de trabajo, y migraciones y despliegues en staging con datos de prueba. Producción, tiendas y creación de credenciales quedan fuera.
 
-El escenario completo y las pruebas obligatorias están en [PLAN-FAMILIA.md](../../PLAN-FAMILIA.md). Esta decisión registra el diseño aprobado; no acredita su implementación ni verificación.
+El escenario completo y las pruebas obligatorias están en [PLAN-FAMILIA.md](../archive/plans/PLAN-FAMILIA.md). Esta decisión registra el diseño aprobado; no acredita su implementación ni verificación.

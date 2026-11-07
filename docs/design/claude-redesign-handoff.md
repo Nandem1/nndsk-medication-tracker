@@ -6,7 +6,7 @@ Esta guía prepara la entrega, pero F8 sigue parcial. Completar primero el borra
 
 ## Alcance y arquitectura
 
-Lee `PLAN.md`, `AGENTS.md`, [mapa general](../00-home.md) y el mapa local de cada app. Usa el [informe F8](../runbooks/f8-verification.md) como evidencia de lo verificado y sus bloqueos. No interpretes este encargo como autorización de despliegue o incorporación de F5b.
+Consulta el [estado actual](../../PLAN.md), `AGENTS.md`, [mapa general](../00-home.md) y el mapa local de cada app. Usa el [informe F8](../runbooks/f8-verification.md) como evidencia de lo verificado y sus bloqueos. No interpretes este encargo como autorización de despliegue o incorporación de F5b.
 
 `packages/design-tokens` está reservado para valores visuales compartidos. Actualmente no hay una canalización que haga consumir tokens a las tres apps. Define tokens semánticos y adaptadores para SwiftUI, Compose y CSS cuando se acuerde la dirección visual. Mantén la UI nativa y evita una capa compartida de renderizado. Documenta cuál archivo es la fuente de verdad y cómo se comprueba que los adaptadores coinciden.
 

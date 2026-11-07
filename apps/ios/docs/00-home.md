@@ -23,6 +23,16 @@ flowchart TB
 
 ## Declarar sin conexión
 
+`SyncEngine` conserva una cola serial para enviar declaraciones, refrescar, cargar historial y aplicar denegaciones. Las solicitudes de sincronización completa comparten sólo el último trabajo pendiente que aún no empezó. Un trabajo de historial, denegación o refresco selectivo separa esos grupos. Una solicitud durante un ciclo espera otro posterior, que vuelve a vaciar la cola. `AppModel` mantiene el indicador hasta que terminan los solicitantes y su publicación local.
+
+Tras enviar la cola, el refresco completo lee perfil, accesos y familias en paralelo. Luego lee los recursos independientes de cada paciente, con hasta cuatro pacientes simultáneos. Los cursores de cada lista siguen en serie. El resumen diario se pide sólo para pacientes ajenos. El motor reúne las respuestas antes de escribir y conserva la comparación de versiones de dosis. Familias viaja en el resultado del ciclo con secuencia y generación de sesión; no se vuelve a pedir por cada llamador ni se guarda en SQLite.
+
+Las mutaciones piden después un refresco selectivo en esa misma cola. Declarar renueva inventario y resumen ajeno de los pacientes enviados, además del inventario de sus cajas compartidas locales. Cambiar nombre renueva perfil, accesos y familias sin releer una agenda que no cambió. Cambiar membresía renueva el directorio, invalida revocados y carga los accesos nuevos o modificados. Movimientos y cambios de caja renuevan los inventarios involucrados.
+
+El motor conserva en memoria las lecturas que faltan tras un envío confirmado y sólo las retira al aplicar la respuesta. Al reiniciar, la sincronización completa recupera esa información. Un vaciado incierto no permite leer inventario: una respuesta perdida podría ocultar un consumo ya aplicado en el servidor. También se evita renovar el saldo de una caja con declaraciones pendientes locales. El saldo de la respuesta idempotente nunca reemplaza al inventario. Las lecturas diferidas por una nueva operación pendiente no se presentan como error del servidor. Cerrar sesión elimina esas necesidades de lectura; reautenticar la misma cuenta las conserva.
+
+Un 409 conserva la operación en conflicto y vuelve a leer la dosis por su día local, incluso fuera de la ventana habitual. Así la revisión muestra la versión y el evento vigentes. Esa lectura se reintenta si falla y se reconstruye desde los conflictos guardados al reiniciar. Las respuestas paralelas de autorización tienen prioridad sobre errores recuperables: se aplican las denegaciones conocidas y un 401 expira la sesión.
+
 ```mermaid
 sequenceDiagram
     participant P as Paciente

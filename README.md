@@ -19,6 +19,6 @@ Las pruebas móviles requieren Xcode o Android SDK. Las pruebas de integración 
 ## Documentación
 
 - [Arquitectura](docs/00-home.md)
-- [Plan y estado](PLAN.md)
+- [Estado y próximos pasos](PLAN.md)
 - [Seguridad y pendientes de F8](docs/runbooks/f8-verification.md)
 - [Guía de rediseño](docs/design/claude-redesign-handoff.md)

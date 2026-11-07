@@ -5,7 +5,13 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import cl.nndsk.medication.BuildConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -78,8 +84,11 @@ class SecretStore(context: Context, filename: String = "identity.enc") {
     }
 }
 
-class Identity(private val secrets: SecretStore) {
+class Identity(private val secrets: SecretStore, private val tokenExchange: (suspend (String) -> JsonObject)? = null) {
     private val lock = Mutex()
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var refreshing: Deferred<String>? = null
+    private var session = 0L
     var storageFailure = false
         private set
     private var credentials = try { secrets.read() } catch (_: Exception) { storageFailure = true; null }
@@ -107,7 +116,7 @@ class Identity(private val secrets: SecretStore) {
             data.getValue("refreshToken").jsonPrimitive.content, System.currentTimeMillis() + data.getValue("expiresIn").jsonPrimitive.long * 1000)
         require(credentials == null || credentials?.uid == value.uid) { "Cierra la sesión actual antes de cambiar de cuenta." }
         val persisted = value.copy(invitationToken = credentials?.invitationToken, invitationOperation = credentials?.invitationOperation, email = email.trim(), caregiverPreference = credentials?.caregiverPreference)
-        secrets.save(persisted); credentials = persisted; storageFailure = false
+        secrets.save(persisted); credentials = persisted; storageFailure = false; session++; refreshing = null
         value.uid
     }
     suspend fun resetPassword(email: String) {
@@ -119,14 +128,33 @@ class Identity(private val secrets: SecretStore) {
         val next = (credentials ?: throw ApiFailure(401)).copy(caregiverPreference = value)
         secrets.save(next); credentials = next
     }
-    suspend fun token(force: Boolean = false): String = lock.withLock {
-        val current = credentials ?: throw ApiFailure(401)
-        if (!force && current.expires > System.currentTimeMillis() + 60_000) return@withLock current.token
-        val data = post(endpoint("securetoken.googleapis.com", "v1/token"), FormBody.Builder().add("grant_type", "refresh_token").add("refresh_token", current.refresh).build())
-        val fresh = current.copy(token = data.getValue("id_token").jsonPrimitive.content, refresh = data.getValue("refresh_token").jsonPrimitive.content,
-            expires = System.currentTimeMillis() + data.getValue("expires_in").jsonPrimitive.long * 1000)
-        secrets.save(fresh); credentials = fresh
-        fresh.token
+    suspend fun token(rejectedToken: String? = null): String {
+        val task = lock.withLock {
+            val current = credentials ?: throw ApiFailure(401)
+            if (current.token != rejectedToken && current.expires > System.currentTimeMillis() + 60_000) return current.token
+            refreshing ?: run {
+                val generation = session
+                refreshScope.async(start = CoroutineStart.LAZY) {
+                    lock.withLock refresh@ {
+                        val latest = credentials ?: throw ApiFailure(401)
+                        if (session != generation) throw ApiFailure(401)
+                        if (latest.token != current.token && latest.expires > System.currentTimeMillis() + 60_000) return@refresh latest.token
+                        val data = tokenExchange?.invoke(latest.refresh) ?: post(endpoint("securetoken.googleapis.com", "v1/token"), FormBody.Builder().add("grant_type", "refresh_token").add("refresh_token", latest.refresh).build())
+                        val fresh = latest.copy(token = data.getValue("id_token").jsonPrimitive.content, refresh = data.getValue("refresh_token").jsonPrimitive.content,
+                            expires = System.currentTimeMillis() + data.getValue("expires_in").jsonPrimitive.long * 1000)
+                        secrets.save(fresh); credentials = fresh
+                        fresh.token
+                    }
+                }.also { refreshing = it; it.start() }
+            }
+        }
+        try { return task.await() }
+        finally {
+            withContext(NonCancellable) {
+                runCatching { task.await() }
+                lock.withLock { if (refreshing === task) refreshing = null }
+            }
+        }
     }
     suspend fun invitationOperation(token: String): String = lock.withLock {
         val current = credentials ?: throw ApiFailure(401)
@@ -144,6 +172,6 @@ class Identity(private val secrets: SecretStore) {
     }
     suspend fun clear() = lock.withLock {
         try { secrets.clear(); storageFailure = false }
-        finally { credentials = null }
+        finally { credentials = null; session++; refreshing = null }
     }
 }

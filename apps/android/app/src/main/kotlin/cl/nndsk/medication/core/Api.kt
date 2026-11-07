@@ -17,15 +17,17 @@ interface WireApi {
     @HTTP(method = "DELETE", hasBody = true) suspend fun deleteBody(@Url path: String, @Header("Authorization") token: String, @Body body: RequestBody): Response<ResponseBody>
 }
 
-class Api(private val identity: Identity) {
+class Api(private val identity: Identity, private val suppliedWire: WireApi? = null) {
     private val wire: WireApi by lazy {
-        validateConfiguration()
-        Retrofit.Builder().baseUrl(BuildConfigUrl()).client(httpClient).build().create(WireApi::class.java)
+        suppliedWire ?: run {
+            validateConfiguration()
+            Retrofit.Builder().baseUrl(BuildConfigUrl()).client(httpClient).build().create(WireApi::class.java)
+        }
     }
     private fun BuildConfigUrl() = cl.nndsk.medication.BuildConfig.API_BASE_URL.trimEnd('/') + "/"
     suspend fun request(path: String, body: String? = null, query: Map<String, String> = emptyMap(), delete: Boolean = false, put: Boolean = false): String {
-        suspend fun send(force: Boolean): Response<ResponseBody> {
-            val token = "Bearer ${identity.token(force)}"
+        suspend fun send(value: String): Response<ResponseBody> {
+            val token = "Bearer $value"
             return when {
                 delete && body != null -> wire.deleteBody(path, token, body.toRequestBody("application/json".toMediaType()))
                 delete -> wire.delete(path, token)
@@ -34,8 +36,9 @@ class Api(private val identity: Identity) {
                 else -> wire.get(path, token, query)
             }
         }
-        var result = send(false)
-        if (result.code() == 401) { result.errorBody()?.close(); result = send(true) }
+        val token = identity.token()
+        var result = send(token)
+        if (result.code() == 401) { result.errorBody()?.close(); result = send(identity.token(rejectedToken = token)) }
         if (!result.isSuccessful) { result.errorBody()?.close(); throw ApiFailure(result.code()) }
         return result.body()?.use { it.string() } ?: ""
     }

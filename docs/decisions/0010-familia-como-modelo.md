@@ -1,6 +1,6 @@
 # ADR 0010 — La familia como modelo
 
-**Estado:** aceptada por el usuario el 2026-11-05. Reabre D2, D4 y D7 de [ADR 0009](0009-modo-familia.md). Plan en [PLAN-FAMILIA-2.md](../../PLAN-FAMILIA-2.md).
+**Estado:** aceptada por el usuario el 2026-11-05. Reabre D2, D4 y D7 de [ADR 0009](0009-modo-familia.md). Plan en [PLAN-FAMILIA-2.md](../archive/plans/PLAN-FAMILIA-2.md).
 
 ## Contexto
 

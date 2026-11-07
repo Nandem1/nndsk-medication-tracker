@@ -13,6 +13,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cl.nndsk.medication.ui.PatientApp
+import cl.nndsk.medication.core.RefreshTriggers
 import cl.nndsk.medication.ui.theme.MedicationTrackerTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -22,14 +23,17 @@ class PatientViewModel(application: Application) : AndroidViewModel(application)
     val repository = app.repository
     val state = repository.state
     private val connectivity = application.getSystemService(ConnectivityManager::class.java)
+    private val refreshTriggers = RefreshTriggers(connectivity.activeNetwork)
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) { this@PatientViewModel.run { repository.sync() } }
+        override fun onAvailable(network: Network) { if (refreshTriggers.available(network)) this@PatientViewModel.run { repository.sync() } }
+        override fun onLost(network: Network) { refreshTriggers.lost(network) }
     }
     init {
         viewModelScope.launch { repository.restore() }
         connectivity.registerDefaultNetworkCallback(networkCallback)
     }
     override fun onCleared() { connectivity.unregisterNetworkCallback(networkCallback); super.onCleared() }
+    fun resumed() { if (refreshTriggers.resumed()) run { repository.sync() } }
     fun run(action: suspend () -> Unit) { viewModelScope.launch { action() } }
 }
 

@@ -58,7 +58,7 @@ Los detalles internos de cada app se documentan en su mapa local cuando se imple
 
 ## Contexto y evidencia
 
-- [PLAN.md](../PLAN.md) define fases y diseño previsto; no acredita implementación.
+- [PLAN.md](../PLAN.md) resume el estado y el trabajo siguiente. Los [planes históricos](archive/plans/README.md) conservan antecedentes y no son instrucciones de ejecución vigentes.
 - [Decisión de bootstrap](decisions/0001-bootstrap.md) explica la separación de paquetes y dependencias.
 - [Decisión de dominio F1](decisions/0002-f1-domain.md) explica las transacciones, cantidades y calendario de F1.
 - [Decisión HTTP e identidad F2](decisions/0003-f2-http-identity.md) explica permisos transaccionales, consentimiento y límites de la API.

@@ -4,8 +4,8 @@ Estas reglas aplican a todo modelo y persona que trabaje en este repositorio. La
 
 ## Antes de cambiar nada
 
-- Lee `PLAN.md` completo, el código afectado y el plan de la tarea. Hoy el trabajo activo está en [`PLAN-FAMILIA.md`](PLAN-FAMILIA.md).
-- Ejecuta sólo la fase solicitada, en el orden del plan. No adelantes fases ni añadas funciones no pedidas.
+- Lee `PLAN.md` para el estado y los pendientes actuales, el código afectado y el alcance de la tarea. Los planes en `docs/archive/plans/` son históricos: consúltalos sólo cuando hagan falta antecedentes, no como instrucciones de ejecución vigentes.
+- Ejecuta sólo el alcance solicitado. Para tareas con plan propio, sigue su orden. No reactives fases archivadas ni añadas funciones no pedidas.
 - Las decisiones registradas en un plan no se reabren. Si el código las contradice, sigue la intención, haz el cambio más pequeño y regístralo en el cierre.
 - Cuestiona con evidencia las decisiones heredadas. Propón alternativas que reduzcan deuda sin añadir abstracciones. Acuerda con el usuario las expansiones relevantes.
 
@@ -33,7 +33,7 @@ Estas reglas aplican a todo modelo y persona que trabaje en este repositorio. La
 
 ## Git, despliegue y acciones irreversibles
 
-- No hagas commit, push, despliegue ni migración destructiva sin autorización explícita del usuario. La autorización vale sólo para lo que cubre: un plan puede otorgarla por escrito, como `PLAN-FAMILIA.md`.
+- No hagas commit, push, despliegue ni migración destructiva sin autorización explícita del usuario. La autorización vale sólo para lo que cubre: un plan puede otorgarla por escrito, para esa entrega; archivar un plan no amplía esa autorización a trabajo nuevo.
 - **Nunca** `git push --force`, ni reescribir historia publicada, ni tocar **producción**, salvo pedido explícito para ese caso.
 - Prueba down/up de migraciones sólo en bases desechables. Local y staging contienen datos de prueba, pero producción no se toca.
 - Si te toca reemplazar un proceso que no iniciaste, identifícalo antes de terminarlo.

@@ -292,8 +292,11 @@ actor LocalStore {
     func profile() throws -> Me? {
         try metaValue("profile").map { try JSONDecoder().decode(Me.self, from: Data($0.utf8)) }
     }
-    func saveAccess(_ access: PatientAccess, report: DailyReport) throws {
-        try database.execute("INSERT INTO patients(id,access,report) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET access=excluded.access, report=excluded.report", [.text(access.patientID), .blob(try JSONEncoder().encode(access)), .blob(try JSONEncoder().encode(report))])
+    func saveAccess(_ access: PatientAccess, report: DailyReport?) throws {
+        try database.execute("INSERT INTO patients(id,access,report) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET access=excluded.access, report=excluded.report", [.text(access.patientID), .blob(try JSONEncoder().encode(access)), try report.map { .blob(try JSONEncoder().encode($0)) } ?? .null])
+    }
+    func saveAccessMetadata(_ access: PatientAccess) throws {
+        try database.execute("INSERT INTO patients(id,access) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET access=excluded.access", [.text(access.patientID), .blob(try JSONEncoder().encode(access))])
     }
     func accesses() throws -> [PatientAccess] {
         try database.query("SELECT access FROM patients ORDER BY id").compactMap { row in

@@ -59,6 +59,9 @@ final class AppModel {
     private(set) var pushDiagnostic = "Avisos remotos sin configurar."
     private var pendingCredentialsUID: String?
     private var sessionGeneration = 0
+    private var syncRequests = 0
+    private var familiesSequence: UInt64 = 0
+    private var outcomeSequence: UInt64 = 0
     private var retryTask: Task<Void, Never>?
     private var retryDelay: Duration = .seconds(15)
     private let pathMonitor = NWPathMonitor()
@@ -189,7 +192,11 @@ final class AppModel {
 
     private func completeSignIn() async {
         sessionGeneration += 1
-        await sync?.resume()
+        syncRequests = 0
+        familiesSequence = 0
+        outcomeSequence = 0
+        let ownerUID = await identity?.uid
+        await sync?.resume(ownerUID: ownerUID)
         await scheduler.resume()
         phase = .signedIn
         push?.signedIn()
@@ -207,11 +214,14 @@ final class AppModel {
         }
         phase = .signingOut
         sessionGeneration += 1
+        syncRequests = 0
+        familiesSequence = 0
+        outcomeSequence = 0
         snapshot = LocalSnapshot()
         patients = [:]; accesses = []; families = nil; allOperations = []; profile = nil; patientPath = []
         email = ""; caregiverPreference = nil
         retryTask?.cancel()
-        await sync?.stop()
+        await sync?.stop(discardRefreshes: true)
         let removedPush = if let uid = await identity.uid { await push?.signOut(owner: uid) ?? true } else { true }
         await scheduler.removeAll()
         var cleanupFailed = false
@@ -235,20 +245,27 @@ final class AppModel {
     func syncNow() async {
         guard phase == .signedIn, let sync else { return }
         let generation = sessionGeneration
+        syncRequests += 1
         isSyncing = true
-        let outcome = await sync.sync()
+        defer { finishSync(generation: generation) }
+        let result = await sync.syncWithFamilies()
         guard generation == sessionGeneration, phase == .signedIn else { return }
-        isSyncing = false
-        await handle(outcome)
+        applyFamilies(result)
+        await handle(result.outcome, sequence: result.sequence)
         await refreshLocal()
-        await refreshFamilies(generation: generation)
         await refreshPush()
     }
 
-    /// La familia exige red para cambiar, así que no se guarda en disco. Sin conexión se conserva lo ya leído.
-    private func refreshFamilies(generation: Int) async {
-        guard let api, let loaded = try? await api.families(), generation == sessionGeneration, phase == .signedIn else { return }
+    private func finishSync(generation: Int) {
+        guard generation == sessionGeneration else { return }
+        syncRequests -= 1
+        isSyncing = syncRequests > 0
+    }
+
+    private func applyFamilies(_ result: SyncRefresh) {
+        guard result.outcome != .sessionExpired, result.sequence >= familiesSequence, let loaded = result.families else { return }
         families = loaded
+        familiesSequence = result.sequence
     }
 
     private func refreshPush() async {
@@ -257,7 +274,11 @@ final class AppModel {
         pushDiagnostic = push.diagnostic
     }
 
-    private func handle(_ outcome: SyncOutcome) async {
+    private func handle(_ outcome: SyncOutcome, sequence: UInt64? = nil) async {
+        if let sequence {
+            guard sequence >= outcomeSequence else { return }
+            outcomeSequence = sequence
+        }
         retryTask?.cancel()
         switch outcome {
         case .synced:
@@ -349,13 +370,19 @@ final class AppModel {
     }
 
     private func drainAfterChange() async {
+        await refreshAfterChange { await $0.refreshDeclarations() }
+    }
+
+    private func refreshAfterChange(_ refresh: (SyncEngine) async -> SyncRefresh) async {
         guard phase == .signedIn, let sync else { return }
         let generation = sessionGeneration
+        syncRequests += 1
         isSyncing = true
-        let outcome = await sync.sync()
+        defer { finishSync(generation: generation) }
+        let result = await refresh(sync)
         guard generation == sessionGeneration, phase == .signedIn else { return }
-        isSyncing = false
-        await handle(outcome)
+        applyFamilies(result)
+        await handle(result.outcome, sequence: result.sequence)
         await refreshLocal()
     }
 
@@ -425,13 +452,13 @@ final class AppModel {
     func accept(invitation token: String, operationID: String) async throws {
         guard phase == .signedIn, let api else { throw APIError.unauthenticated }
         _ = try await request { try await api.acceptInvitation(token: FamilyText.token(token), operationID: operationID) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshMembership() }
     }
 
     func createFamily(name: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         _ = try await request { try await api.createFamily(name: name, operation: operation) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshMembership() }
     }
 
     func invite(family: String, role: FamilyRole, hint: String) async throws -> CreatedInvitation {
@@ -443,7 +470,7 @@ final class AppModel {
     func removeMember(family: String, user: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request { try await api.removeMember(family: family, user: user) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshMembership() }
     }
 
     func patientSnapshot(_ id: String) -> LocalSnapshot? { id == profile?.userID ? snapshot : patients[id] }
@@ -458,7 +485,7 @@ final class AppModel {
     func updateProfile(patient: String, name: String, version: Int, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request(patient: patient) { try await api.updateProfile(patient: patient == profile?.userID ? nil : patient, name: name, version: version, operation: operation) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshProfiles() }
     }
     func movements(patient: String, account: String) async throws -> [InventoryMovement] {
         guard let api else { throw APIError.unauthenticated }
@@ -467,7 +494,7 @@ final class AppModel {
     func inventoryMutation(patient: String, account: String, quantity: String, count: Bool, reason: String, expected: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request(patient: patient) { try await api.inventoryMutation(account: account, quantity: quantity, count: count, reason: reason, expected: expected, operation: operation) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshInventory(patient: patient) }
     }
     func exportAccount() async throws -> Data {
         guard let api else { throw APIError.unauthenticated }
@@ -488,12 +515,12 @@ final class AppModel {
     func sharePool(accounts: [String], counted account: String, quantity: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request { try await api.createPool(accounts: accounts, counted: account, quantity: quantity, operation: operation) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshInventory(accounts: accounts) }
     }
     func leavePool(id: String, account: String, operation: String) async throws {
         guard let api else { throw APIError.unauthenticated }
         try await request { try await api.leavePool(id: id, account: account, operation: operation) }
-        await syncNow()
+        await refreshAfterChange { await $0.refreshInventory(accounts: [account], pools: [id]) }
     }
     private func request<T>(patient: String? = nil, _ body: () async throws -> T) async throws -> T {
         guard phase == .signedIn else { throw APIError.unauthenticated }

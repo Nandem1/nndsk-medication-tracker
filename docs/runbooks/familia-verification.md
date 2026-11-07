@@ -278,3 +278,15 @@ Commit `7f4bb8a` integrado por fast-forward y subido a `main` y `feat/familia-v2
 Pendiente de este cierre: instalación iPhone, generación APK, pruebas físicas y limpieza final. Se avisó al usuario al llegar a ese punto. El usuario pidió aviso al llegar a instalación iPhone y generación APK. La familia iOS sólo en memoria, push real y validación funcional en teléfonos físicos siguen pendientes.
 
 Architecture Impact: familias y roles sustituyen invitaciones individuales; los vínculos se derivan transaccionalmente. El inventario compartido se activa con conteo físico. iOS incorpora navegación por enlace, QR y migración local v2 conservando la cola. Contratos, ADR 0010 y mapas actualizados. Validación local completa y despliegue de API/worker en staging confirmado; sin validación física ni producción.
+
+### Instalación física iOS, 2026-11-06
+
+`IOS_DEVICE=00008160-0016796C1EA0000A make run-ios-device` terminó con exit 0: build, instalación y apertura confirmados por CoreDevice. Se comprobó que `APIBaseURL` del bundle instalado coincide con la API de staging. Esto acredita instalación y lanzamiento, no el flujo funcional offline ni una aceptación del usuario. APK y limpieza final siguen pendientes.
+
+### Entrega Android, 2026-11-06
+
+APK Debug de staging compilado y copiado por ADB al Xiaomi 2107113SG en `/sdcard/Download/medication-tracker-staging.apk`. `BuildConfig` comprobado contra staging y Firebase real, sin emulador de autenticación, con applicationId `cl.nndsk.medication.debug`. SHA-256 local y remoto iguales. Una comprobación inicial esperaba erróneamente el applicationId sin sufijo; se contrastó con la configuración Debug y se corrigió la comprobación, sin cambiar la app. No se instaló: el usuario lo instala desde Descargas. Pruebas funcionales físicas y limpieza final siguen pendientes.
+
+### Cierre de la entrega y paso a detalles, 2026-11-06
+
+El usuario confirma haber probado ambas apps y pide cerrar esta entrega para concentrarse en los detalles encontrados. No enumeró los escenarios probados ni los defectos; no se amplía esa aceptación a toda la matriz física. Se archivan los planes y las listas históricas, conservando decisiones y evidencia. `PLAN.md` queda como único estado activo en la raíz. Persisten los pendientes técnicos y de limpieza allí indicados.

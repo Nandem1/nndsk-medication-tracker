@@ -1,6 +1,8 @@
+> Archivo histórico. Conserva decisiones, autorizaciones y evidencia de su etapa; sus instrucciones de ejecución y estados no son una cola vigente. Consulta el [estado actual](../../../PLAN.md) y las [reglas vigentes](../../../AGENTS.md).
+
 # PLAN-FAMILIA.md — Modo familia de punta a punta
 
-> **Estado al 2026-11-04:** P0 a P6 implementadas, verificadas en local y publicadas en `main`. P7 parcial: staging desplegado; aceptación en teléfonos pendiente. Evidencia en [familia-verification.md](docs/runbooks/familia-verification.md).
+> **Estado al 2026-11-04:** P0 a P6 implementadas, verificadas en local y publicadas en `main`. P7 parcial: staging desplegado; aceptación en teléfonos pendiente. Evidencia en [familia-verification.md](../../runbooks/familia-verification.md).
 > **Punto de partida:** `main` en `6219d33`, más este plan.
 > **Ejecutor previsto:** otro modelo, sin contexto de la conversación que originó este plan. Todo lo necesario está aquí, en `AGENTS.md` y en `PLAN.md`.
 > **Regla de lectura:** lee `AGENTS.md`, `PLAN.md` y este archivo completos antes de cambiar nada. Las decisiones de la sección 2 ya están tomadas por el usuario o delegadas por él: no las reabras. Si el código contradice una suposición de este plan, sigue la intención, resuelve con el cambio más pequeño y registra la diferencia en el informe de cierre.
@@ -25,7 +27,7 @@ La rama de trabajo es `feat/modo-familia`. `main` y `origin/main` quedaron en `2
 
 ### P4 cerrada
 
-El candidato de Codex se conservó. Faltaban ajustes de las pruebas, dos textos y un bug de `ConsentView`. La suite final, los comandos y los límites están en el [runbook](docs/runbooks/familia-verification.md). `.tmp/familia-p4` conserva una copia ya integrada; no volver a aplicarla.
+El candidato de Codex se conservó. Faltaban ajustes de las pruebas, dos textos y un bug de `ConsentView`. La suite final, los comandos y los límites están en el [runbook](../../runbooks/familia-verification.md). `.tmp/familia-p4` conserva una copia ya integrada; no volver a aplicarla.
 
 ### P5 cerrada
 

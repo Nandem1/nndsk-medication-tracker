@@ -1,3 +1,5 @@
+> Archivo histórico. Conserva decisiones, autorizaciones y evidencia de su etapa; sus instrucciones de ejecución y estados no son una cola vigente. Consulta el [estado actual](../../../PLAN.md) y las [reglas vigentes](../../../AGENTS.md).
+
 # F0
 
 - [x] Leer plan completo e inspeccionar entorno.
